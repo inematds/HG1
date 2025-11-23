@@ -1,3 +1,11 @@
+---
+id: brief
+title: Project Brief
+sidebar_label: Brief
+sidebar_position: 97
+unlisted: true
+---
+
 # Project Brief: Academia de Humanoides (HG1)
 
 ## Executive Summary

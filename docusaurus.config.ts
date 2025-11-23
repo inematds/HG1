@@ -63,23 +63,6 @@ const config: Config = {
           label: 'Tier 1: Fundamentos',
         },
         {
-          type: 'docSidebar',
-          sidebarId: 'tier2',
-          position: 'left',
-          label: 'Tier 2: Operação',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'tier3',
-          position: 'left',
-          label: 'Tier 3: Programação',
-        },
-        {
-          to: '/roadmap',
-          label: 'Roadmap',
-          position: 'left',
-        },
-        {
           href: 'https://github.com/nmaldaner/MindON',
           label: 'GitHub',
           position: 'right',
@@ -95,27 +78,6 @@ const config: Config = {
             {
               label: 'Tier 1: Fundamentos',
               to: '/docs/tier1/introducao',
-            },
-            {
-              label: 'Tier 2: Operação',
-              to: '/docs/tier2/interfaces',
-            },
-            {
-              label: 'Roadmap Completo',
-              to: '/roadmap',
-            },
-          ],
-        },
-        {
-          title: 'Recursos',
-          items: [
-            {
-              label: 'Glossário',
-              to: '/docs/glossary',
-            },
-            {
-              label: 'Recursos Externos',
-              to: '/docs/resources',
             },
           ],
         },
@@ -145,10 +107,6 @@ const config: Config = {
       additionalLanguages: ['python', 'cpp', 'bash'],
     },
   } satisfies Preset.ThemeConfig,
-
-  plugins: [
-    '@docusaurus/plugin-ideal-image',
-  ],
 };
 
 export default config;

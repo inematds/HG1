@@ -38,22 +38,25 @@ function TierOverview() {
       link: '/docs/tier1/introducao',
       modules: 10,
       icon: '🤖',
+      available: true,
     },
     {
       title: 'Tier 2: Operando Humanoides',
       description:
         'Aprenda a operar e controlar robôs humanoides com segurança, manutenção e simuladores.',
-      link: '/docs/tier2/interfaces',
+      link: '#',
       modules: 5,
       icon: '🎮',
+      available: false,
     },
     {
       title: 'Tier 3: Programando Humanoides',
       description:
         'Do básico ao avançado: Python, ROS2, visão computacional, navegação autônoma e Machine Learning.',
-      link: '/docs/tier3/roadmap',
+      link: '#',
       modules: 'Roadmap',
       icon: '💻',
+      available: false,
     },
   ];
 
@@ -78,9 +81,15 @@ function TierOverview() {
                         ? `${tier.modules} módulos`
                         : tier.modules}
                     </span>
-                    <Link to={tier.link} className="button button--primary button--sm">
-                      Explorar
-                    </Link>
+                    {tier.available ? (
+                      <Link to={tier.link} className="button button--primary button--sm">
+                        Explorar
+                      </Link>
+                    ) : (
+                      <button className="button button--secondary button--sm" disabled>
+                        Em Breve
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

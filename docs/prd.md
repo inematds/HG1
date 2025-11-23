@@ -1,3 +1,11 @@
+---
+id: prd
+title: Product Requirements Document (PRD)
+sidebar_label: PRD
+sidebar_position: 98
+unlisted: true
+---
+
 # Academia de Humanoides (HG1) - Product Requirements Document (PRD)
 
 ## Goals and Background Context

@@ -18,42 +18,12 @@ const sidebars: SidebarsConfig = {
       label: 'Tier 1: Conhecendo Humanoides',
       items: [
         'tier1/introducao',
-        'tier1/historia',
-        'tier1/modelos',
-        'tier1/sensores',
-        'tier1/atuadores',
-        'tier1/computacao',
-        'tier1/energia',
-        'tier1/software',
-        'tier1/aplicacoes',
-        'tier1/futuro',
+        // Additional modules will be added as content is created
       ],
     },
   ],
 
-  // Tier 2: Operando Humanoides (Operator)
-  tier2: [
-    {
-      type: 'category',
-      label: 'Tier 2: Operando Humanoides',
-      items: [
-        'tier2/interfaces',
-        'tier2/seguranca',
-        'tier2/calibracao',
-        'tier2/manutencao',
-        'tier2/simuladores',
-      ],
-    },
-  ],
-
-  // Tier 3: Programando Humanoides (Developer) - Roadmap only for MVP
-  tier3: [
-    {
-      type: 'doc',
-      id: 'tier3/roadmap',
-      label: 'Tier 3: Roadmap de Programação',
-    },
-  ],
+  // Tier 2 and Tier 3 sidebars will be added as content is created
 };
 
 export default sidebars;

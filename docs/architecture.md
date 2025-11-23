@@ -1,3 +1,11 @@
+---
+id: architecture
+title: Frontend Architecture Document
+sidebar_label: Architecture
+sidebar_position: 99
+unlisted: true
+---
+
 # Academia de Humanoides (HG1) - Frontend Architecture Document
 
 ## Change Log
@@ -5,8 +13,6 @@
 | Date | Version | Description | Author |
 |------|---------|-------------|--------|
 | 2025-11-22 | 1.0 | Initial frontend architecture for Docusaurus-based platform | Architect Winston |
-
----
 
 ## Template and Framework Selection
 
@@ -1144,7 +1150,7 @@ const config: Config = {
 10. **Styling**
     - Prefer Tailwind utilities over custom CSS when possible
     - Use CSS Modules for component-specific complex styles
-    - Never use inline styles (except dynamic values: `style={{ width: `${progress}%` }}`)
+    - Never use inline styles (except dynamic values like width percentages)
     - Follow dark mode: Use CSS variables, test in both themes
 
 11. **Imports**
