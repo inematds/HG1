@@ -1,0 +1,101 @@
+---
+sidebar_position: 3
+title: 3. App Móvel
+description: Controle via Unitree Go App
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📱 App Móvel Unitree Go
+
+:::tip Objetivo
+Operar o G1 via smartphone: interface gráfica, câmera live, controle de voz e navegação por waypoints.
+:::
+
+---
+
+## 📲 Instalação e Conexão
+
+### Download
+
+- **iOS**: App Store - "Unitree Go"
+- **Android**: Google Play - "Unitree Go"
+- **Versão mínima**: iOS 13+ / Android 8+
+
+### Primeira Conexão
+
+```
+1. G1 ligado (LED azul/verde)
+2. Smartphone conecta WiFi:
+   SSID: Unitree-G1-XXXX
+   Password: (fornecida com robô)
+3. Abrir app Unitree Go
+4. Auto-detect do G1
+5. ✅ Conectado!
+```
+
+---
+
+## 🎮 Interface Principal
+
+### Dashboard
+
+```
+┌─────────────────────────────────┐
+│ 🔋 85%  📡 WiFi  🌡️ 42°C        │ ← Status bar
+├─────────────────────────────────┤
+│                                 │
+│     [LIVE CAMERA FEED]          │ ← Câmera frontal
+│                                 │
+├─────────────────────────────────┤
+│  [Stop]  [Sit]  [Stand]  [📷]  │ ← Quick actions
+├─────────────────────────────────┤
+│   Virtual Joystick              │
+│        ( ↑ )                    │
+│      ← (●) →                    │
+│        ( ↓ )                    │
+└─────────────────────────────────┘
+```
+
+### Tabs
+
+1. **Control**: Joystick virtual
+2. **Camera**: Multi-view (3 câmeras)
+3. **Map**: Waypoint navigation
+4. **Status**: Telemetria detalhada
+5. **Settings**: Configurações
+
+---
+
+## 📹 Câmera Live
+
+- Stream 1080p @ 15fps
+- Latência: 150-300ms
+- Zoom digital 2x
+- Snapshot button (salva foto)
+- Record button (grava vídeo local)
+
+---
+
+## 🗺️ Waypoint Navigation
+
+```python
+# Modo Map:
+1. Tap no mapa → Define waypoint
+2. "Go" → G1 navega automaticamente
+3. Evita obstáculos (LIDAR)
+4. Chega no ponto
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🚶 Caminhada e Navegação →](./caminhada-navegacao)**
+:::
+
+---
+
+**⏱️ Tempo:** 30 min | **📱 Hands-on:** Smartphone necessário

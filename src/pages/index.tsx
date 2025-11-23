@@ -83,7 +83,7 @@ export default function Home(): JSX.Element {
     2.1: {
       title: 'Tier 2.1: Operando Unitree G1',
       color: '#8B5CF6',
-      link: '#',
+      link: '/docs/tier2.1/startup-primeiros-passos',
       slogan: '"Domine o G1 na prática"',
       benefits: [
         'Startup e primeiros passos',

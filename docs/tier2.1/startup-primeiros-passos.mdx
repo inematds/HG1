@@ -1,0 +1,569 @@
+---
+sidebar_position: 1
+title: 1. Startup e Primeiros Passos
+description: Ligar, calibrar e primeiros movimentos do G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🚀 Startup e Primeiros Passos
+
+:::tip Objetivo
+Aprender o procedimento correto de startup do Unitree G1, desde inserir a bateria até os primeiros movimentos seguros.
+:::
+
+---
+
+## 📋 Checklist Pré-Startup
+
+### Antes de Ligar o G1
+
+```
+VERIFICAÇÕES OBRIGATÓRIAS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Bateria carregada (&gt;50%)
+✅ Espaço livre 3x3m (mínimo)
+✅ Chão plano e nivelado
+✅ Sem obstáculos ao redor
+✅ Controle RC com baterias novas
+✅ Supervisão (2 pessoas recomendado 1ª vez)
+✅ Leu o manual de segurança
+✅ Emergency stop testado
+```
+
+**Ambiente Ideal:**
+- 🏢 Indoor com piso liso (concreto, cerâmica, madeira)
+- 🌡️ Temperatura: 15-30°C
+- 💧 Umidade: 30-70%
+- ☀️ Iluminação adequada (para câmeras)
+- 📶 Sem interferência WiFi forte (roteadores muito próximos)
+
+---
+
+## 🔋 Procedimento de Startup (Passo a Passo)
+
+### Etapa 1: Inserir Bateria
+
+<Tabs>
+<TabItem value="procedure" label="Procedimento">
+
+**Passos Detalhados:**
+
+```
+1. POSICIONAR O G1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   • Robô sentado no chão
+   • Costas viradas para você
+   • Acesso ao compartimento de bateria
+
+2. ABRIR COMPARTIMENTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   • Localizar tampa (quadril traseiro)
+   • Pressionar clipes laterais (ambos lados)
+   • Puxar tampa para cima
+   • Guardar tampa em local seguro
+
+3. PREPARAR BATERIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   • Verificar LEDs da bateria
+   • Deve mostrar &gt;50% carga (2+ LEDs verdes)
+   • Limpar conectores (pano seco)
+   • Verificar pinos (sem danos)
+
+4. INSERIR BATERIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   • Alinhar bateria com slot
+   • Conectores virados para dentro
+   • Push suavemente até sentir resistência
+   • Push firme até ouvir "CLICK"
+   • Verificar: Bateria travada (não sai)
+
+5. CONFIRMAR INSERÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   • LED na bateria acende (verde sólido)
+   • Tentar puxar bateria (deve estar travada)
+   • Se soltar facilmente, reinserir
+```
+
+</TabItem>
+
+<TabItem value="troubleshooting" label="Troubleshooting">
+
+**Problemas Comuns:**
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| LED não acende | Bateria descarregada | Carregar bateria |
+| Não entra no slot | Orientação errada | Girar 180° |
+| Click mas não trava | Clipes danificados | Não usar, contatar suporte |
+| LED vermelho piscando | Erro BMS | Resetar BMS (botão 10s) |
+
+**Reset BMS:**
+```bash
+# Se bateria com LED vermelho piscando:
+1. Remover bateria do G1
+2. Pressionar botão na bateria por 10 segundos
+3. Aguardar 30 segundos
+4. Reinserir no G1
+```
+
+</TabItem>
+
+<TabItem value="safety" label="Segurança">
+
+**⚠️ AVISOS IMPORTANTES:**
+
+```
+NUNCA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ Forçar bateria no slot
+❌ Usar bateria inchada/danificada
+❌ Inserir com G1 ligado
+❌ Tocar conectores com metal
+❌ Inserir bateria molhada
+
+SEMPRE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Verificar orientação antes
+✅ Push firme mas controlado
+✅ Confirmar travamento
+✅ Limpar conectores se houver poeira
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Etapa 2: Power ON
+
+**Localização do Botão Power:**
+- 📍 Lado direito do torso
+- 🔘 Botão redondo com LED
+- 🎨 Cor: Preto com anel iluminado
+
+**Sequência de Boot:**
+
+```
+Tempo  | Ação                    | LED        | Som
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0s     | Pressionar botão (2s)   | Apagado    | -
+2s     | Soltar botão            | Vermelho   | Beep curto
+5s     | Ubuntu booting          | Amarelo    | -
+10s    | ROS2 starting           | Amarelo    | -
+15s    | Motor controllers init  | Azul       | -
+18s    | Sensor calibration      | Azul       | Beeps rápidos
+20s    | WiFi AP starting        | Azul       | -
+25s    | ✅ READY                | Azul fixo  | Beep longo
+       | Modo: DAMPING           |            |
+```
+
+**Interpretação dos LEDs:**
+
+| LED | Estado | Significado | Ação |
+|-----|--------|-------------|------|
+| 🔴 Vermelho | Booting | Sistema iniciando | Aguardar |
+| 🟡 Amarelo | Loading | OS carregando | Aguardar |
+| 🔵 Azul | Damping | Pronto, modo seguro | ✅ OK |
+| 🟢 Verde | Preparation | Em pé | Operação |
+| 🔴 Rápido | Erro | Emergency stop | Verificar |
+
+---
+
+### Etapa 3: Primeira Calibração
+
+**Calibração IMU (Automática):**
+
+Durante o boot (18-20s), o G1 calibra automaticamente:
+
+1. **IMU Zero-Point**
+   - Define "nível" do chão
+   - Define orientação "vertical"
+   - Essencial para balanço
+
+2. **Motor Encoders**
+   - Zera contadores de posição
+   - Verifica range of motion
+   - Detecta obstruções
+
+3. **Force Sensors**
+   - Estabelece baseline (zero-force)
+   - Calibra sensibilidade
+   - Testa resposta
+
+**⚠️ Durante Calibração (18-20s):**
+```
+NÃO FAZER:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ Mover o robô
+❌ Tocar em juntas
+❌ Mudar inclinação do chão
+❌ Desligar
+
+FAZER:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Deixar completamente parado
+✅ Aguardar beeps de confirmação
+✅ Observar LED (deve ficar azul fixo)
+```
+
+---
+
+## 🎮 Conectar Controle RC
+
+### Pareamento Inicial
+
+**Se controle RC já pareado (padrão de fábrica):**
+- ✅ Apenas ligar controle (switch ON)
+- ✅ G1 conecta automaticamente em ~5s
+- ✅ LED controle: Verde sólido = Conectado
+
+**Se precisa parear novamente:**
+
+```
+Modo Pairing:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. G1 ligado (LED azul)
+
+2. Controle RC:
+   • Segurar L1 + R1 + START por 5s
+   • LED pisca azul rapidamente
+
+3. G1 entra em pairing mode:
+   • Beep repetido
+   • LED pisca azul
+
+4. Aguardar conexão (até 30s):
+   • Beep longo = Sucesso
+   • LED verde no controle
+   • LED azul fixo no G1
+
+5. Testar:
+   • Pressionar L2+R2 (emergency stop)
+   • G1 deve beepar e LED ficar vermelho
+   • Soltar L2+R2, LED volta azul
+   • ✅ Controle funcionando
+```
+
+---
+
+## 🤖 Primeiro Stand-Up
+
+### Preparação
+
+**Checklist Pré-Stand-Up:**
+```
+AMBIENTE:
+✅ Chão plano (inclinação &lt;3°)
+✅ Área livre 3m raio
+✅ Sem pessoas/pets a 2m+
+✅ Iluminação adequada
+✅ Temperatura OK (15-30°C)
+
+ROBÔ:
+✅ LED azul sólido (Damping mode)
+✅ Controle RC conectado (LED verde)
+✅ Bateria &gt;50%
+✅ Sem erros (sem beeps anormais)
+
+VOCÊ:
+✅ Leu procedimento completo
+✅ Sabe onde está emergency stop (L2+R2)
+✅ Posicionado a 2m do robô
+✅ Câmera/celular pronto (gravar 1ª vez)
+```
+
+---
+
+### Procedimento Stand-Up
+
+<Tabs>
+<TabItem value="manual" label="Comando Manual (RC)">
+
+**Usando Controle RC:**
+
+```
+Passo 1: PREPARAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• G1 sentado, modo Damping (LED azul)
+• Controle em mãos
+• Dedos próximos a L2+R2 (e-stop)
+
+Passo 2: COMANDO STAND-UP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Pressionar L1 + UP simultaneamente
+• Segurar por 1 segundo
+• Soltar
+
+Passo 3: OBSERVAR SEQUÊNCIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+t=0s:   G1 começa movimento
+        • Pernas estendem lentamente
+        • Motores fazem leve ruído
+
+t=1.5s: Apoio nas mãos
+        • Mãos tocam chão
+        • Peso transfere para 4 pontos
+
+t=3s:   Levantando
+        • Pernas estendem mais
+        • Torso sobe
+
+t=4.5s: Quase vertical
+        • Últimos ajustes
+        • Braços ainda no chão
+
+t=5s:   ✅ EM PÉ
+        • LED muda: Azul → Verde
+        • Modo: Preparation
+        • Beep de confirmação
+
+Passo 4: VERIFICAR ESTABILIDADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Aguardar 2-3 segundos
+• Observar oscilação
+• Se muito instável: L2+R2 (e-stop)
+• Se estável: ✅ Sucesso!
+```
+
+**Frames da Animação:**
+```
+Frame 1 (0s):     Frame 2 (1.5s):   Frame 3 (3s):
+  _O_               _O_                _O_
+ / | \             /|||\ ← Mãos      / | \
+ ‾ ‾ ‾             / | \             /   \
+Sentado           Apoiando          Subindo
+
+Frame 4 (4.5s):   Frame 5 (5s):
+   _O_               O
+  / | \             /|\     ← EM PÉ!
+  /   \             / \
+Quase lá          ✅ Pronto
+```
+
+</TabItem>
+
+<TabItem value="auto" label="Via API (Python)">
+
+**Script Python para Stand-Up:**
+
+```python
+#!/usr/bin/env python3
+from unitree_sdk import Robot
+import time
+
+def primeiro_standup():
+    """
+    Primeiro stand-up do G1 com verificações de segurança
+    """
+
+    # Conectar ao G1
+    print("🤖 Conectando ao G1...")
+    robot = Robot(ip='192.168.123.1')
+
+    # Verificações pré-flight
+    print("\n📋 Verificações de segurança...")
+
+    # 1. Modo atual
+    mode = robot.get_mode()
+    if mode != 0:  # 0 = Damping
+        print(f"❌ G1 não está em Damping mode (modo atual: {mode})")
+        print("   Reinicie o G1 antes de tentar stand-up")
+        return False
+    print("✅ Modo: Damping")
+
+    # 2. Bateria
+    battery = robot.get_battery_status()
+    if battery.soc < 50:
+        print(f"❌ Bateria muito baixa: {battery.soc}%")
+        print("   Carregar até pelo menos 50%")
+        return False
+    print(f"✅ Bateria: {battery.soc}%")
+
+    # 3. IMU (verificar chão plano)
+    imu = robot.get_imu()
+    tilt = abs(imu.pitch) + abs(imu.roll)
+    if tilt > 5:  # Mais de 5° total
+        print(f"❌ Chão muito inclinado: {tilt:.1f}°")
+        print("   Encontrar superfície mais plana")
+        return False
+    print(f"✅ Inclinação do chão: {tilt:.1f}°")
+
+    # 4. Temperatura motores
+    temps = robot.get_motor_temperatures()
+    max_temp = max(temps.values())
+    if max_temp > 60:
+        print(f"❌ Motores muito quentes: {max_temp}°C")
+        print("   Aguardar resfriamento")
+        return False
+    print(f"✅ Temperatura motores: {max_temp}°C")
+
+    # Tudo OK, prosseguir
+    print("\n✅ Todas verificações OK!")
+
+    # Confirmação do usuário
+    resposta = input("\n🚀 Iniciar stand-up? (s/n): ")
+    if resposta.lower() != 's':
+        print("Operação cancelada pelo usuário")
+        return False
+
+    # Countdown
+    print("\nIniciando em:")
+    for i in range(3, 0, -1):
+        print(f"  {i}...")
+        time.sleep(1)
+
+    print("🚀 GO!")
+
+    try:
+        # Executar stand-up
+        robot.stand_up()
+
+        # Aguardar transição
+        print("\n⏳ Aguardando stand-up completar...")
+        timeout = 10  # 10 segundos max
+        start_time = time.time()
+
+        while robot.get_mode() != 1:  # 1 = Preparation
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                print(f"\n❌ Timeout após {timeout}s")
+                print("   G1 não completou stand-up")
+                robot.emergency_stop()
+                return False
+
+            # Feedback visual
+            print(f"\r  Tempo: {elapsed:.1f}s | Modo: {robot.get_mode()}", end='')
+            time.sleep(0.1)
+
+        print("\n\n✅ SUCESSO! G1 está em pé!")
+        print(f"   Modo atual: {robot.get_mode()} (Preparation)")
+
+        # Aguardar estabilização
+        print("\n⏳ Aguardando estabilização (3s)...")
+        time.sleep(3)
+
+        # Verificar estabilidade
+        imu = robot.get_imu()
+        oscilacao = abs(imu.pitch) + abs(imu.roll)
+
+        if oscilacao > 10:
+            print(f"\n⚠️ INSTÁVEL! Oscilação: {oscilacao:.1f}°")
+            print("   Executando sit-down de emergência...")
+            robot.sit_down()
+            return False
+
+        print(f"✅ Estável! Oscilação: {oscilacao:.1f}°")
+
+        # Status final
+        print("\n" + "="*50)
+        print("📊 STATUS FINAL:")
+        print("="*50)
+        print(f"Modo:        {robot.get_mode()} (Preparation)")
+        print(f"Bateria:     {robot.get_battery_soc()}%")
+        print(f"Equilíbrio:  {oscilacao:.1f}° (OK se <10°)")
+        print(f"Temperatura: {max(robot.get_motor_temperatures().values())}°C")
+        print("="*50)
+
+        # Próximos passos
+        print("\n🎉 Primeiro stand-up completo!")
+        print("\n📚 Próximos passos:")
+        print("   1. Deixar G1 em pé por 30s (observar)")
+        print("   2. Testar sit-down: robot.sit_down()")
+        print("   3. Repetir stand-up 2-3 vezes")
+        print("   4. Avançar para caminhada básica")
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ ERRO durante stand-up: {e}")
+        print("   Executando emergency stop...")
+        robot.emergency_stop()
+        return False
+
+# Executar
+if __name__ == '__main__':
+    primeiro_standup()
+```
+
+**Salvar como:** `primeiro_standup.py`
+
+**Executar:**
+```bash
+python3 primeiro_standup.py
+```
+
+</TabItem>
+
+<TabItem value="troubleshoot" label="Troubleshooting">
+
+**Problemas Durante Stand-Up:**
+
+| Sintoma | Causa Provável | Solução |
+|---------|----------------|---------|
+| Não inicia movimento | Controle não conectado | Verificar LED controle (deve estar verde) |
+| Para no meio | Bateria fraca | Carregar bateria |
+| Cai para trás | Chão escorregadio | Usar tapete antiderrapante |
+| Tremendo muito | Chão irregular | Mudar para superfície plana |
+| Beep de erro | Motor travado | Verificar juntas (damping mode) |
+| Timeout (não completa) | Erro software | Reiniciar G1 |
+
+**Se G1 Cai:**
+```
+IMEDIATAMENTE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. L2+R2 (emergency stop)
+2. Verificar danos visuais
+3. Não tentar levantar novamente ainda
+
+INSPEÇÃO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Painéis externos (rachaduras?)
+• Juntas (range of motion OK?)
+• LIDAR (lente intacta?)
+• Câmeras (funcionando?)
+
+SE TUDO OK:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Reposicionar G1 sentado
+• Reiniciar (power off → on)
+• Tentar stand-up novamente
+• Se cair 2x: PARAR, contatar suporte
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## ✅ Checklist de Conclusão
+
+Após completar este módulo, você deve ter:
+
+- [ ] Inserido bateria corretamente (click audível)
+- [ ] Ligado G1 com sucesso (LED azul após 25s)
+- [ ] Conectado controle RC (LED verde)
+- [ ] Executado primeiro stand-up (LED verde, modo Preparation)
+- [ ] Verificado estabilidade (oscilação &lt;10°)
+- [ ] G1 em pé por 30s+ sem quedas
+- [ ] Testado sit-down (L1+DOWN)
+- [ ] Repetido stand-up 2-3 vezes
+
+**Status:** ✅ Pronto para próximo módulo (Controle Remoto)
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🎮 Controle Remoto →](./controle-remoto)**
+
+Dominar todos comandos do RC: caminhar, girar, manipular braços e poses pré-programadas.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 45-60 minutos
+**🎮 Hands-on:** Essencial ter G1 físico
+**📊 Nível:** Iniciante (pré-requisito: Tier 1.1)

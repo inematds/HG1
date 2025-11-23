@@ -1,0 +1,464 @@
+---
+sidebar_position: 2
+title: 2. Controle Remoto
+description: Dominar comandos RC do Unitree G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🎮 Controle Remoto
+
+:::tip Objetivo
+Dominar todos os comandos do controle RC para operar o G1: movimento, poses, emergências e configurações.
+:::
+
+---
+
+## 🎯 Layout do Controle
+
+```
+┌────────────────────────────────────────┐
+│  [L2]                      [R2]        │ ← Triggers
+│                                        │
+│  [Joystick L]          [Joystick R]   │
+│   (Move)               (Câmera/Torso) │
+│     ↕️ Frente/Trás        ↕️ Tilt     │
+│     ↔️ Esquerda/Dir       ↔️ Pan      │
+│                                        │
+│  [L1]  [SELECT] [START]  [R1]         │
+│                                        │
+│  [D-Pad]                   [A][B]     │
+│   ↑ ↓ ← →                  [X][Y]     │
+└────────────────────────────────────────┘
+```
+
+---
+
+## 🚶 Comandos de Locomoção
+
+### Stand-Up / Sit-Down
+
+<Tabs>
+<TabItem value="standup" label="Levantar">
+
+**Comando:** `L1 + UP`
+
+```
+Sequência:
+1. Pressionar L1
+2. Manter pressionado
+3. Pressionar UP (D-Pad)
+4. Segurar ambos 1 segundo
+5. Soltar
+
+Resultado:
+• G1 levanta (5 segundos)
+• LED: Azul → Verde
+• Modo: Damping → Preparation
+```
+
+**Pré-requisitos:**
+- ✅ G1 sentado
+- ✅ Modo Damping (LED azul)
+- ✅ Bateria &gt;20%
+- ✅ Chão plano
+
+</TabItem>
+
+<TabItem value="sitdown" label="Sentar">
+
+**Comando:** `L1 + DOWN`
+
+```
+Sequência:
+1. L1 + DOWN (segurar 1s)
+2. G1 senta controladamente
+3. LED: Verde → Azul
+4. Modo: Preparation → Damping
+```
+
+**Quando usar:**
+- 🔋 Bateria baixa (&lt;15%)
+- ⏸️ Pausar operação
+- 🛡️ Armazenamento
+- 🔧 Manutenção
+
+</TabItem>
+</Tabs>
+
+---
+
+### Caminhar
+
+**Joystick Esquerdo (Movement):**
+
+```
+        ↑ Frente
+        │
+   ← ───┼─── → Girar
+        │
+        ↓ Trás
+
+Magnitude = Velocidade
+(quanto mais longe do centro, mais rápido)
+```
+
+**Exemplos Práticos:**
+
+<Tabs>
+<TabItem value="forward" label="Frente">
+
+```python
+# Joystick L empurrado para cima
+
+Magnitude  Velocidade  Uso
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25%        0.3 m/s     Muito lento
+50%        0.7 m/s     Lento
+75%        1.2 m/s     Normal
+100%       1.8 m/s     Rápido
+```
+
+**Dica:** Começar com 25-50% até pegar prática
+
+</TabItem>
+
+<TabItem value="turn" label="Girar">
+
+```python
+# Joystick L empurrado para esquerda/direita
+
+Direção    Ação
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+←          Gira no próprio eixo (esquerda)
+→          Gira no próprio eixo (direita)
+
+Combinar com frente/trás:
+↖️         Anda em curva esquerda
+↗️         Anda em curva direita
+```
+
+**Raio de Giro:**
+- Mínimo: 0.5m (giro no lugar)
+- Máximo: 5m (curva suave)
+
+</TabItem>
+
+<TabItem value="backward" label="Trás">
+
+```python
+# Joystick L empurrado para baixo
+
+⚠️ CUIDADO:
+• Andar de ré é mais instável
+• Velocidade max: 0.5 m/s (25%)
+• Não usar em terreno irregular
+• Verificar atrás com câmera primeiro
+```
+
+**Quando usar:**
+- Pequenos ajustes de posição
+- Sair de cantos
+- Manobras curtas (&lt;1m)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 👋 Poses Pré-Programadas
+
+### Comandos de Pose
+
+| Comando | Pose | Uso |
+|---------|------|-----|
+| `L1 + A` | Wave (Acenar) | Saudação, demonstração |
+| `L1 + B` | Arms Up | Alcançar alto, sinalizar |
+| `L1 + X` | Point Front | Indicar direção |
+| `L1 + Y` | Relax Pose | Posição neutra |
+| `R1 + A` | Handshake | Cumprimentar |
+| `R1 + B` | Dance 1 | Demonstração |
+
+**Exemplo - Wave:**
+```
+1. G1 em pé (Preparation mode)
+2. Pressionar L1 + A
+3. Braço direito levanta
+4. Mão acena 3x
+5. Braço volta posição relaxada
+Duração: ~4 segundos
+```
+
+---
+
+## 🦾 Controle de Braços
+
+### Joystick Direito (Arm Control)
+
+<Tabs>
+<TabItem value="manual" label="Controle Manual">
+
+**Modo Arm Control:**
+
+```
+Ativar: Segurar R1
+
+Enquanto R1 pressionado:
+• Joystick R ↑↓ = Braço direito up/down
+• Joystick R ←→ = Braço direito left/right
+• L2 = Fechar garra direita
+• R2 = Abrir garra direita
+```
+
+**Exemplo - Pegar Objeto:**
+```python
+1. Posicionar G1 próximo objeto
+2. Segurar R1
+3. Joystick R: Posicionar braço sobre objeto
+4. L2: Fechar garra (segurar 1s)
+5. Joystick R ↑: Levantar objeto
+6. Soltar R1
+```
+
+</TabItem>
+
+<TabItem value="precision" label="Modo Precisão">
+
+**Para movimentos precisos:**
+
+```
+START + R1 = Precision Mode
+
+Neste modo:
+• Movimentos 50% mais lentos
+• Melhor para:
+  - Pegar objetos pequenos
+  - Manipulação delicada
+  - Tarefas de encaixe
+
+Desativar: START novamente
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚨 Emergency Stop
+
+### L2 + R2 (Simultâneo)
+
+```
+QUANDO USAR:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ G1 perdendo equilíbrio
+⚠️ Obstáculo inesperado
+⚠️ Pessoa próxima demais
+⚠️ Qualquer situação insegura
+
+EFEITO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Para todos movimentos IMEDIATAMENTE
+• Tenta sit-down controlado
+• Se não conseguir: Damping mode (desliga torque)
+• LED: Vermelho piscando
+• Beep contínuo
+
+RECOVERY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Soltar L2+R2
+2. Verificar G1 (sem danos?)
+3. Press START para clear error
+4. L1+UP para levantar novamente
+```
+
+---
+
+## ⚙️ Configurações Avançadas
+
+### Menu de Configuração
+
+**Acesso:** `SELECT + START` (3 segundos)
+
+```
+Display LED mostra:
+┌─────────────────────┐
+│ CONFIG MENU         │
+├─────────────────────┤
+│ 1. Max Speed        │
+│ 2. Sensitivity      │
+│ 3. Gait Mode        │
+│ 4. RC Calibration   │
+│ 5. Exit             │
+└─────────────────────┘
+
+Navegar: D-Pad ↑↓
+Selecionar: A
+Voltar: B
+```
+
+<Tabs>
+<TabItem value="speed" label="Max Speed">
+
+**Limitar Velocidade Máxima:**
+
+```
+Opções:
+1. 25% (0.5 m/s) - Iniciante
+2. 50% (1.0 m/s) - Intermediário
+3. 75% (1.5 m/s) - Avançado
+4. 100% (2.0 m/s) - Expert
+
+Padrão: 75%
+
+Quando usar 25%:
+• Primeira vez operando
+• Espaços confinados
+• Demonstrações
+• Treinar outras pessoas
+```
+
+</TabItem>
+
+<TabItem value="sensitivity" label="Sensitivity">
+
+**Sensibilidade do Joystick:**
+
+```
+Low:    Menos sensível (mais estável)
+Medium: Padrão
+High:   Mais responsivo (experts)
+
+Recomendação:
+• Iniciantes: Low
+• Dia-a-dia: Medium
+• Demos rápidas: High
+```
+
+</TabItem>
+
+<TabItem value="gait" label="Gait Mode">
+
+**Modo de Caminhada:**
+
+```
+Trot:  Mais estável, mais lento
+       • Terreno irregular
+       • Primeira vez
+
+Walk:  Balanço natural, rápido
+       • Terreno plano (padrão)
+       • Eficiente energeticamente
+
+Run:   Corrida (apenas 100% speed)
+       • Apenas outdoor
+       • Terreno muito plano
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Feedback Visual/Sonoro
+
+### LEDs do Controle
+
+| LED | Significado |
+|-----|-------------|
+| 🟢 Verde sólido | Conectado OK |
+| 🔵 Azul piscando | Pareando |
+| 🔴 Vermelho | Bateria baixa |
+| ⚪ Apagado | Desligado |
+
+### Beeps do G1
+
+| Beep | Significado |
+|------|-------------|
+| 1x curto | Comando aceito |
+| 2x rápido | Modo mudou |
+| 3x longo | Erro |
+| Contínuo | Emergency stop |
+
+---
+
+## 🎯 Exercícios Práticos
+
+### Exercício 1: Figura 8
+
+```
+Objetivo: Caminhar em "8" usando apenas joystick
+
+1. Stand-up
+2. Joystick L: ↖️ (frente+esquerda) por 3s
+3. Joystick L: ↗️ (frente+direita) por 6s
+4. Joystick L: ↖️ (frente+esquerda) por 6s
+5. Joystick L: ↗️ (frente+direita) por 3s
+6. Centro: Para
+
+Meta: Completar sem usar emergency stop
+```
+
+### Exercício 2: Pegar e Colocar
+
+```
+Setup: Copo plástico em mesa (altura 70cm)
+
+1. Posicionar G1 frente mesa (30cm)
+2. R1 + Joystick R: Posicionar mão sobre copo
+3. L2: Fechar garra
+4. Joystick R ↑: Levantar
+5. Joystick L: Girar 180°
+6. R2: Soltar copo
+7. Joystick L: Retornar posição inicial
+
+Meta: Sem derrubar copo
+```
+
+### Exercício 3: Obstáculos
+
+```
+Setup: 3 cones em linha (1m distância)
+
+1. Stand-up
+2. Joystick L: Andar para cone 1
+3. Joystick L ←: Desviar esquerda
+4. Joystick L: Andar para cone 2
+5. Joystick L →: Desviar direita
+6. Repetir para cone 3
+
+Meta: Não tocar em nenhum cone
+Tempo: &lt;2 minutos
+```
+
+---
+
+## ✅ Checklist de Maestria
+
+Você dominou o controle RC quando conseguir:
+
+- [ ] Stand-up/sit-down consistente (5/5 vezes)
+- [ ] Caminhar em linha reta 5m sem desvios
+- [ ] Figura-8 completa sem parar
+- [ ] Girar 360° no próprio eixo (smooth)
+- [ ] Pegar objeto com garra (3/5 vezes)
+- [ ] Emergency stop &lt;0.5s (reflexo)
+- [ ] Configurar max speed apropriado
+- [ ] Alternar gaits conforme terreno
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[📱 App Móvel →](./app-movel)**
+
+Controle via smartphone: interface gráfica, câmera live, waypoint navigation.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 60-90 minutos
+**🎮 Hands-on:** Essencial - praticar 2-3 horas
+**📊 Nível:** Iniciante-Intermediário

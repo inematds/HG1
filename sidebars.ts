@@ -51,11 +51,11 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Tier 2: Operando Humanoides (Operation)
+  // Tier 2.0: Operando Humanoides (Operation)
   tier2: [
     {
       type: 'category',
-      label: 'Tier 2: Operando Humanoides',
+      label: 'Tier 2.0: Operando Humanoides',
       items: [
         'tier2/introducao-operacao',
         'tier2/seguranca',
@@ -67,6 +67,26 @@ const sidebars: SidebarsConfig = {
         'tier2/gazebo',
         'tier2/isaac-sim',
         'tier2/operacao-pratica',
+      ],
+    },
+  ],
+
+  // Tier 2.1: Operando Unitree G1
+  tier2_1: [
+    {
+      type: 'category',
+      label: 'Tier 2.1: Operando Unitree G1',
+      items: [
+        'tier2.1/startup-primeiros-passos',
+        'tier2.1/controle-remoto',
+        'tier2.1/app-movel',
+        'tier2.1/caminhada-navegacao',
+        'tier2.1/manipulacao-bracos',
+        'tier2.1/sensores-percepcao',
+        'tier2.1/seguranca-praticas',
+        'tier2.1/manutencao-basica',
+        'tier2.1/troubleshooting',
+        'tier2.1/exercicios-praticos',
       ],
     },
   ],
