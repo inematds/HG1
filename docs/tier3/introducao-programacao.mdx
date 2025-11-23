@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 # 💻 Introdução à Programação de Humanoides
 
 :::tip Objetivo do Módulo
-Entender o que significa programar um robô humanoide e preparar o ambiente de desenvolvimento.
+Entender o que significa programar um robô humanoide, preparar o ambiente de desenvolvimento completo, e compreender a arquitetura de software moderna para robôs humanoides.
 :::
 
 ---
@@ -35,6 +35,12 @@ robot.return_to_base()
 **Linguagens:** Python, JavaScript
 **Abstração:** Alta (não precisa saber como andar)
 
+**Casos de Uso:**
+- Aplicações de serviço (delivery, limpeza)
+- Assistência residencial
+- Demonstrações e POCs
+- Integração com sistemas empresariais
+
 </TabItem>
 <TabItem value="medio" label="🔶 Médio Nível">
 
@@ -52,6 +58,12 @@ def walking_controller():
 **Linguagens:** Python, C++
 **Abstração:** Média (entende física e controle)
 
+**Casos de Uso:**
+- Desenvolvimento de novos comportamentos
+- Otimização de performance
+- Pesquisa em locomoção
+- Customização de robôs existentes
+
 </TabItem>
 <TabItem value="baixo" label="🔻 Baixo Nível">
 
@@ -68,6 +80,12 @@ void set_motor_torque(int motor_id, float torque) {
 **Linguagens:** C, C++, Assembly
 **Abstração:** Baixa (acessa hardware diretamente)
 
+**Casos de Uso:**
+- Desenvolvimento de hardware novo
+- Drivers de sensores/atuadores
+- Otimização de latência crítica
+- Sistemas embarcados
+
 </TabItem>
 </Tabs>
 
@@ -75,36 +93,243 @@ void set_motor_torque(int motor_id, float torque) {
 
 ---
 
-## 🛠️ Stack de Desenvolvimento
+## 🏗️ Arquitetura de Software para Humanoides
+
+### Camadas da Stack
+
+```
+┌─────────────────────────────────────────────┐
+│  Layer 5: Applications & Behaviors          │  ← Python/JavaScript
+├─────────────────────────────────────────────┤
+│  Layer 4: Planning & Decision Making        │  ← ROS2 Navigation/MoveIt
+├─────────────────────────────────────────────┤
+│  Layer 3: Perception & Sensing              │  ← Computer Vision/SLAM
+├─────────────────────────────────────────────┤
+│  Layer 2: Control & Actuation               │  ← Controllers/PID
+├─────────────────────────────────────────────┤
+│  Layer 1: Hardware Abstraction (HAL)        │  ← Drivers/Firmware
+└─────────────────────────────────────────────┘
+```
+
+### Exemplo: "Pegar uma Xícara"
+
+**Como cada camada participa:**
+
+1. **Layer 5 (Application):** Recebe comando "pegar xícara na mesa"
+2. **Layer 4 (Planning):** Calcula trajetória do braço, sequência de movimentos
+3. **Layer 3 (Perception):** Detecta xícara com câmera, estima pose 3D
+4. **Layer 2 (Control):** Envia comandos de torque para cada junta
+5. **Layer 1 (HAL):** Converte torques em sinais elétricos para motores
+
+**Tempo total típico:** 2-5 segundos
+
+---
+
+## 🛠️ Stack de Desenvolvimento Completa
+
+### Sistema Operacional
+
+<Tabs>
+<TabItem value="ubuntu" label="🐧 Ubuntu 22.04 (Recomendado)">
+
+**Por que Ubuntu 22.04?**
+- ROS2 Humble oficialmente suportado
+- Kernel RT-PREEMPT disponível (baixa latência)
+- Maior compatibilidade com drivers
+- Comunidade ativa
+
+**Instalação:**
+```bash
+# Download ISO
+wget https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso
+
+# Criar USB bootável (Linux)
+sudo dd if=ubuntu-22.04.3-desktop-amd64.iso of=/dev/sdX bs=4M status=progress
+
+# Ou usar Rufus (Windows) / Etcher (macOS)
+```
+
+**Particionamento recomendado:**
+- `/` (root): 50GB mínimo
+- `/home`: Resto do disco
+- swap: 16GB (se RAM &lt; 32GB)
+
+</TabItem>
+<TabItem value="docker" label="🐳 Docker (Alternativa)">
+
+**Quando usar:**
+- Não quer dual-boot
+- Desenvolvimento em Windows/macOS
+- Ambientes isolados
+
+**Limitações:**
+- Performance reduzida (GPU passthrough complexo)
+- Latência maior para simulação
+- Debugging mais difícil
+
+**Setup básico:**
+```bash
+# Instalar Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Pull imagem ROS2
+docker pull osrf/ros:humble-desktop-full
+
+# Rodar container
+docker run -it --net=host osrf/ros:humble-desktop-full
+```
+
+</TabItem>
+<TabItem value="vm" label="💿 Virtual Machine">
+
+**❌ NÃO RECOMENDADO** para robótica real
+
+**Por quê:**
+- GPU compartilhada (simulação lenta)
+- Latência de rede (ROS2 DDS afetado)
+- USB passthrough instável
+
+**Aceitável apenas para:**
+- Estudar conceitos teóricos
+- Testar código sem simulação
+- Ambientes CI/CD
+
+</TabItem>
+</Tabs>
+
+---
 
 ### Ferramentas Essenciais
 
-| Ferramenta | Uso | Instalação |
-|------------|-----|------------|
-| **Ubuntu 22.04** | Sistema operacional | ISO oficial |
-| **ROS2 Humble** | Framework de robótica | `apt install ros-humble-desktop` |
-| **Python 3.10** | Linguagem principal | Já incluído no Ubuntu 22.04 |
-| **VS Code** | Editor de código | `snap install code --classic` |
-| **Git** | Controle de versão | `apt install git` |
+| Ferramenta | Uso | Instalação | Versão Mín. |
+|------------|-----|------------|-------------|
+| **Ubuntu 22.04** | Sistema operacional | ISO oficial | 22.04.3 |
+| **ROS2 Humble** | Framework de robótica | `apt install ros-humble-desktop` | Humble Hawksbill |
+| **Python 3.10** | Linguagem principal | Incluído no Ubuntu 22.04 | 3.10.x |
+| **VS Code** | Editor de código | `snap install code --classic` | 1.85+ |
+| **Git** | Controle de versão | `apt install git` | 2.34+ |
+| **Terminator** | Terminal avançado | `apt install terminator` | - |
+| **RViz2** | Visualização 3D | Incluído no ROS2 Desktop | - |
+| **Gazebo** | Simulador físico | `apt install gazebo` | 11.x |
 
-### Ambiente de Desenvolvimento
+---
+
+### Instalação Passo a Passo
+
+#### 1. Preparar Sistema Base
 
 ```bash
-# Instalar dependências
-sudo apt update
-sudo apt install python3-pip python3-venv
-sudo apt install ros-humble-desktop-full
+# Atualizar sistema
+sudo apt update && sudo apt upgrade -y
 
-# Criar workspace ROS2
+# Instalar ferramentas básicas
+sudo apt install -y \
+  build-essential \
+  curl \
+  wget \
+  git \
+  vim \
+  terminator \
+  htop \
+  net-tools
+
+# Configurar locale
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+```
+
+#### 2. Instalar ROS2 Humble
+
+```bash
+# Adicionar repositório ROS2
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update && sudo apt install curl -y
+
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+  http://packages.ros.org/ros2/ubuntu \
+  $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Instalar ROS2
+sudo apt update
+sudo apt install -y ros-humble-desktop-full
+
+# Instalar ferramentas de desenvolvimento
+sudo apt install -y \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-vcstool
+
+# Inicializar rosdep
+sudo rosdep init
+rosdep update
+```
+
+#### 3. Configurar Ambiente ROS2
+
+```bash
+# Adicionar source automático
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+
+# Configurar DDS (middleware de comunicação)
+echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
+
+# Configurar aliases úteis
+cat << 'EOF' >> ~/.bashrc
+alias cb='colcon build --symlink-install'
+alias cs='source install/setup.bash'
+alias killros='killall -9 gzserver gzclient; killall -9 rviz2'
+EOF
+
+source ~/.bashrc
+```
+
+#### 4. Criar Workspace ROS2
+
+```bash
+# Criar estrutura de diretórios
 mkdir -p ~/humanoid_ws/src
 cd ~/humanoid_ws
+
+# Build inicial (vazio)
 colcon build
+
+# Source workspace
 echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### 5. Instalar Pacotes Adicionais
+
+```bash
+# Navegação (Nav2)
+sudo apt install -y ros-humble-navigation2 ros-humble-nav2-bringup
+
+# Manipulação (MoveIt2)
+sudo apt install -y ros-humble-moveit
+
+# Visão computacional
+sudo apt install -y ros-humble-vision-msgs ros-humble-image-transport-plugins
+
+# Simuladores
+sudo apt install -y ros-humble-gazebo-ros-pkgs
+
+# Ferramentas úteis
+sudo apt install -y \
+  ros-humble-rqt-* \
+  ros-humble-plotjuggler-ros
 ```
 
 ---
 
-## 📚 Pré-Requisitos
+## 📚 Pré-Requisitos Detalhados
 
 ### Conhecimento Necessário
 
@@ -113,17 +338,33 @@ echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
 - Python básico (variáveis, funções, loops)
 - Linux terminal (cd, ls, mkdir)
 - Tier 1 e 2 completos
+- Compreensão de sistemas de coordenadas (x, y, z)
 
 🟡 RECOMENDADO:
 - Git (clone, commit, push)
 - Matemática (álgebra linear, geometria)
 - Física (cinemática, dinâmica)
+- Docker (para ambientes isolados)
 
 ❌ NÃO NECESSÁRIO:
 - C++ (usaremos Python)
 - ROS1 (começaremos direto no ROS2)
 - Machine Learning (ensinado no módulo 8)
+- Eletrônica (abstração via ROS2)
 ```
+
+### Quiz de Auto-Avaliação
+
+**Teste se você está pronto:**
+
+1. **Python:** Consigo criar classes e usar herança?
+2. **Linux:** Sei editar arquivos com vim/nano no terminal?
+3. **Matemática:** Entendo o que é um vetor e uma matriz?
+4. **Física:** Sei calcular velocidade a partir de posição/tempo?
+5. **Git:** Consigo clonar um repositório e criar branches?
+
+**Se respondeu "sim" para 1-3:** Você está pronto!
+**Se respondeu "não" para 1-2:** Revise Python e Linux básico primeiro
 
 ---
 
@@ -131,20 +372,124 @@ echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
 
 ### 10 Módulos Progressivos
 
-| # | Módulo | Tempo | Foco |
-|---|--------|-------|------|
-| **1** | 💻 Introdução à Programação | 15 min | Setup, conceitos, ambiente |
-| **2** | 🐍 Python para Robótica | 25 min | NumPy, classes, async |
-| **3** | 🤖 ROS2 Fundamentos | 30 min | Nodes, topics, services |
-| **4** | 🚀 ROS2 Avançado | 30 min | Actions, lifecycle, parameters |
-| **5** | 👁️ Visão Computacional | 35 min | OpenCV, detecção, tracking |
-| **6** | 🗺️ Navegação Autônoma | 30 min | Nav2, SLAM, path planning |
-| **7** | 🦾 Manipulação | 30 min | MoveIt, inverse kinematics |
-| **8** | 🧠 IA e Aprendizado | 35 min | RL, LLMs, imitation learning |
-| **9** | 🔗 Integração de Sistemas | 25 min | Multi-node, deployment |
-| **10** | 🏆 Projeto Final | 40 min | Robô autônomo completo |
+| # | Módulo | Tempo | Foco | Outputs |
+|---|--------|-------|------|---------|
+| **1** | 💻 Introdução à Programação | 15 min | Setup, conceitos, ambiente | Workspace configurado |
+| **2** | 🐍 Python para Robótica | 25 min | NumPy, classes, async | Scripts de controle |
+| **3** | 🤖 ROS2 Fundamentos | 30 min | Nodes, topics, services | Publisher/Subscriber |
+| **4** | 🚀 ROS2 Avançado | 30 min | Actions, lifecycle, parameters | Action server completo |
+| **5** | 👁️ Visão Computacional | 35 min | OpenCV, detecção, tracking | Detector de objetos |
+| **6** | 🗺️ Navegação Autônoma | 30 min | Nav2, SLAM, path planning | Robô navegando |
+| **7** | 🦾 Manipulação | 30 min | MoveIt, inverse kinematics | Braço pegando objetos |
+| **8** | 🧠 IA e Aprendizado | 35 min | RL, LLMs, imitation learning | Comportamento aprendido |
+| **9** | 🔗 Integração de Sistemas | 25 min | Multi-node, deployment | Sistema completo |
+| **10** | 🏆 Projeto Final | 40 min | Robô autônomo completo | Portfólio deployado |
 
 **Total:** ~4.5 horas
+
+---
+
+## 🧪 Primeiro Programa: Hello Humanoid
+
+### Teste de Instalação
+
+```python
+#!/usr/bin/env python3
+# test_installation.py
+
+import sys
+import rclpy
+from rclpy.node import Node
+
+class HelloHumanoid(Node):
+    def __init__(self):
+        super().__init__('hello_humanoid')
+        self.get_logger().info('🤖 Hello from Humanoid Robot!')
+        self.get_logger().info(f'ROS2 Version: {rclpy.__version__}')
+        self.get_logger().info(f'Python Version: {sys.version}')
+
+def main():
+    rclpy.init()
+    node = HelloHumanoid()
+    print("\n✅ Instalação funcionando corretamente!")
+    print("🎉 Você está pronto para programar humanoides!\n")
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+**Rodar:**
+```bash
+cd ~/humanoid_ws/src
+python3 test_installation.py
+```
+
+**Output esperado:**
+```
+[INFO] [hello_humanoid]: 🤖 Hello from Humanoid Robot!
+[INFO] [hello_humanoid]: ROS2 Version: 0.x.x
+[INFO] [hello_humanoid]: Python Version: 3.10.x
+
+✅ Instalação funcionando corretamente!
+🎉 Você está pronto para programar humanoides!
+```
+
+---
+
+## 🔧 Troubleshooting Comum
+
+### Problema 1: ROS2 não encontrado
+
+**Erro:**
+```
+bash: ros2: command not found
+```
+
+**Solução:**
+```bash
+source /opt/ros/humble/setup.bash
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+```
+
+---
+
+### Problema 2: Colcon build falha
+
+**Erro:**
+```
+Package 'xxx' not found
+```
+
+**Solução:**
+```bash
+# Atualizar rosdep
+rosdep update
+rosdep install --from-paths src --ignore-src -y
+
+# Limpar build e tentar novamente
+rm -rf build install log
+colcon build
+```
+
+---
+
+### Problema 3: Permissão negada
+
+**Erro:**
+```
+Permission denied: /dev/ttyUSB0
+```
+
+**Solução:**
+```bash
+# Adicionar usuário aos grupos corretos
+sudo usermod -a -G dialout $USER
+sudo usermod -a -G video $USER
+
+# Logout e login novamente
+```
 
 ---
 
@@ -152,14 +497,78 @@ echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
 
 ### Salários (EUA, 2025)
 
-| Cargo | Júnior | Pleno | Sênior |
-|-------|--------|-------|--------|
-| **Robotics Software Engineer** | $80k | $120k | $180k |
-| **ROS2 Developer** | $75k | $110k | $160k |
-| **Computer Vision Engineer** | $90k | $130k | $200k |
-| **AI/ML Robotics Engineer** | $100k | $150k | $250k |
+| Cargo | Júnior | Pleno | Sênior | Staff+ |
+|-------|--------|-------|--------|--------|
+| **Robotics Software Engineer** | $80k | $120k | $180k | $250k+ |
+| **ROS2 Developer** | $75k | $110k | $160k | $220k |
+| **Computer Vision Engineer** | $90k | $130k | $200k | $300k+ |
+| **AI/ML Robotics Engineer** | $100k | $150k | $250k | $400k+ |
 
-**Empresas contratando:** Tesla, Boston Dynamics, Agility Robotics, Figure AI, Unitree
+**Empresas contratando:**
+- 🚗 **Tesla:** Optimus team (Palo Alto, CA)
+- 🤖 **Boston Dynamics:** Software engineers (Waltham, MA)
+- 🏃 **Agility Robotics:** Digit development (Albany, OR)
+- 🦾 **Figure AI:** Humanoid development (Sunnyvale, CA)
+- 🐕 **Unitree:** International team (China/Remote)
+- 🏭 **Sanctuary AI:** Phoenix robot (Vancouver, Canada)
+- 🤖 **Apptronik:** Apollo robot (Austin, TX)
+
+---
+
+### Habilidades Mais Valorizadas (2025)
+
+| Skill | Demanda | Salário Premium |
+|-------|---------|-----------------|
+| **ROS2 + Nav2** | 🔥🔥🔥🔥🔥 | +$25k |
+| **MoveIt2** | 🔥🔥🔥🔥 | +$20k |
+| **PyTorch + RL** | 🔥🔥🔥🔥🔥 | +$40k |
+| **Isaac Sim** | 🔥🔥🔥 | +$15k |
+| **Whole-Body Control** | 🔥🔥🔥🔥 | +$30k |
+| **Computer Vision (3D)** | 🔥🔥🔥🔥🔥 | +$35k |
+
+**Portfólio ideal:**
+- GitHub com 5+ projetos ROS2
+- Vídeos de robôs funcionando (YouTube)
+- Contribuições para projetos open-source
+- Blog técnico com posts sobre desafios resolvidos
+
+---
+
+## 📖 Recursos de Aprendizado
+
+### Documentação Oficial
+
+- **ROS2:** https://docs.ros.org/en/humble/
+- **MoveIt2:** https://moveit.picknik.ai/humble/
+- **Nav2:** https://navigation.ros.org/
+- **Gazebo:** https://gazebosim.org/docs
+
+### Comunidades
+
+- **ROS Discourse:** https://discourse.ros.org/
+- **Robotics Stack Exchange:** https://robotics.stackexchange.com/
+- **r/ROS:** https://reddit.com/r/ROS
+- **Discord:** The Construct, ROS Developers
+
+### Cursos Complementares
+
+- **The Construct:** ROS2 for Beginners
+- **Udemy:** ROS2 for Robotics Developers
+- **Coursera:** Modern Robotics (Northwestern)
+- **MIT OCW:** Underactuated Robotics
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Ubuntu 22.04 instalado e funcionando
+- [ ] ROS2 Humble instalado (`ros2 --version` funciona)
+- [ ] Workspace `~/humanoid_ws` criado e compilado
+- [ ] Hello Humanoid rodou com sucesso
+- [ ] Entendi os 5 layers da arquitetura de software
+- [ ] VS Code instalado com extensões ROS
+- [ ] Git configurado (nome e email)
+- [ ] Revisei pré-requisitos de Python e Linux
 
 ---
 
@@ -168,5 +577,11 @@ echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
 :::tip Próximo Módulo
 **[🐍 Python para Robótica →](./python-robotica)**
 
-Aprenda Python avançado: NumPy, OOP, asyncio e boas práticas.
+Aprenda Python avançado: NumPy, OOP, asyncio e boas práticas específicas para robótica.
 :::
+
+---
+
+**⏱️ Tempo estimado:** 40-60 min
+**🧠 Nível:** Iniciante-Intermediário
+**💻 Hands-on:** 70% prático, 30% teórico

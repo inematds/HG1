@@ -261,10 +261,11 @@ export default function Home(): JSX.Element {
             Do conhecimento teórico até IA autônoma com MindOn
           </p>
 
-          {/* Tier 1.0 e 1.1 */}
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-6">
-            {['1.0', '1.1'].map((tier) => {
+          {/* Linha 1: Tier 1.0, 2.0, 3.0 */}
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-6">
+            {['1.0', '2.0', '3.0'].map((tier) => {
               const info = tierInfo[tier];
+              const icon = tier === '1.0' ? '🤖' : tier === '2.0' ? '🎮' : '💻';
               return (
                 <div
                   key={tier}
@@ -276,7 +277,7 @@ export default function Home(): JSX.Element {
                       className="w-12 h-12 rounded-full flex items-center justify-center text-2xl mr-3"
                       style={{ backgroundColor: `${info.color}20` }}
                     >
-                      🤖
+                      {icon}
                     </div>
                     <div className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
                       Tier {tier}
@@ -308,10 +309,11 @@ export default function Home(): JSX.Element {
             })}
           </div>
 
-          {/* Tier 2.0 e 2.1 */}
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-6">
-            {['2.0', '2.1'].map((tier) => {
+          {/* Linha 2: Tier 1.1, 2.1, 3.1 */}
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-6">
+            {['1.1', '2.1', '3.1'].map((tier) => {
               const info = tierInfo[tier];
+              const icon = tier === '1.1' ? '🤖' : tier === '2.1' ? '🎮' : '💻';
               return (
                 <div
                   key={tier}
@@ -323,7 +325,7 @@ export default function Home(): JSX.Element {
                       className="w-12 h-12 rounded-full flex items-center justify-center text-2xl mr-3"
                       style={{ backgroundColor: `${info.color}20` }}
                     >
-                      🎮
+                      {icon}
                     </div>
                     <div className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
                       Tier {tier}
@@ -355,7 +357,7 @@ export default function Home(): JSX.Element {
             })}
           </div>
 
-          {/* Tier 4.0 - CENTRALIZADO */}
+          {/* Linha 3: Tier 4.0 - CENTRALIZADO */}
           <div className="flex justify-center mb-6">
             <div
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 shadow-lg border-2 border-transparent hover:border-current transition-all w-full max-w-md"
@@ -396,52 +398,6 @@ export default function Home(): JSX.Element {
             </div>
           </div>
 
-          {/* Tier 3.0 e 3.1 */}
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {['3.0', '3.1'].map((tier) => {
-              const info = tierInfo[tier];
-              return (
-                <div
-                  key={tier}
-                  className="bg-white dark:bg-neutral-800 rounded-xl p-6 shadow-lg border-2 border-transparent hover:border-current transition-all"
-                  style={{ color: info.color }}
-                >
-                  <div className="flex items-center mb-4">
-                    <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-2xl mr-3"
-                      style={{ backgroundColor: `${info.color}20` }}
-                    >
-                      💻
-                    </div>
-                    <div className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
-                      Tier {tier}
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-bold mb-2 text-neutral-900 dark:text-neutral-100">
-                    {info.title.replace(`Tier ${tier}: `, '')}
-                  </h3>
-                  <p className="text-sm italic text-neutral-600 dark:text-neutral-400 mb-4">
-                    {info.slogan}
-                  </p>
-                  <ul className="space-y-2 mb-6 text-sm">
-                    {info.benefits.map((benefit, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <span className="mr-2 mt-0.5" style={{ color: info.color }}>✓</span>
-                        <span className="text-neutral-700 dark:text-neutral-300">{benefit}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    to={info.link}
-                    className="block w-full text-center px-4 py-2.5 rounded-lg font-semibold transition-all text-white text-sm"
-                    style={{ backgroundColor: info.color }}
-                  >
-                    {info.link === '#' ? 'Em Breve' : 'Começar →'}
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </section>
 
