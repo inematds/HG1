@@ -8,14 +8,14 @@ const config: Config = {
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://nmaldaner.github.io',
+  url: 'https://inematds.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/MindON/',
+  baseUrl: '/HG1/',
 
   // GitHub pages deployment config.
-  organizationName: 'nmaldaner', // Your GitHub org/user name.
-  projectName: 'MindON', // Your repo name.
+  organizationName: 'inematds', // Your GitHub org/user name.
+  projectName: 'HG1', // Your repo name.
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
@@ -36,7 +36,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           // Please change this to your repo.
-          editUrl: 'https://github.com/nmaldaner/MindON/tree/main/',
+          editUrl: 'https://github.com/inematds/HG1/tree/main/',
         },
         blog: false, // Disable blog for MVP
         theme: {
@@ -63,7 +63,7 @@ const config: Config = {
           label: 'Tier 1: Fundamentos',
         },
         {
-          href: 'https://github.com/nmaldaner/MindON',
+          href: 'https://github.com/inematds/HG1',
           label: 'GitHub',
           position: 'right',
         },
@@ -90,11 +90,11 @@ const config: Config = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/nmaldaner/MindON',
+              href: 'https://github.com/inematds/HG1',
             },
             {
               label: 'Contribuir',
-              href: 'https://github.com/nmaldaner/MindON/blob/main/CONTRIBUTING.md',
+              href: 'https://github.com/inematds/HG1/blob/main/CONTRIBUTING.md',
             },
           ],
         },
