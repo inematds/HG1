@@ -1,6 +1,6 @@
 ---
 id: introducao
-title: Introdução aos Humanoides
+title: 🤖 Introdução aos Humanoides
 description: Descubra o que são robôs humanoides, suas capacidades e por que eles importam
 tier: 1
 module_number: 1
@@ -8,73 +8,230 @@ estimated_time: 10
 sidebar_position: 1
 ---
 
-# Introdução aos Humanoides
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-Bem-vindo à **Academia de Humanoides**! Este é o primeiro passo da sua jornada para entender e trabalhar com robôs humanoides.
+<div className="hero-module">
+  <div className="badges">
+    <span className="badge badge-tier-1">Tier 1: Fundamentos</span>
+    <span className="badge badge-time">⏱️ 10 min</span>
+    <span className="badge badge-level">🎯 Iniciante</span>
+  </div>
 
-## O que são Robôs Humanoides?
+  <h1>🤖 Introdução aos Humanoides</h1>
+  <p className="lead">
+    Descubra o que são robôs humanoides, suas capacidades e por que eles importam
+  </p>
 
-Robôs humanoides são máquinas projetadas para se parecer e se mover como seres humanos. Eles possuem:
+  <div className="stats-grid">
+    <div className="stat-card">
+      <div className="stat-value">4</div>
+      <div className="stat-label">Robôs Principais</div>
+    </div>
+    <div className="stat-card">
+      <div className="stat-value">10 min</div>
+      <div className="stat-label">Duração</div>
+    </div>
+    <div className="stat-card">
+      <div className="stat-value">5</div>
+      <div className="stat-label">Seções</div>
+    </div>
+    <div className="stat-card">
+      <div className="stat-value">Iniciante</div>
+      <div className="stat-label">Nível</div>
+    </div>
+  </div>
+</div>
 
-- **Forma bípede** - Caminham sobre duas pernas
-- **Membros articulados** - Braços e mãos capazes de manipular objetos
-- **Sensores avançados** - Câmeras, LiDAR, sensores de força
-- **Inteligência Artificial** - Tomada de decisão autônoma
+## 📚 O que são Robôs Humanoides?
 
-## Por Que Humanoides?
+Robôs humanoides são máquinas projetadas para se parecer e se mover como seres humanos.
+
+:::info Conceito-Chave
+**Humanoide** = Robô com forma e capacidades semelhantes aos seres humanos
+:::
+
+### Características Principais
+
+<div className="feature-grid">
+  <div className="feature-card">
+    <div className="feature-icon">🦿</div>
+    <h4>Forma Bípede</h4>
+    <p>Caminham sobre duas pernas, como humanos</p>
+  </div>
+
+  <div className="feature-card">
+    <div className="feature-icon">🤲</div>
+    <h4>Membros Articulados</h4>
+    <p>Braços e mãos capazes de manipular objetos</p>
+  </div>
+
+  <div className="feature-card">
+    <div className="feature-icon">👁️</div>
+    <h4>Sensores Avançados</h4>
+    <p>Câmeras, LiDAR, sensores de força</p>
+  </div>
+
+  <div className="feature-card">
+    <div className="feature-icon">🧠</div>
+    <h4>Inteligência Artificial</h4>
+    <p>Tomada de decisão autônoma</p>
+  </div>
+</div>
+
+## 🎯 Por Que Humanoides?
 
 A forma humanoide oferece vantagens únicas:
 
-1. **Compatibilidade com Ambientes Humanos** - Podem usar escadas, portas, ferramentas feitas para humanos
-2. **Interação Natural** - Comunicação mais intuitiva com pessoas
-3. **Versatilidade** - Uma única plataforma para múltiplas tarefas
-4. **Mobilidade Avançada** - Navegação em terrenos complexos
+<Tabs>
+  <TabItem value="ambiente" label="🏢 Ambientes" default>
+    **Compatibilidade com Ambientes Humanos**
 
-## Principais Modelos Atuais
+    Podem usar escadas, portas, ferramentas feitas para humanos. Não precisam de infraestrutura especial.
+  </TabItem>
+
+  <TabItem value="interacao" label="💬 Interação">
+    **Comunicação Natural**
+
+    Interagem de forma mais intuitiva com pessoas através de gestos, expressões e movimentos familiares.
+  </TabItem>
+
+  <TabItem value="versatilidade" label="🔧 Versatilidade">
+    **Plataforma Universal**
+
+    Uma única plataforma para múltiplas tarefas - manufatura, assistência, pesquisa.
+  </TabItem>
+
+  <TabItem value="mobilidade" label="🚶 Mobilidade">
+    **Navegação Avançada**
+
+    Podem navegar em terrenos complexos onde robôs com rodas não conseguem.
+  </TabItem>
+</Tabs>
+
+## 🤖 Principais Modelos Atuais
+
+<div className="robots-comparison">
 
 ### Unitree G1
+
+<div className="robot-card robot-g1">
+
 - **Altura**: 1,32m
 - **Peso**: ~55kg
 - **Destaque**: Preço acessível, plataforma aberta para desenvolvimento
+- **Status**: ✅ Disponível comercialmente
+
+</div>
 
 ### Tesla Optimus
+
+<div className="robot-card robot-optimus">
+
 - **Fabricante**: Tesla
 - **Destaque**: Foco em automação industrial e manufatura
+- **Status**: 🔬 Em desenvolvimento avançado
+
+</div>
 
 ### Figure 01
+
+<div className="robot-card robot-figure">
+
 - **Fabricante**: Figure AI
 - **Destaque**: IA avançada, operação autônoma
+- **Status**: ✅ Demonstrações públicas
+
+</div>
 
 ### Boston Dynamics Atlas
+
+<div className="robot-card robot-atlas">
+
 - **Destaque**: Locomoção dinâmica, parkour, backflips
+- **Status**: 🔬 Pesquisa e desenvolvimento
 
-## Aplicações Práticas
+</div>
 
-Os humanoides estão sendo desenvolvidos para:
+</div>
 
-- 🏭 **Manufatura** - Linhas de produção, montagem
-- 🏥 **Saúde** - Assistência a idosos, reabilitação
-- 🏠 **Doméstico** - Tarefas do lar, companhia
-- 🔬 **Pesquisa** - Exploração, ambientes perigosos
+## 💼 Aplicações Práticas
 
-## O Que Você Vai Aprender
+<div className="applications-grid">
+  <div className="app-card app-manufacturing">
+    <h4>🏭 Manufatura</h4>
+    <p>Linhas de produção, montagem de componentes, inspeção de qualidade</p>
+    <div className="app-example">
+      <strong>Exemplo:</strong> Tesla usando Optimus em fábricas
+    </div>
+  </div>
 
-Neste Tier 1, você vai descobrir:
+  <div className="app-card app-healthcare">
+    <h4>🏥 Saúde</h4>
+    <p>Assistência a idosos, reabilitação física, transporte de materiais</p>
+    <div className="app-example">
+      <strong>Exemplo:</strong> Robôs assistentes em hospitais japoneses
+    </div>
+  </div>
 
-- História e evolução dos humanoides
-- Como eles funcionam (hardware e software)
-- Principais fabricantes e modelos
-- Aplicações e futuro da tecnologia
+  <div className="app-card app-domestic">
+    <h4>🏠 Doméstico</h4>
+    <p>Tarefas do lar, companhia, organização</p>
+    <div className="app-example">
+      <strong>Exemplo:</strong> Futuros assistentes residenciais
+    </div>
+  </div>
 
-:::tip Dica
-Não se preocupe se alguns termos são novos! Mais módulos e recursos serão adicionados em breve.
+  <div className="app-card app-research">
+    <h4>🔬 Pesquisa</h4>
+    <p>Exploração, ambientes perigosos, missões de resgate</p>
+    <div className="app-example">
+      <strong>Exemplo:</strong> Atlas em cenários de desastre
+    </div>
+  </div>
+</div>
+
+## 🎓 O Que Você Vai Aprender
+
+Neste **Tier 1**, você vai descobrir:
+
+- ✅ História e evolução dos humanoides
+- ✅ Como eles funcionam (hardware e software)
+- ✅ Principais fabricantes e modelos
+- ✅ Aplicações e futuro da tecnologia
+
+:::tip 💡 Dica de Aprendizado
+Não se preocupe se alguns termos são novos! Cada conceito será explicado em detalhes nos próximos módulos.
 :::
 
-## Próximos Passos
+## ➡️ Próximos Passos
 
-Mais módulos serão adicionados em breve para continuar sua jornada de aprendizado!
+<div className="next-steps">
+  <div className="progress-indicator">
+    <div className="progress-bar-container">
+      <div className="progress-bar" style={{width: '10%'}}></div>
+    </div>
+    <span>Módulo 1 de 10 completo</span>
+  </div>
+
+  <div className="next-module">
+    <h4>📖 Próximo Módulo</h4>
+    <p><strong>História e Evolução dos Humanoides</strong></p>
+    <p className="text-muted">Descubra como chegamos aos robôs modernos</p>
+  </div>
+</div>
 
 ---
 
-**Tempo estimado de leitura**: 10 minutos
-**Módulo**: 1 de 10 (Tier 1)
+<div className="module-footer">
+  <div className="module-meta">
+    ⏱️ <strong>Tempo estimado:</strong> 10 minutos<br/>
+    📊 <strong>Módulo:</strong> 1 de 10 (Tier 1)<br/>
+    🎯 <strong>Nível:</strong> Iniciante
+  </div>
+
+  <div className="module-actions">
+    <button className="btn btn-outline">📥 Baixar PDF</button>
+    <button className="btn btn-outline">✓ Marcar como Completo</button>
+  </div>
+</div>
