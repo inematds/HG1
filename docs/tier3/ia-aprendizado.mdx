@@ -9,27 +9,690 @@ import TabItem from '@theme/TabItem';
 
 # 🧠 IA e Aprendizado
 
-:::tip Objetivo
-Reinforcement Learning, LLMs para robôs e aprendizado por imitação.
+:::tip Objetivo do Módulo
+Dominar técnicas de IA para robótica humanoide: Reinforcement Learning (RL) para controle robusto, Large Language Models (LLMs) para reasoning e planejamento de alto nível, e Imitation Learning para aprender de demonstrações humanas. Essas são as fronteiras da pesquisa em humanoides.
 :::
+
+**Duração estimada:** 55 minutos
+**Pré-requisitos:** Módulos 1-7 (Python, ROS2, Manipulação)
 
 ---
 
-## 🎮 Reinforcement Learning
+## 🎮 Reinforcement Learning para Controle
 
-### Treinar Política com Stable-Baselines3
+### Conceitos Fundamentais
+
+```
+Agente (Robô) interage com Ambiente:
+
+┌─────────────────────────────────────────┐
+│            AMBIENTE (Mundo Real)        │
+│  Estado: s_t = [posição, velocidade,    │
+│                  força, visão, ...]     │
+└──────────┬──────────────────────▲───────┘
+           │ Estado s_t            │ Ação a_t
+           │                       │
+           ▼                       │
+┌──────────────────────────────────┴───────┐
+│         AGENTE (Política π)              │
+│  Input: s_t                              │
+│  Neural Network: [Dense → ReLU → ...]   │
+│  Output: a_t = π(s_t)                   │
+└──────────┬───────────────────────────────┘
+           │ Recompensa r_t
+           ▼
+    Objetivo: Maximizar Σ r_t
+```
+
+**Equação de Bellman:**
+```
+Q(s, a) = r + γ * max_a' Q(s', a')
+
+Onde:
+- Q(s, a): Valor de tomar ação 'a' no estado 's'
+- r: Recompensa imediata
+- γ: Fator de desconto (0.99 típico)
+- s': Próximo estado
+```
+
+---
+
+## 🏋️ Treinando Política com Stable-Baselines3
+
+### Setup
+
+```bash
+# Instalar bibliotecas de RL
+pip install stable-baselines3[extra]
+pip install gymnasium
+pip install pybullet  # Simulador de física
+```
+
+### Ambiente Customizado: Humanoid Walk
+
+```python
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+import pybullet as p
+import pybullet_data
+
+class HumanoidWalkEnv(gym.Env):
+    """
+    Ambiente de treinamento: humanoide aprendendo a andar.
+
+    Observações: 44 dimensões (posições e velocidades de juntas)
+    Ações: 17 dimensões (torques para cada junta)
+    Recompensa: Distância percorrida - custo de energia
+    """
+
+    def __init__(self, render=False):
+        super().__init__()
+
+        # Conectar ao PyBullet
+        if render:
+            p.connect(p.GUI)
+        else:
+            p.connect(p.DIRECT)
+
+        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        p.setGravity(0, 0, -9.81)
+
+        # Definir espaços de observação e ação
+        # 44 observações: 17 juntas × (posição + velocidade) + orientação (4)
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(44,),
+            dtype=np.float32
+        )
+
+        # 17 ações: torques para cada junta (-1 a 1, normalizado)
+        self.action_space = spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=(17,),
+            dtype=np.float32
+        )
+
+        # Estado
+        self.robot_id = None
+        self.initial_position = [0, 0, 1.0]  # 1 metro de altura
+
+    def reset(self, seed=None, options=None):
+        """Resetar ambiente para novo episódio."""
+        super().reset(seed=seed)
+
+        p.resetSimulation()
+        p.setGravity(0, 0, -9.81)
+
+        # Carregar chão e robô
+        p.loadURDF("plane.urdf")
+        self.robot_id = p.loadURDF(
+            "humanoid/humanoid.urdf",
+            self.initial_position,
+            useFixedBase=False
+        )
+
+        # Estado inicial
+        observation = self._get_observation()
+        info = {}
+
+        return observation, info
+
+    def step(self, action):
+        """
+        Executar ação e retornar próximo estado.
+
+        Args:
+            action: array de torques (17 dimensões)
+
+        Returns:
+            observation, reward, terminated, truncated, info
+        """
+        # ====================================
+        # APLICAR AÇÕES (Torques nas juntas)
+        # ====================================
+        max_torque = 100.0  # Newtons-metro
+
+        for joint_idx in range(17):
+            p.setJointMotorControl2(
+                self.robot_id,
+                joint_idx,
+                p.TORQUE_CONTROL,
+                force=action[joint_idx] * max_torque
+            )
+
+        # Simular física
+        p.stepSimulation()
+
+        # ====================================
+        # OBTER NOVO ESTADO
+        # ====================================
+        observation = self._get_observation()
+
+        # ====================================
+        # CALCULAR RECOMPENSA
+        # ====================================
+        reward = self._compute_reward(action)
+
+        # ====================================
+        # VERIFICAR TÉRMINO
+        # ====================================
+        terminated = self._is_terminated()
+        truncated = False  # Episódio muito longo
+
+        info = {}
+
+        return observation, reward, terminated, truncated, info
+
+    def _get_observation(self):
+        """
+        Construir vetor de observação (44 dimensões).
+        """
+        obs = []
+
+        # Posição e orientação do torso
+        pos, orn = p.getBasePositionAndOrientation(self.robot_id)
+        obs.extend(orn)  # Quaternion (4 valores)
+
+        # Posição e velocidade de cada junta
+        for joint_idx in range(17):
+            joint_state = p.getJointState(self.robot_id, joint_idx)
+            obs.append(joint_state[0])  # Posição angular
+            obs.append(joint_state[1])  # Velocidade angular
+
+        return np.array(obs, dtype=np.float32)
+
+    def _compute_reward(self, action):
+        """
+        Função de recompensa para incentivar caminhada.
+
+        Componentes:
+        1. Velocidade para frente (+)
+        2. Permanecer em pé (+)
+        3. Custo de energia (-) (torques altos)
+        4. Penalidade por queda (-)
+        """
+        pos, orn = p.getBasePositionAndOrientation(self.robot_id)
+        vel, ang_vel = p.getBaseVelocity(self.robot_id)
+
+        # Recompensa por velocidade para frente
+        forward_reward = vel[0] * 5.0  # x é forward
+
+        # Recompensa por permanecer em pé (altura > 0.8m)
+        height_reward = max(0, pos[2] - 0.8) * 2.0
+
+        # Penalidade por energia (torques altos)
+        energy_cost = -0.01 * np.sum(np.square(action))
+
+        # Penalidade por queda
+        if pos[2] < 0.5:  # Caiu
+            fall_penalty = -10.0
+        else:
+            fall_penalty = 0.0
+
+        # Recompensa total
+        reward = forward_reward + height_reward + energy_cost + fall_penalty
+
+        return reward
+
+    def _is_terminated(self):
+        """Episódio termina se robô cair."""
+        pos, _ = p.getBasePositionAndOrientation(self.robot_id)
+        return pos[2] < 0.5  # Altura < 50cm = caiu
+
+    def close(self):
+        p.disconnect()
+```
+
+### Treinar Política com PPO
 
 ```python
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.callbacks import CheckpointCallback
 
-env = make_vec_env('HumanoidWalk-v0', n_envs=4)
+def train_humanoid_walk():
+    """
+    Treinar humanoide para andar usando PPO.
 
-model = PPO('MlpPolicy', env, verbose=1)
-model.learn(total_timesteps=1000000)
+    PPO (Proximal Policy Optimization):
+    - State-of-the-art para robótica
+    - Estável (não diverge facilmente)
+    - Sample-efficient (aprende rápido)
+    """
 
-model.save('humanoid_walk_policy')
+    # ====================================
+    # CRIAR AMBIENTES PARALELOS
+    # ====================================
+    # 16 robôs treinando simultaneamente (acelera 16x)
+    def make_env():
+        def _init():
+            return HumanoidWalkEnv(render=False)
+        return _init
+
+    num_envs = 16
+    env = SubprocVecEnv([make_env() for _ in range(num_envs)])
+
+    # ====================================
+    # CONFIGURAR ALGORITMO PPO
+    # ====================================
+    model = PPO(
+        policy="MlpPolicy",  # Multi-Layer Perceptron (rede neural)
+        env=env,
+        learning_rate=3e-4,
+        n_steps=2048,        # Passos por update
+        batch_size=64,
+        n_epochs=10,
+        gamma=0.99,          # Fator de desconto
+        gae_lambda=0.95,     # Generalized Advantage Estimation
+        clip_range=0.2,
+        ent_coef=0.01,       # Entropia (exploração)
+        verbose=1,
+        tensorboard_log="./logs/humanoid_walk/"
+    )
+
+    # ====================================
+    # CALLBACKS
+    # ====================================
+    # Salvar checkpoint a cada 100k steps
+    checkpoint_callback = CheckpointCallback(
+        save_freq=100000,
+        save_path="./models/humanoid_walk/",
+        name_prefix="ppo_humanoid"
+    )
+
+    # ====================================
+    # TREINAR
+    # ====================================
+    total_timesteps = 10_000_000  # 10 milhões de passos
+
+    print(f"Iniciando treinamento por {total_timesteps:,} timesteps...")
+    print("Isso pode levar várias horas dependendo do hardware.")
+
+    model.learn(
+        total_timesteps=total_timesteps,
+        callback=checkpoint_callback,
+        progress_bar=True
+    )
+
+    # Salvar modelo final
+    model.save("humanoid_walk_final")
+
+    print("✅ Treinamento completo!")
+
+    # ====================================
+    # TESTAR POLÍTICA TREINADA
+    # ====================================
+    env_test = HumanoidWalkEnv(render=True)
+    obs, _ = env_test.reset()
+
+    for _ in range(1000):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, _ = env_test.step(action)
+
+        if terminated or truncated:
+            obs, _ = env_test.reset()
+
+    env_test.close()
+
+if __name__ == "__main__":
+    train_humanoid_walk()
 ```
+
+### Monitorar Treinamento com TensorBoard
+
+```bash
+# Visualizar progresso em tempo real
+tensorboard --logdir=./logs/humanoid_walk/
+
+# Abrir no navegador: http://localhost:6006
+
+# Métricas importantes:
+# - rollout/ep_rew_mean: Recompensa média (deve aumentar)
+# - train/policy_loss: Loss da política (deve estabilizar)
+# - train/value_loss: Loss do critic
+```
+
+---
+
+## 🤖 LLMs para Robótica
+
+### Integração LLM + Robô (VLMs)
+
+```python
+import openai
+from openai import OpenAI
+import base64
+
+class LLMRobotPlanner(Node):
+    """
+    Usar LLM (GPT-4, Claude) para planejamento de alto nível.
+
+    Exemplo:
+    - Humano: "Organize a mesa"
+    - LLM: Decompõe em subtarefas
+        1. Detectar objetos na mesa
+        2. Classificar (lixo vs útil)
+        3. Pegar lixo e jogar fora
+        4. Organizar itens restantes
+    """
+
+    def __init__(self):
+        super().__init__('llm_planner')
+
+        # Cliente OpenAI
+        self.client = OpenAI(api_key="sk-...")
+
+        # Controladores de baixo nível
+        self.navigator = NavigationClient()
+        self.arm = ArmController()
+        self.vision = YOLODetector()
+
+    def plan_task(self, instruction):
+        """
+        Enviar instrução para LLM e obter plano.
+
+        Args:
+            instruction: "Organize a mesa" (linguagem natural)
+
+        Returns:
+            Lista de ações primitivas
+        """
+
+        # ====================================
+        # PROMPT ENGINEERING
+        # ====================================
+        system_prompt = """
+Você é um robô humanoide com as seguintes capacidades:
+
+AÇÕES DISPONÍVEIS:
+- navigate_to(location): Navegar até local
+- pick_object(object_id): Pegar objeto
+- place_object(location): Colocar objeto
+- open_gripper(): Abrir mão
+- close_gripper(): Fechar mão
+
+LOCAIS CONHECIDOS:
+- "table", "trash_bin", "shelf", "charging_station"
+
+Dada uma instrução, decomponha em uma sequência de ações.
+Retorne JSON: [{"action": "navigate_to", "args": {"location": "table"}}, ...]
+"""
+
+        user_message = f"""
+Instrução: {instruction}
+
+Contexto atual:
+- Posição do robô: na charging_station
+- Objetos detectados: copo (id=1), papel amassado (id=2), caneta (id=3)
+- Bateria: 85%
+
+Retorne o plano em JSON.
+"""
+
+        # ====================================
+        # CHAMAR API
+        # ====================================
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.2,  # Baixo = mais determinístico
+            response_format={"type": "json_object"}
+        )
+
+        # Parse JSON
+        plan = json.loads(response.choices[0].message.content)
+
+        self.get_logger().info(f"Plano gerado pelo LLM:\n{json.dumps(plan, indent=2)}")
+
+        return plan["actions"]
+
+    def execute_plan(self, actions):
+        """
+        Executar sequência de ações.
+        """
+        for action in actions:
+            action_name = action["action"]
+            args = action.get("args", {})
+
+            self.get_logger().info(f"Executando: {action_name}({args})")
+
+            if action_name == "navigate_to":
+                location = args["location"]
+                # Mapear location → coordenadas
+                coords = self.location_to_coords(location)
+                self.navigator.navigate_to_pose(*coords)
+
+            elif action_name == "pick_object":
+                object_id = args["object_id"]
+                # Usar visão para localizar objeto
+                object_pose = self.vision.get_object_pose(object_id)
+                # Pegar com braço
+                self.arm.pick(object_pose)
+
+            elif action_name == "place_object":
+                location = args["location"]
+                place_pose = self.location_to_coords(location)
+                self.arm.place(place_pose)
+
+            elif action_name == "open_gripper":
+                self.arm.open_gripper()
+
+            elif action_name == "close_gripper":
+                self.arm.close_gripper()
+
+            else:
+                self.get_logger().error(f"Ação desconhecida: {action_name}")
+
+        self.get_logger().info("✅ Plano executado completamente!")
+
+# Usar:
+planner = LLMRobotPlanner()
+
+instruction = "Organize a mesa: jogue o lixo fora e coloque os itens úteis na prateleira"
+plan = planner.plan_task(instruction)
+planner.execute_plan(plan)
+```
+
+### Vision-Language Models (VLMs)
+
+```python
+def plan_with_vision(self, instruction, camera_image):
+    """
+    Usar VLM (GPT-4 Vision) para planejar baseado em imagem.
+    """
+
+    # Converter imagem para base64
+    _, buffer = cv2.imencode('.jpg', camera_image)
+    img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+    response = self.client.chat.completions.create(
+        model="gpt-4-vision-preview",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": instruction},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{img_base64}"
+                        }
+                    }
+                ]
+            }
+        ],
+        max_tokens=500
+    )
+
+    return response.choices[0].message.content
+
+# Exemplo:
+instruction = "O que você vê na mesa? O que deveria fazer para organizá-la?"
+camera_img = get_current_camera_image()
+response = planner.plan_with_vision(instruction, camera_img)
+
+print(response)
+# "Vejo um copo, papel amassado e uma caneta. Devo jogar o papel no lixo
+#  e organizar o copo e a caneta na prateleira."
+```
+
+---
+
+## 👨‍🏫 Imitation Learning
+
+### Aprender de Demonstrações Humanas
+
+```python
+from torch import nn
+import torch
+
+class BehaviorCloning:
+    """
+    Behavioral Cloning: Aprender política supervisionada
+    de demonstrações de especialista (humano).
+
+    Dataset: (observação, ação) pares gravados
+    Modelo: Neural network que mapeia obs → ação
+    """
+
+    def __init__(self, obs_dim=44, action_dim=17):
+        # Rede neural simples
+        self.policy = nn.Sequential(
+            nn.Linear(obs_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, action_dim),
+            nn.Tanh()  # Ações entre -1 e 1
+        )
+
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=1e-3)
+        self.criterion = nn.MSELoss()
+
+    def collect_demonstrations(self, num_episodes=100):
+        """
+        Coletar demonstrações de humano (teleoperação).
+        """
+        demonstrations = []
+
+        for episode in range(num_episodes):
+            obs = env.reset()
+            done = False
+
+            while not done:
+                # Humano controla robô via joystick/VR
+                action = get_human_action()  # Implementar teleop
+
+                next_obs, reward, done, _ = env.step(action)
+
+                # Salvar par (obs, ação)
+                demonstrations.append({
+                    'observation': obs,
+                    'action': action
+                })
+
+                obs = next_obs
+
+        return demonstrations
+
+    def train(self, demonstrations, epochs=100):
+        """
+        Treinar política por imitação.
+        """
+        # Converter para tensors
+        obs = torch.FloatTensor([d['observation'] for d in demonstrations])
+        actions = torch.FloatTensor([d['action'] for d in demonstrations])
+
+        dataset = torch.utils.data.TensorDataset(obs, actions)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True)
+
+        for epoch in range(epochs):
+            total_loss = 0
+
+            for batch_obs, batch_actions in loader:
+                # Forward
+                predicted_actions = self.policy(batch_obs)
+
+                # Loss: diferença entre ação prevista e ação expert
+                loss = self.criterion(predicted_actions, batch_actions)
+
+                # Backward
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                total_loss += loss.item()
+
+            print(f"Epoch {epoch}: Loss = {total_loss / len(loader):.4f}")
+
+    def predict(self, observation):
+        """Prever ação dada observação."""
+        obs_tensor = torch.FloatTensor(observation).unsqueeze(0)
+        with torch.no_grad():
+            action = self.policy(obs_tensor)
+        return action.numpy()[0]
+
+# Usar:
+bc = BehaviorCloning()
+
+# 1. Coletar demos
+demos = bc.collect_demonstrations(num_episodes=50)
+
+# 2. Treinar
+bc.train(demos, epochs=200)
+
+# 3. Usar política treinada
+obs = env.reset()
+action = bc.predict(obs)
+```
+
+---
+
+## 🏭 Casos de Uso em Produção
+
+### Tesla Optimus
+
+**Stack de IA:**
+- **Locomoção:** RL (PPO) treinado em simulação, fine-tuned no real
+- **Manipulação:** Imitation learning de demos + RL para refinamento
+- **Planejamento:** LLM (modelo interno) para task decomposition
+- **Visão:** Neural networks end-to-end (não YOLO tradicional)
+
+**Caso:** Dobrar camiseta
+1. LLM decompõe: "pegar canto A", "dobrar ao meio", "pegar canto B", ...
+2. RL controla braços para executar cada primitiva
+3. Visão rastreia camiseta durante movimento
+4. Force control ajusta grip para não amassar
+
+### Figure 01
+
+**Abordagem híbrida:**
+- **LLM:** Raciocínio de alto nível (linguagem natural)
+- **Classical planning:** Sequências de ações (PDDL)
+- **RL:** Controle de baixo nível (juntas)
+
+---
+
+## ✅ Checklist de Domínio
+
+Antes de avançar, certifique-se de que você consegue:
+
+- [ ] Entender conceitos de RL (MDP, política, recompensa)
+- [ ] Criar ambiente Gym customizado
+- [ ] Treinar política com Stable-Baselines3 (PPO)
+- [ ] Integrar LLM para task planning
+- [ ] Usar Vision-Language Models (VLMs)
+- [ ] Implementar Behavioral Cloning
+- [ ] Coletar demonstrações de humanos
+- [ ] Combinar RL + Imitation Learning
+- [ ] Monitorar treinamento com TensorBoard
+- [ ] Transferir política de simulação → real (sim-to-real)
 
 ---
 
@@ -38,5 +701,11 @@ model.save('humanoid_walk_policy')
 :::tip Próximo Módulo
 **[🔗 Integração de Sistemas →](./integracao-sistemas)**
 
-Multi-node, deployment e otimização.
+Integrar todos os módulos (navegação, visão, manipulação, IA) em um sistema coeso. Deployment, otimização e debug de sistemas completos.
 :::
+
+**Recursos adicionais:**
+- [Stable-Baselines3 Docs](https://stable-baselines3.readthedocs.io/)
+- [OpenAI Gymnasium](https://gymnasium.farama.org/)
+- [Spinning Up in RL](https://spinningup.openai.com/)
+- [LangChain for Robotics](https://python.langchain.com/docs/use_cases/robotics)

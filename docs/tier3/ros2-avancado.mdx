@@ -9,115 +9,902 @@ import TabItem from '@theme/TabItem';
 
 # 🚀 ROS2 Avançado
 
-:::tip Objetivo
-Actions, lifecycle nodes, parameters dinâmicos e transformações (TF2).
+:::tip Objetivo do Módulo
+Dominar recursos avançados de ROS2: Actions para tarefas longas, Lifecycle Nodes para controle de estado, Parameters dinâmicos para configuração em runtime, e TF2 para transformações espaciais. Essas técnicas são fundamentais em robôs humanoides de produção como Atlas (Boston Dynamics) e Optimus (Tesla).
 :::
 
+**Duração estimada:** 45 minutos
+**Pré-requisitos:** Módulos 1-3 (Python, ROS2 Básico, Simulação)
+
 ---
 
-## 🎬 Actions (Tarefas de Longa Duração)
+## 🎬 Actions: Tarefas de Longa Duração
 
-### Diferença: Topic vs Service vs Action
+### Conceito e Comparação
 
-| Tipo | Duração | Feedback | Cancelável |
-|------|---------|----------|------------|
-| **Topic** | Contínuo | Não | Não |
-| **Service** | Curto (&lt;1s) | Não | Não |
-| **Action** | Longo (1s-∞) | ✅ Sim | ✅ Sim |
+Actions são o mecanismo do ROS2 para operações assíncronas com feedback contínuo e capacidade de cancelamento. Diferente de Services (síncronos) e Topics (fire-and-forget), Actions são ideais para tarefas que levam segundos ou minutos.
 
-### Action Server
+#### Quando Usar Cada Tipo de Comunicação
+
+| Tipo | Duração | Feedback | Cancelável | Exemplo |
+|------|---------|----------|------------|---------|
+| **Topic** | Contínuo | ❌ Não | ❌ Não | Stream de câmera, sensores |
+| **Service** | Curto (&lt;1s) | ❌ Não | ❌ Não | Get battery status |
+| **Action** | Longo (1s-∞) | ✅ Sim | ✅ Sim | Navegar até ponto, pegar objeto |
+
+### Anatomia de uma Action
+
+```
+Action = Goal (entrada) + Feedback (progresso) + Result (saída final)
+```
+
+**Exemplo no mundo real:** Tesla Optimus pegando um objeto
+- **Goal:** "Pegue a caixa na posição (1.0, 0.5, 0.8)"
+- **Feedback:** "Braço movendo... 30% completo... 60%... 90%..."
+- **Result:** "Objeto agarrado com sucesso" ou "Falha: objeto escorregou"
+
+### Action Server Completo
+
+Vamos implementar um Action Server para fazer o robô andar até um ponto (similar ao usado em humanoides reais):
 
 ```python
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from action_tutorials_interfaces.action import Fibonacci
-from rclpy.action import ActionServer
+from nav_msgs.msg import Odometry
+import asyncio
 
-class FibonacciServer(Node):
+class NavigationActionServer(Node):
+    """
+    Action Server que simula navegação de um humanoide.
+    Usado em robôs como Atlas (Boston Dynamics) e Digit (Agility Robotics).
+    """
+
     def __init__(self):
-        super().__init__('fibonacci_server')
+        super().__init__('navigation_action_server')
+
         self._action_server = ActionServer(
-            self, Fibonacci, 'fibonacci',
-            self.execute_callback
+            self,
+            Fibonacci,  # Em produção, seria NavigateToGoal.action
+            'navigate_to_goal',
+            execute_callback=self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback
         )
-    
+
+        self.get_logger().info('Navigation Action Server iniciado')
+
+        # Simular estado do robô
+        self.current_position = 0.0
+        self.is_navigating = False
+
+    def goal_callback(self, goal_request):
+        """
+        Aceitar ou rejeitar novos goals.
+        Usado para validar se o robô está em condições de navegar.
+        """
+        self.get_logger().info('Recebeu requisição de goal')
+
+        # Rejeitar se já estiver navegando
+        if self.is_navigating:
+            self.get_logger().warn('Rejeitando: já estou navegando')
+            return GoalResponse.REJECT
+
+        # Validar goal (exemplo: distância máxima)
+        if goal_request.order > 100:  # Em produção: distância > 100m
+            self.get_logger().warn('Rejeitando: distância muito longa')
+            return GoalResponse.REJECT
+
+        self.get_logger().info('Goal aceito!')
+        return GoalResponse.ACCEPT
+
+    def cancel_callback(self, goal_handle):
+        """
+        CRÍTICO: Sempre permitir cancelamento de emergência.
+        Usado quando humano pressiona botão de parada ou detecta perigo.
+        """
+        self.get_logger().warn('Cancelamento requisitado!')
+        return CancelResponse.ACCEPT
+
     async def execute_callback(self, goal_handle):
-        feedback = Fibonacci.Feedback()
-        feedback.sequence = [0, 1]
-        
-        for i in range(1, goal_handle.request.order):
-            feedback.sequence.append(
-                feedback.sequence[i] + feedback.sequence[i-1]
+        """
+        Executar a navegação e publicar feedback contínuo.
+        """
+        self.get_logger().info('Executando goal...')
+        self.is_navigating = True
+
+        feedback_msg = Fibonacci.Feedback()
+        feedback_msg.sequence = [0, 1]
+
+        target_steps = goal_handle.request.order
+
+        for i in range(1, target_steps):
+            # Verificar se foi cancelado
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                self.get_logger().info('Goal cancelado pelo cliente')
+                self.is_navigating = False
+                return Fibonacci.Result()
+
+            # Simular progressão (em produção: ler odometria real)
+            feedback_msg.sequence.append(
+                feedback_msg.sequence[i] + feedback_msg.sequence[i-1]
             )
-            goal_handle.publish_feedback(feedback)
-            await asyncio.sleep(0.5)  # Simula processamento
-        
+
+            self.current_position = i / target_steps * 100  # Porcentagem
+
+            # Publicar feedback
+            goal_handle.publish_feedback(feedback_msg)
+
+            self.get_logger().info(
+                f'Progresso: {self.current_position:.1f}% - '
+                f'Fibonacci: {feedback_msg.sequence[-1]}'
+            )
+
+            await asyncio.sleep(0.5)  # Simula cálculo de trajetória
+
+        # Sucesso
         goal_handle.succeed()
+
         result = Fibonacci.Result()
-        result.sequence = feedback.sequence
+        result.sequence = feedback_msg.sequence
+
+        self.is_navigating = False
+        self.get_logger().info('Goal completado com sucesso!')
+
         return result
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = NavigationActionServer()
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 ```
+
+### Action Client com Monitoramento
+
+```python
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from action_tutorials_interfaces.action import Fibonacci
+
+class NavigationClient(Node):
+    def __init__(self):
+        super().__init__('navigation_client')
+        self._action_client = ActionClient(self, Fibonacci, 'navigate_to_goal')
+
+    def send_goal(self, order):
+        goal_msg = Fibonacci.Goal()
+        goal_msg.order = order
+
+        self.get_logger().info('Aguardando servidor...')
+        self._action_client.wait_for_server()
+
+        self.get_logger().info(f'Enviando goal: navegar {order} passos')
+
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        self.get_logger().info(
+            f'Feedback: Fibonacci atual = {feedback.sequence[-1]}'
+        )
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+
+        if not goal_handle.accepted:
+            self.get_logger().error('Goal rejeitado!')
+            return
+
+        self.get_logger().info('Goal aceito! Executando...')
+
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        status = future.result().status
+
+        if status == 4:  # SUCCEEDED
+            self.get_logger().info(f'Sucesso! Resultado: {result.sequence}')
+        elif status == 5:  # CANCELED
+            self.get_logger().warn('Goal foi cancelado')
+        else:
+            self.get_logger().error(f'Falhou com status: {status}')
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    client = NavigationClient()
+    client.send_goal(10)  # Navegar 10 passos
+
+    rclpy.spin(client)
+
+    client.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Cancelamento de Action
+
+```python
+# No cliente, para cancelar:
+def cancel_goal(self):
+    self.get_logger().info('Cancelando goal...')
+    cancel_future = goal_handle.cancel_goal_async()
+    cancel_future.add_done_callback(self.cancel_done)
+
+def cancel_done(self, future):
+    cancel_response = future.result()
+    if len(cancel_response.goals_canceling) > 0:
+        self.get_logger().info('Goal cancelado com sucesso')
+    else:
+        self.get_logger().error('Falha ao cancelar')
+```
+
+**Caso de Uso:** Boston Dynamics Atlas interrompe navegação ao detectar obstáculo inesperado.
 
 ---
 
-## ⚙️ Parameters (Configuração Dinâmica)
+## ⚙️ Parameters: Configuração Dinâmica
+
+### Por Que Parameters São Críticos
+
+Em robôs de produção, você precisa ajustar comportamento **sem recompilar código**:
+- **Tesla Optimus:** Velocidade máxima, força de aperto, agressividade de movimento
+- **Figure 01:** Thresholds de detecção de objetos, altura de pegada
+- **Agility Digit:** Velocidade de caminhada, tamanho de passo
+
+### Declaração e Uso de Parameters
 
 ```python
-class ConfigurableNode(Node):
+import rclpy
+from rclpy.node import Node
+from rcl_interfaces.msg import SetParametersResult
+
+class HumanoidController(Node):
+    """
+    Controlador de humanoide com parâmetros dinâmicos.
+    Inspirado em sistemas reais da Tesla e Boston Dynamics.
+    """
+
     def __init__(self):
-        super().__init__('configurable_node')
-        
-        # Declarar parâmetros
-        self.declare_parameter('max_speed', 1.0)
-        self.declare_parameter('robot_name', 'Atlas')
-        
-        # Ler valores
-        self.max_speed = self.get_parameter('max_speed').value
-        self.robot_name = self.get_parameter('robot_name').value
-        
-        # Callback quando parâmetro mudar
+        super().__init__('humanoid_controller')
+
+        # ========================================
+        # DECLARAR PARAMETERS COM VALORES PADRÃO
+        # ========================================
+
+        # Parâmetros de locomoção
+        self.declare_parameter('max_walk_speed', 1.5)  # m/s
+        self.declare_parameter('step_height', 0.08)    # metros
+        self.declare_parameter('balance_threshold', 0.1)
+
+        # Parâmetros de manipulação
+        self.declare_parameter('grip_force', 50.0)     # Newtons
+        self.declare_parameter('arm_speed', 0.5)       # m/s
+
+        # Parâmetros de segurança
+        self.declare_parameter('emergency_stop_distance', 0.3)  # metros
+        self.declare_parameter('max_joint_torque', 100.0)       # Nm
+
+        # Parâmetros de sistema
+        self.declare_parameter('robot_name', 'Atlas-01')
+        self.declare_parameter('enable_logging', True)
+
+        # ========================================
+        # LER VALORES INICIAIS
+        # ========================================
+        self.update_parameters()
+
+        # ========================================
+        # CALLBACK PARA MUDANÇAS EM RUNTIME
+        # ========================================
         self.add_on_set_parameters_callback(self.parameter_callback)
-    
+
+        # Timer para usar parâmetros
+        self.create_timer(1.0, self.control_loop)
+
+        self.get_logger().info(f'Controlador iniciado: {self.robot_name}')
+        self.log_parameters()
+
+    def update_parameters(self):
+        """Ler todos os parâmetros e atualizar variáveis internas."""
+        self.max_walk_speed = self.get_parameter('max_walk_speed').value
+        self.step_height = self.get_parameter('step_height').value
+        self.balance_threshold = self.get_parameter('balance_threshold').value
+
+        self.grip_force = self.get_parameter('grip_force').value
+        self.arm_speed = self.get_parameter('arm_speed').value
+
+        self.emergency_stop_distance = self.get_parameter('emergency_stop_distance').value
+        self.max_joint_torque = self.get_parameter('max_joint_torque').value
+
+        self.robot_name = self.get_parameter('robot_name').value
+        self.enable_logging = self.get_parameter('enable_logging').value
+
     def parameter_callback(self, params):
+        """
+        Chamado quando parâmetros são alterados via CLI ou API.
+        VALIDAÇÃO É CRÍTICA AQUI!
+        """
+        successful = True
+
         for param in params:
-            if param.name == 'max_speed':
-                self.max_speed = param.value
-                self.get_logger().info(f'Speed updated to {self.max_speed}')
-        return SetParametersResult(successful=True)
+            self.get_logger().info(f'Parâmetro mudou: {param.name} = {param.value}')
+
+            # ========================================
+            # VALIDAÇÕES DE SEGURANÇA
+            # ========================================
+
+            if param.name == 'max_walk_speed':
+                if param.value > 3.0:  # Limite de segurança
+                    self.get_logger().error(
+                        f'REJEITADO: max_walk_speed {param.value} > 3.0 m/s (perigoso!)'
+                    )
+                    successful = False
+                else:
+                    self.max_walk_speed = param.value
+                    self.get_logger().info(f'✅ Velocidade atualizada para {param.value} m/s')
+
+            elif param.name == 'grip_force':
+                if param.value > 200.0:  # Evitar quebrar objetos
+                    self.get_logger().error(
+                        f'REJEITADO: grip_force {param.value}N muito alto!'
+                    )
+                    successful = False
+                else:
+                    self.grip_force = param.value
+
+            elif param.name == 'emergency_stop_distance':
+                if param.value < 0.1:  # Mínimo de segurança
+                    self.get_logger().error(
+                        'REJEITADO: distância de parada muito pequena!'
+                    )
+                    successful = False
+                else:
+                    self.emergency_stop_distance = param.value
+
+            elif param.name == 'robot_name':
+                self.robot_name = param.value
+
+            elif param.name == 'enable_logging':
+                self.enable_logging = param.value
+
+        return SetParametersResult(successful=successful)
+
+    def control_loop(self):
+        """Loop de controle que usa os parâmetros."""
+        if self.enable_logging:
+            self.get_logger().info(
+                f'{self.robot_name} andando a {self.max_walk_speed} m/s, '
+                f'força de aperto: {self.grip_force}N'
+            )
+
+    def log_parameters(self):
+        """Mostrar todos os parâmetros atuais."""
+        self.get_logger().info('=== PARÂMETROS ATUAIS ===')
+        self.get_logger().info(f'  Robot Name: {self.robot_name}')
+        self.get_logger().info(f'  Max Walk Speed: {self.max_walk_speed} m/s')
+        self.get_logger().info(f'  Step Height: {self.step_height} m')
+        self.get_logger().info(f'  Grip Force: {self.grip_force} N')
+        self.get_logger().info(f'  Arm Speed: {self.arm_speed} m/s')
+        self.get_logger().info(f'  Emergency Stop Dist: {self.emergency_stop_distance} m')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = HumanoidController()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 ```
 
-**Mudar em runtime:**
+### Modificar Parameters em Runtime
+
+<Tabs>
+<TabItem value="cli" label="Via CLI">
 
 ```bash
-ros2 param set /configurable_node max_speed 2.0
+# Listar todos os parâmetros
+ros2 param list
+
+# Visualizar valor
+ros2 param get /humanoid_controller max_walk_speed
+
+# Modificar parâmetro
+ros2 param set /humanoid_controller max_walk_speed 2.0
+
+# Salvar parâmetros para arquivo
+ros2 param dump /humanoid_controller > params.yaml
+
+# Carregar de arquivo
+ros2 param load /humanoid_controller params.yaml
+```
+
+</TabItem>
+<TabItem value="python" label="Via Python">
+
+```python
+from rclpy.parameter import Parameter
+
+# Dentro de outro node:
+def change_robot_speed(self, new_speed):
+    client = self.create_client(
+        SetParameters,
+        '/humanoid_controller/set_parameters'
+    )
+
+    request = SetParameters.Request()
+    request.parameters = [
+        Parameter('max_walk_speed', Parameter.Type.DOUBLE, new_speed).to_parameter_msg()
+    ]
+
+    future = client.call_async(request)
+    future.add_done_callback(self.param_changed_callback)
+
+def param_changed_callback(self, future):
+    result = future.result()
+    if result.results[0].successful:
+        self.get_logger().info('Parâmetro alterado com sucesso')
+    else:
+        self.get_logger().error('Falha ao alterar parâmetro')
+```
+
+</TabItem>
+<TabItem value="yaml" label="YAML Config">
+
+```yaml
+# config/humanoid_params.yaml
+humanoid_controller:
+  ros__parameters:
+    robot_name: "Atlas-Production-01"
+    max_walk_speed: 1.8
+    step_height: 0.09
+    balance_threshold: 0.12
+    grip_force: 60.0
+    arm_speed: 0.6
+    emergency_stop_distance: 0.35
+    max_joint_torque: 120.0
+    enable_logging: true
+```
+
+```bash
+# Lançar node com parâmetros
+ros2 run my_package humanoid_controller --ros-args --params-file config/humanoid_params.yaml
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🗺️ TF2: Sistema de Transformações Espaciais
+
+### Conceito Fundamental
+
+TF2 (Transform Framework 2) é o sistema que mantém relações espaciais entre frames de referência. Em um humanoide:
+
+```
+                    world (frame global)
+                       |
+                    base_link (torso)
+                    /         \
+              left_foot     right_foot
+                    \         /
+                  left_hip  right_hip
+                       |
+                    pelvis
+                       |
+                     spine
+                       |
+                     head
+                    /    \
+            left_shoulder  right_shoulder
+               |              |
+          left_elbow      right_elbow
+               |              |
+          left_wrist      right_wrist
+               |              |
+         left_gripper    right_gripper
+```
+
+**Exemplo:** Para pegar um objeto, você precisa transformar a posição do objeto (em `camera_frame`) para coordenadas do braço (`left_wrist_frame`).
+
+### Transform Broadcaster
+
+```python
+import rclpy
+from rclpy.node import Node
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+import math
+
+class HumanoidTFBroadcaster(Node):
+    """
+    Publica transformações dos frames do humanoide.
+    Em robôs reais, isso vem do estado dos joints (joint_states).
+    """
+
+    def __init__(self):
+        super().__init__('humanoid_tf_broadcaster')
+
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+        # Publicar transformações a 50Hz (necessário para controle suave)
+        self.timer = self.create_timer(0.02, self.broadcast_transforms)
+
+        self.angle = 0.0  # Simular movimento
+
+        self.get_logger().info('TF Broadcaster iniciado')
+
+    def broadcast_transforms(self):
+        """
+        Publicar todas as transformações do robô.
+        """
+        current_time = self.get_clock().now()
+
+        # ========================================
+        # 1. World → Base Link (torso do robô)
+        # ========================================
+        t_base = TransformStamped()
+        t_base.header.stamp = current_time.to_msg()
+        t_base.header.frame_id = 'world'
+        t_base.child_frame_id = 'base_link'
+
+        # Posição (robô se movendo)
+        t_base.transform.translation.x = math.sin(self.angle) * 2.0
+        t_base.transform.translation.y = math.cos(self.angle) * 2.0
+        t_base.transform.translation.z = 1.0  # Altura do torso
+
+        # Orientação (robô girando)
+        t_base.transform.rotation.x = 0.0
+        t_base.transform.rotation.y = 0.0
+        t_base.transform.rotation.z = math.sin(self.angle / 2)
+        t_base.transform.rotation.w = math.cos(self.angle / 2)
+
+        self.tf_broadcaster.sendTransform(t_base)
+
+        # ========================================
+        # 2. Base Link → Left Shoulder
+        # ========================================
+        t_shoulder = TransformStamped()
+        t_shoulder.header.stamp = current_time.to_msg()
+        t_shoulder.header.frame_id = 'base_link'
+        t_shoulder.child_frame_id = 'left_shoulder'
+
+        t_shoulder.transform.translation.x = 0.0
+        t_shoulder.transform.translation.y = 0.3  # 30cm à esquerda
+        t_shoulder.transform.translation.z = 0.4  # 40cm acima
+
+        t_shoulder.transform.rotation.w = 1.0  # Sem rotação
+
+        self.tf_broadcaster.sendTransform(t_shoulder)
+
+        # ========================================
+        # 3. Left Shoulder → Left Elbow
+        # ========================================
+        t_elbow = TransformStamped()
+        t_elbow.header.stamp = current_time.to_msg()
+        t_elbow.header.frame_id = 'left_shoulder'
+        t_elbow.child_frame_id = 'left_elbow'
+
+        t_elbow.transform.translation.x = 0.0
+        t_elbow.transform.translation.y = 0.0
+        t_elbow.transform.translation.z = -0.3  # 30cm abaixo (comprimento do braço)
+
+        # Rotação do cotovelo (flexionando)
+        elbow_angle = math.sin(self.angle * 2) * 0.5 + 0.5  # 0 a 1
+        t_elbow.transform.rotation.x = 0.0
+        t_elbow.transform.rotation.y = math.sin(elbow_angle / 2)
+        t_elbow.transform.rotation.z = 0.0
+        t_elbow.transform.rotation.w = math.cos(elbow_angle / 2)
+
+        self.tf_broadcaster.sendTransform(t_elbow)
+
+        # ========================================
+        # 4. Left Elbow → Left Gripper
+        # ========================================
+        t_gripper = TransformStamped()
+        t_gripper.header.stamp = current_time.to_msg()
+        t_gripper.header.frame_id = 'left_elbow'
+        t_gripper.child_frame_id = 'left_gripper'
+
+        t_gripper.transform.translation.x = 0.0
+        t_gripper.transform.translation.y = 0.0
+        t_gripper.transform.translation.z = -0.25  # 25cm (antebraço)
+
+        t_gripper.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform(t_gripper)
+
+        # ========================================
+        # 5. Base Link → Camera (na cabeça)
+        # ========================================
+        t_camera = TransformStamped()
+        t_camera.header.stamp = current_time.to_msg()
+        t_camera.header.frame_id = 'base_link'
+        t_camera.child_frame_id = 'camera_frame'
+
+        t_camera.transform.translation.x = 0.1   # 10cm à frente
+        t_camera.transform.translation.y = 0.0
+        t_camera.transform.translation.z = 0.6   # 60cm acima (cabeça)
+
+        t_camera.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform(t_camera)
+
+        # Atualizar ângulo para animação
+        self.angle += 0.05
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = HumanoidTFBroadcaster()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Transform Listener: Usar Transformações
+
+```python
+import rclpy
+from rclpy.node import Node
+from tf2_ros import TransformListener, Buffer
+from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
+from geometry_msgs.msg import PointStamped
+import math
+
+class ObjectGrabber(Node):
+    """
+    Usa TF2 para transformar posição de objeto (visto pela câmera)
+    para coordenadas do gripper.
+
+    Exemplo real: Tesla Optimus detecta objeto na câmera e calcula
+    onde mover o braço para pegá-lo.
+    """
+
+    def __init__(self):
+        super().__init__('object_grabber')
+
+        # Buffer armazena transformações
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Timer para tentar pegar objeto
+        self.timer = self.create_timer(1.0, self.try_grab_object)
+
+        self.get_logger().info('Object Grabber iniciado')
+
+    def try_grab_object(self):
+        """
+        1. Objeto detectado pela câmera em coordenadas de 'camera_frame'
+        2. Transformar para 'left_gripper' para saber como mover braço
+        """
+
+        # ========================================
+        # PASSO 1: Objeto detectado pela câmera
+        # ========================================
+        object_in_camera = PointStamped()
+        object_in_camera.header.frame_id = 'camera_frame'
+        object_in_camera.header.stamp = self.get_clock().now().to_msg()
+
+        # Objeto está 0.5m à frente da câmera, 0.1m à direita, mesma altura
+        object_in_camera.point.x = 0.5
+        object_in_camera.point.y = -0.1
+        object_in_camera.point.z = 0.0
+
+        try:
+            # ========================================
+            # PASSO 2: Transformar para coordenadas do gripper
+            # ========================================
+
+            # Esperar transformação estar disponível (até 1 segundo)
+            transform = self.tf_buffer.lookup_transform(
+                'left_gripper',           # Frame de destino
+                'camera_frame',           # Frame de origem
+                rclpy.time.Time(),        # Tempo mais recente
+                timeout=rclpy.duration.Duration(seconds=1.0)
+            )
+
+            # Aplicar transformação
+            object_in_gripper = self.tf_buffer.transform(
+                object_in_camera,
+                'left_gripper',
+                timeout=rclpy.duration.Duration(seconds=1.0)
+            )
+
+            # ========================================
+            # PASSO 3: Calcular movimento necessário
+            # ========================================
+
+            distance = math.sqrt(
+                object_in_gripper.point.x ** 2 +
+                object_in_gripper.point.y ** 2 +
+                object_in_gripper.point.z ** 2
+            )
+
+            self.get_logger().info(
+                f'Objeto detectado! Distância do gripper: {distance:.2f}m\n'
+                f'  Posição relativa ao gripper:\n'
+                f'    X: {object_in_gripper.point.x:.2f}m\n'
+                f'    Y: {object_in_gripper.point.y:.2f}m\n'
+                f'    Z: {object_in_gripper.point.z:.2f}m'
+            )
+
+            if distance < 0.1:
+                self.get_logger().info('✅ OBJETO ALCANÇÁVEL! Fechando gripper...')
+            else:
+                self.get_logger().info(f'Objeto muito longe. Mover braço {distance:.2f}m')
+
+        except (LookupException, ConnectivityException, ExtrapolationException) as e:
+            self.get_logger().warn(f'Transformação não disponível: {e}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ObjectGrabber()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Visualizar TF Tree
+
+```bash
+# Instalar ferramentas
+sudo apt install ros-humble-tf2-tools
+
+# Ver árvore de transformações
+ros2 run tf2_tools view_frames
+
+# Gera arquivo 'frames.pdf' com diagrama visual
+
+# Monitorar transformação específica
+ros2 run tf2_ros tf2_echo world left_gripper
+
+# Output:
+# Translation: [1.234, 0.567, 1.890]
+# Rotation: [0.0, 0.0, 0.707, 0.707]
 ```
 
 ---
 
-## 🗺️ TF2 (Transformações)
+## 🚨 Troubleshooting Comum
 
-### Broadcast Transform
+### Problema 1: Action Server Não Responde
+
+```bash
+# Verificar se servidor está rodando
+ros2 action list
+
+# Ver info do action
+ros2 action info /navigate_to_goal
+
+# Testar via CLI
+ros2 action send_goal /navigate_to_goal action_tutorials_interfaces/action/Fibonacci "{order: 5}"
+```
+
+**Solução:** Verificar se `wait_for_server()` foi chamado no cliente.
+
+### Problema 2: Parâmetros Não Persistem Após Restart
+
+**Solução:** Usar YAML files e carregar no launch file:
 
 ```python
-from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
+# launch/humanoid_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node
+import os
+from ament_index_python.packages import get_package_share_directory
 
-class FramePublisher(Node):
-    def __init__(self):
-        super().__init__('frame_publisher')
-        self.br = TransformBroadcaster(self)
-        self.timer = self.create_timer(0.1, self.broadcast_timer_callback)
-    
-    def broadcast_timer_callback(self):
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = 'world'
-        t.child_frame_id = 'robot_base'
-        
-        t.transform.translation.x = 1.0
-        t.transform.translation.y = 0.5
-        t.transform.translation.z = 0.0
-        
-        self.br.sendTransform(t)
+def generate_launch_description():
+    config = os.path.join(
+        get_package_share_directory('my_package'),
+        'config',
+        'humanoid_params.yaml'
+    )
+
+    return LaunchDescription([
+        Node(
+            package='my_package',
+            executable='humanoid_controller',
+            parameters=[config]
+        )
+    ])
 ```
+
+### Problema 3: TF "Lookup would require extrapolation into the past"
+
+**Causa:** Timestamps inconsistentes ou transformações publicadas muito devagar.
+
+**Solução:**
+```python
+# Usar timestamp atual sempre
+t.header.stamp = self.get_clock().now().to_msg()
+
+# Ou usar tempo zero para pegar transformação mais recente
+transform = self.tf_buffer.lookup_transform(
+    target_frame,
+    source_frame,
+    rclpy.time.Time()  # ← Pega mais recente
+)
+```
+
+---
+
+## 🏭 Casos de Uso em Produção
+
+### Boston Dynamics Atlas
+
+**Actions usados:**
+- `NavigateToGoal`: Andar até ponto especificado
+- `PerformBackflip`: Executar backflip (com feedback de progresso)
+- `ClimbStairs`: Subir escadas (cancelável se detectar perigo)
+
+**Parameters dinâmicos:**
+- `balance_aggressiveness`: 0.0 (conservador) a 1.0 (agressivo)
+- `max_step_height`: Ajustado para terreno
+- `recovery_behavior`: Tipo de recuperação ao cair
+
+### Tesla Optimus (Gen 2)
+
+**TF2 frames:**
+```
+world → base_link → torso → head → camera_optical_frame
+              ↓
+         left_arm → left_elbow → left_wrist → left_gripper
+              ↓
+         right_arm → right_elbow → right_wrist → right_gripper
+```
+
+**Caso:** Pegar bateria de carro
+1. Câmera detecta bateria em `camera_optical_frame`
+2. TF2 transforma para `world`
+3. Path planner calcula movimento de `base_link`
+4. IK resolve movimento de `right_arm` até `right_gripper`
+
+---
+
+## ✅ Checklist de Domínio
+
+Antes de avançar, certifique-se de que você consegue:
+
+- [ ] Implementar Action Server com feedback e cancelamento
+- [ ] Criar Action Client que monitora progresso
+- [ ] Declarar e validar parameters com restrições de segurança
+- [ ] Modificar parameters em runtime via CLI e código
+- [ ] Publicar transforms com TransformBroadcaster
+- [ ] Ler e usar transforms com TransformListener
+- [ ] Debugar problemas de TF com `tf2_echo` e `view_frames`
+- [ ] Entender quando usar Topic vs Service vs Action
+- [ ] Configurar parameters via YAML files
 
 ---
 
@@ -126,5 +913,11 @@ class FramePublisher(Node):
 :::tip Próximo Módulo
 **[👁️ Visão Computacional →](./visao-computacional)**
 
-OpenCV, detecção de objetos e tracking.
+Dominar OpenCV, detecção de objetos com YOLO, tracking visual e integração com ROS2. Aprenda como Tesla Optimus e Figure 01 usam visão para manipular objetos.
 :::
+
+**Recursos adicionais:**
+- [ROS2 Actions Tutorial](https://docs.ros.org/en/humble/Tutorials/Intermediate/Writing-an-Action-Server-Client/Py.html)
+- [Parameters Guide](https://docs.ros.org/en/humble/Concepts/About-ROS-2-Parameters.html)
+- [TF2 Tutorials](https://docs.ros.org/en/humble/Tutorials/Intermediate/Tf2/Tf2-Main.html)
+- [Boston Dynamics Research Papers](https://bostondynamics.com/resources/)

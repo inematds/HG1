@@ -9,81 +9,970 @@ import TabItem from '@theme/TabItem';
 
 # 👁️ Visão Computacional
 
-:::tip Objetivo
-OpenCV, detecção de objetos, tracking e integração com ROS2.
+:::tip Objetivo do Módulo
+Dominar visão computacional para robôs humanoides: OpenCV para processamento de imagens, YOLO para detecção de objetos, algoritmos de tracking e integração completa com ROS2. Aprenda as técnicas usadas por Tesla Optimus, Figure 01 e Agility Digit para perceber e interagir com o mundo.
 :::
+
+**Duração estimada:** 50 minutos
+**Pré-requisitos:** Módulos 1-4 (Python, ROS2, TF2)
 
 ---
 
-## 📷 Processar Câmera do Robô
+## 📷 Fundamentos: Integração Câmera + ROS2
+
+### Pipeline Completo de Visão
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Câmera    │────▶│  cv_bridge  │────▶│   OpenCV    │────▶│  Detecção   │
+│   (ROS)     │     │ ROS→NumPy   │     │ Processar   │     │   (YOLO)    │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+                                                                    │
+                                                                    ▼
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Controle   │◀────│     TF2     │◀────│  3D Pose    │◀────│  Tracking   │
+│    Robô     │     │ Transforms  │     │  Estimação  │     │   Objeto    │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+### CvBridge: Converter Mensagens ROS ↔ OpenCV
+
+```python
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image, CameraInfo
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
+import numpy as np
+
+class CameraProcessor(Node):
+    """
+    Nó base para processamento de imagens.
+    Converte mensagens ROS Image para arrays NumPy/OpenCV.
+
+    Usado em todos os humanoides: Atlas, Optimus, Figure 01, Digit.
+    """
+
+    def __init__(self):
+        super().__init__('camera_processor')
+
+        # Bridge ROS ↔ OpenCV
+        self.bridge = CvBridge()
+
+        # Parâmetros de câmera (importantes para calibração)
+        self.camera_matrix = None
+        self.dist_coeffs = None
+
+        # Subscribers
+        self.image_sub = self.create_subscription(
+            Image,
+            '/camera/image_raw',
+            self.image_callback,
+            10
+        )
+
+        self.camera_info_sub = self.create_subscription(
+            CameraInfo,
+            '/camera/camera_info',
+            self.camera_info_callback,
+            10
+        )
+
+        # Publishers
+        self.processed_pub = self.create_publisher(
+            Image,
+            '/camera/processed',
+            10
+        )
+
+        self.get_logger().info('Camera Processor iniciado')
+
+    def camera_info_callback(self, msg):
+        """
+        Receber parâmetros intrínsecos da câmera.
+        Necessário para corrigir distorção e estimar 3D.
+        """
+        # Matrix 3x3 de calibração
+        self.camera_matrix = np.array(msg.k).reshape(3, 3)
+
+        # Coeficientes de distorção [k1, k2, p1, p2, k3]
+        self.dist_coeffs = np.array(msg.d)
+
+        self.get_logger().info(
+            f'Parâmetros de câmera recebidos:\n'
+            f'  Focal length: ({self.camera_matrix[0,0]:.1f}, {self.camera_matrix[1,1]:.1f})\n'
+            f'  Center: ({self.camera_matrix[0,2]:.1f}, {self.camera_matrix[1,2]:.1f})'
+        )
+
+    def image_callback(self, msg):
+        """
+        Processar cada frame da câmera.
+        """
+        try:
+            # ====================================
+            # CONVERTER ROS IMAGE → OPENCV
+            # ====================================
+            # Encodings comuns:
+            # - 'bgr8': RGB 8-bit (mais comum)
+            # - 'mono8': Grayscale 8-bit
+            # - 'rgb8': RGB 8-bit
+            # - '32FC1': Depth map 32-bit float
+
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+            # ====================================
+            # PROCESSAR IMAGEM
+            # ====================================
+            processed = self.process_image(cv_image)
+
+            # ====================================
+            # CONVERTER OPENCV → ROS IMAGE
+            # ====================================
+            processed_msg = self.bridge.cv2_to_imgmsg(processed, encoding='bgr8')
+            processed_msg.header = msg.header  # Preservar timestamp
+
+            # Publicar resultado
+            self.processed_pub.publish(processed_msg)
+
+        except CvBridgeError as e:
+            self.get_logger().error(f'CvBridge Error: {e}')
+
+    def process_image(self, image):
+        """
+        Pipeline de processamento de imagem.
+        Sobrescreva este método em classes derivadas.
+        """
+        # Exemplo: converter para grayscale e detectar bordas
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+
+        # Converter de volta para BGR para visualização
+        edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+        return edges_bgr
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = CameraProcessor()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## 🎨 OpenCV: Processamento de Imagens
+
+### Detecção de Cores (HSV Color Space)
+
+```python
+class ColorDetector(CameraProcessor):
+    """
+    Detectar objetos por cor.
+
+    Caso de uso real: Tesla Optimus detecta objetos vermelhos (botão de emergência),
+    objetos azuis (ferramentas), etc.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.node_name = 'color_detector'
+
+        # Declarar parâmetros para ajuste dinâmico de cores
+        self.declare_parameter('target_color', 'red')
+        self.declare_parameter('hsv_lower', [0, 100, 100])
+        self.declare_parameter('hsv_upper', [10, 255, 255])
+        self.declare_parameter('min_area', 500)  # pixels²
+
+    def process_image(self, image):
+        """
+        Detectar objetos da cor especificada.
+        """
+        # ====================================
+        # PASSO 1: Converter BGR → HSV
+        # ====================================
+        # HSV é melhor que RGB para detecção de cores porque separa:
+        # - H (Hue): Cor (0-180)
+        # - S (Saturation): Intensidade da cor (0-255)
+        # - V (Value): Brilho (0-255)
+
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # ====================================
+        # PASSO 2: Definir ranges de cores
+        # ====================================
+        target_color = self.get_parameter('target_color').value
+
+        if target_color == 'red':
+            # Vermelho tem duas faixas em HSV (0-10 e 170-180)
+            lower1 = np.array([0, 100, 100])
+            upper1 = np.array([10, 255, 255])
+            lower2 = np.array([170, 100, 100])
+            upper2 = np.array([180, 255, 255])
+
+            mask1 = cv2.inRange(hsv, lower1, upper1)
+            mask2 = cv2.inRange(hsv, lower2, upper2)
+            mask = cv2.bitwise_or(mask1, mask2)
+
+        elif target_color == 'blue':
+            lower = np.array([100, 100, 100])
+            upper = np.array([130, 255, 255])
+            mask = cv2.inRange(hsv, lower, upper)
+
+        elif target_color == 'green':
+            lower = np.array([40, 40, 40])
+            upper = np.array([80, 255, 255])
+            mask = cv2.inRange(hsv, lower, upper)
+
+        else:  # Custom HSV values
+            lower = np.array(self.get_parameter('hsv_lower').value)
+            upper = np.array(self.get_parameter('hsv_upper').value)
+            mask = cv2.inRange(hsv, lower, upper)
+
+        # ====================================
+        # PASSO 3: Morphological operations (limpar ruído)
+        # ====================================
+        kernel = np.ones((5, 5), np.uint8)
+
+        # Erosion: remove pixels de borda (remove ruído pequeno)
+        mask = cv2.erode(mask, kernel, iterations=2)
+
+        # Dilation: adiciona pixels de borda (preenche buracos)
+        mask = cv2.dilate(mask, kernel, iterations=2)
+
+        # ====================================
+        # PASSO 4: Encontrar contornos
+        # ====================================
+        contours, _ = cv2.findContours(
+            mask,
+            cv2.RETR_EXTERNAL,      # Apenas contornos externos
+            cv2.CHAIN_APPROX_SIMPLE # Comprimir pontos redundantes
+        )
+
+        min_area = self.get_parameter('min_area').value
+
+        # ====================================
+        # PASSO 5: Filtrar e desenhar contornos
+        # ====================================
+        output = image.copy()
+
+        for contour in contours:
+            area = cv2.contourArea(contour)
+
+            if area < min_area:
+                continue  # Ignorar objetos muito pequenos
+
+            # Bounding box
+            x, y, w, h = cv2.boundingRect(contour)
+
+            # Calcular centro
+            cx = x + w // 2
+            cy = y + h // 2
+
+            # Desenhar
+            cv2.rectangle(output, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.circle(output, (cx, cy), 5, (0, 0, 255), -1)
+
+            # Label com informações
+            label = f'{target_color}: {area:.0f}px² ({cx}, {cy})'
+            cv2.putText(
+                output, label, (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+            )
+
+            self.get_logger().info(
+                f'Objeto {target_color} detectado: área={area:.0f}px², centro=({cx}, {cy})'
+            )
+
+        return output
+```
+
+### Detecção de Features (Cantos, Bordas)
+
+```python
+def detect_features(image):
+    """
+    Detectar features para tracking e SLAM.
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # ====================================
+    # Método 1: Canny Edge Detection
+    # ====================================
+    edges = cv2.Canny(gray, 50, 150)
+
+    # ====================================
+    # Método 2: Harris Corner Detection
+    # ====================================
+    corners = cv2.cornerHarris(gray, blockSize=2, ksize=3, k=0.04)
+    corners = cv2.dilate(corners, None)  # Amplificar
+    image[corners > 0.01 * corners.max()] = [0, 0, 255]  # Marcar vermelho
+
+    # ====================================
+    # Método 3: ORB (Oriented FAST and Rotated BRIEF)
+    # ====================================
+    # Mais rápido que SIFT/SURF, usado em robótica mobile
+    orb = cv2.ORB_create(nfeatures=500)
+    keypoints, descriptors = orb.detectAndCompute(gray, None)
+
+    # Desenhar keypoints
+    image_with_keypoints = cv2.drawKeypoints(
+        image, keypoints, None,
+        color=(0, 255, 0),
+        flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+    )
+
+    return image_with_keypoints, keypoints, descriptors
+```
+
+---
+
+## 🤖 YOLO: Detecção de Objetos com Deep Learning
+
+### YOLOv5 com PyTorch
+
+```python
+import torch
+from ultralytics import YOLO
+
+class YOLODetector(CameraProcessor):
+    """
+    Detector de objetos usando YOLO.
+
+    YOLO (You Only Look Once) é usado em:
+    - Tesla Optimus: detectar ferramentas, objetos, pessoas
+    - Figure 01: detectar caixas, produtos em warehouse
+    - Agility Digit: detectar obstáculos, pacotes
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.node_name = 'yolo_detector'
+
+        # ====================================
+        # Parâmetros
+        # ====================================
+        self.declare_parameter('model_name', 'yolov8n.pt')  # n=nano (rápido)
+        self.declare_parameter('confidence_threshold', 0.5)
+        self.declare_parameter('device', 'cuda')  # 'cuda' ou 'cpu'
+
+        model_name = self.get_parameter('model_name').value
+        device = self.get_parameter('device').value
+
+        # ====================================
+        # Carregar modelo YOLO
+        # ====================================
+        self.get_logger().info(f'Carregando modelo {model_name}...')
+
+        self.model = YOLO(model_name)
+
+        # Mover para GPU se disponível
+        if device == 'cuda' and torch.cuda.is_available():
+            self.model.to('cuda')
+            self.get_logger().info('✅ Usando GPU (CUDA)')
+        else:
+            self.get_logger().info('⚠️  Usando CPU (pode ser lento)')
+
+        # Classes do COCO dataset (80 objetos comuns)
+        self.class_names = self.model.names
+
+        self.get_logger().info(f'Modelo carregado. Classes disponíveis: {len(self.class_names)}')
+
+    def process_image(self, image):
+        """
+        Detectar objetos no frame.
+        """
+        conf_threshold = self.get_parameter('confidence_threshold').value
+
+        # ====================================
+        # INFERÊNCIA
+        # ====================================
+        results = self.model(image, conf=conf_threshold, verbose=False)
+
+        # ====================================
+        # PROCESSAR DETECÇÕES
+        # ====================================
+        output = image.copy()
+
+        for result in results:
+            boxes = result.boxes
+
+            for box in boxes:
+                # Coordenadas da bounding box
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+                # Confiança e classe
+                confidence = float(box.conf[0])
+                class_id = int(box.cls[0])
+                class_name = self.class_names[class_id]
+
+                # ====================================
+                # DESENHAR DETECÇÃO
+                # ====================================
+
+                # Cor baseada na classe (consistente)
+                color = self.get_color_for_class(class_id)
+
+                # Bounding box
+                cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+
+                # Label
+                label = f'{class_name} {confidence:.2f}'
+                (label_width, label_height), _ = cv2.getTextSize(
+                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2
+                )
+
+                # Background do label
+                cv2.rectangle(
+                    output,
+                    (x1, y1 - label_height - 10),
+                    (x1 + label_width, y1),
+                    color,
+                    -1  # Preenchido
+                )
+
+                # Texto
+                cv2.putText(
+                    output, label,
+                    (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2
+                )
+
+                # ====================================
+                # LOG
+                # ====================================
+                self.get_logger().info(
+                    f'Detectado: {class_name} (conf={confidence:.2f}) '
+                    f'em ({x1}, {y1}) → ({x2}, {y2})'
+                )
+
+        return output
+
+    def get_color_for_class(self, class_id):
+        """Gerar cor consistente para cada classe."""
+        np.random.seed(class_id)
+        return tuple(map(int, np.random.randint(0, 255, 3)))
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = YOLODetector()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Comparação de Modelos YOLO
+
+<Tabs>
+<TabItem value="yolov8n" label="YOLOv8 Nano (Recomendado)">
+
+```python
+# Mais rápido, ideal para tempo real em humanoides
+model = YOLO('yolov8n.pt')
+
+# Performance:
+# - Velocidade: ~45 FPS em RTX 3060
+# - mAP: 37.3%
+# - Tamanho: 6 MB
+# - Uso de RAM: ~500 MB
+
+# Use quando: Precisa de baixa latência (<50ms)
+```
+
+</TabItem>
+<TabItem value="yolov8s" label="YOLOv8 Small">
+
+```python
+# Balanço entre velocidade e precisão
+model = YOLO('yolov8s.pt')
+
+# Performance:
+# - Velocidade: ~30 FPS em RTX 3060
+# - mAP: 44.9%
+# - Tamanho: 22 MB
+# - Uso de RAM: ~1 GB
+
+# Use quando: Quer melhor precisão sem sacrificar muito FPS
+```
+
+</TabItem>
+<TabItem value="yolov8m" label="YOLOv8 Medium">
+
+```python
+# Alta precisão para tarefas críticas
+model = YOLO('yolov8m.pt')
+
+# Performance:
+# - Velocidade: ~18 FPS em RTX 3060
+# - mAP: 50.2%
+# - Tamanho: 52 MB
+# - Uso de RAM: ~2 GB
+
+# Use quando: Precisão é mais importante que velocidade
+# (ex: identificar ferramentas específicas antes de pegar)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📹 Tracking: Seguir Objetos ao Longo do Tempo
+
+### Algoritmos de Tracking
 
 ```python
 import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
 
-class CameraProcessor(Node):
+class ObjectTracker(CameraProcessor):
+    """
+    Rastrear objetos entre frames.
+
+    Caso de uso: Tesla Optimus rastreando mão de humano para handshake,
+    ou Figure 01 rastreando caixa durante movimento.
+    """
+
     def __init__(self):
-        super().__init__('camera_processor')
-        self.bridge = CvBridge()
-        
-        self.sub = self.create_subscription(
-            Image, '/camera/image_raw', self.image_callback, 10
+        super().__init__()
+        self.node_name = 'object_tracker'
+
+        self.declare_parameter('tracker_type', 'CSRT')
+
+        # Estado do tracker
+        self.tracker = None
+        self.tracking = False
+        self.bbox = None
+
+    def initialize_tracker(self, image, bbox):
+        """
+        Inicializar tracker com bounding box inicial.
+        bbox = (x, y, width, height)
+        """
+        tracker_type = self.get_parameter('tracker_type').value
+
+        # ====================================
+        # Escolher algoritmo de tracking
+        # ====================================
+        if tracker_type == 'CSRT':
+            # Discriminative Correlation Filter with Channel and Spatial Reliability
+            # Mais preciso, mas mais lento
+            self.tracker = cv2.TrackerCSRT_create()
+
+        elif tracker_type == 'KCF':
+            # Kernelized Correlation Filters
+            # Mais rápido, menos preciso
+            self.tracker = cv2.TrackerKCF_create()
+
+        elif tracker_type == 'MOSSE':
+            # Minimum Output Sum of Squared Error
+            # Muito rápido, menos robusto
+            self.tracker = cv2.TrackerMOSSE_create()
+
+        elif tracker_type == 'MIL':
+            # Multiple Instance Learning
+            # Balanço entre velocidade e precisão
+            self.tracker = cv2.TrackerMIL_create()
+
+        # Inicializar com primeira bounding box
+        self.tracker.init(image, bbox)
+        self.tracking = True
+        self.bbox = bbox
+
+        self.get_logger().info(
+            f'Tracker {tracker_type} inicializado em {bbox}'
         )
-        
-        self.pub = self.create_publisher(Image, '/detected_objects', 10)
-    
-    def image_callback(self, msg):
-        # ROS Image -> OpenCV
-        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-        
-        # Processar
-        detected = self.detect_objects(cv_image)
-        
-        # OpenCV -> ROS Image
-        detected_msg = self.bridge.cv2_to_imgmsg(detected, 'bgr8')
-        self.pub.publish(detected_msg)
-    
-    def detect_objects(self, image):
-        # Detectar objetos vermelhos
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        lower_red = (0, 100, 100)
-        upper_red = (10, 255, 255)
-        mask = cv2.inRange(hsv, lower_red, upper_red)
-        
-        # Encontrar contornos
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Desenhar bounding boxes
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        
+
+    def process_image(self, image):
+        """
+        Atualizar tracking a cada frame.
+        """
+        if not self.tracking:
+            # Modo de detecção: esperar usuário selecionar objeto
+            # Em produção, YOLO detectaria automaticamente
+            cv2.putText(
+                image, 'Pressione "s" para selecionar objeto',
+                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2
+            )
+            return image
+
+        # ====================================
+        # ATUALIZAR TRACKER
+        # ====================================
+        success, bbox = self.tracker.update(image)
+
+        if success:
+            # Tracking bem-sucedido
+            x, y, w, h = map(int, bbox)
+
+            # Desenhar bounding box
+            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            # Calcular centro
+            cx, cy = x + w // 2, y + h // 2
+            cv2.circle(image, (cx, cy), 5, (0, 0, 255), -1)
+
+            # Informações
+            cv2.putText(
+                image, f'Tracking: ({cx}, {cy})',
+                (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2
+            )
+
+            self.bbox = bbox
+
+        else:
+            # Tracking perdido
+            cv2.putText(
+                image, 'TRACKING PERDIDO!',
+                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3
+            )
+            self.tracking = False
+
+        return image
+```
+
+### Kalman Filter para Tracking Suave
+
+```python
+import numpy as np
+
+class KalmanTracker:
+    """
+    Filtro de Kalman para suavizar tracking e prever posições futuras.
+
+    Usado em: Todos os humanoides para prever movimento de objetos
+    e compensar latência de visão (~30-50ms).
+    """
+
+    def __init__(self):
+        # Inicializar Kalman Filter
+        # Estado: [x, y, vx, vy] (posição + velocidade)
+        self.kf = cv2.KalmanFilter(4, 2)  # 4 estados, 2 medições
+
+        # Matrix de transição de estado
+        # x_new = x + vx * dt
+        # y_new = y + vy * dt
+        dt = 1.0
+        self.kf.transitionMatrix = np.array([
+            [1, 0, dt, 0],
+            [0, 1, 0, dt],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ], dtype=np.float32)
+
+        # Matrix de medição (medimos apenas x, y)
+        self.kf.measurementMatrix = np.array([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0]
+        ], dtype=np.float32)
+
+        # Ruído de processo
+        self.kf.processNoiseCov = np.eye(4, dtype=np.float32) * 0.03
+
+        # Ruído de medição
+        self.kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * 1
+
+    def predict(self):
+        """Prever próxima posição."""
+        prediction = self.kf.predict()
+        return int(prediction[0]), int(prediction[1])
+
+    def update(self, x, y):
+        """Atualizar com nova medição."""
+        measurement = np.array([[np.float32(x)], [np.float32(y)]])
+        self.kf.correct(measurement)
+
+# Uso:
+tracker = KalmanTracker()
+
+for frame in video:
+    # Detectar objeto
+    detected_x, detected_y = detect_object(frame)
+
+    # Prever onde deveria estar
+    predicted_x, predicted_y = tracker.predict()
+
+    # Atualizar com medição real
+    tracker.update(detected_x, detected_y)
+
+    # Usar posição suavizada para controle do robô
+    smooth_x = (predicted_x + detected_x) // 2
+    smooth_y = (predicted_y + detected_y) // 2
+```
+
+---
+
+## 🎯 Estimação de Pose 3D
+
+### Depth Camera: Estimar Distância
+
+```python
+from sensor_msgs.msg import Image
+import cv2
+
+class DepthProcessor(Node):
+    """
+    Processar depth camera (RealSense, Kinect, ZED).
+
+    Humanoides usam depth para:
+    - Estimar distância até objetos
+    - Evitar colisões
+    - Mapear ambiente 3D
+    """
+
+    def __init__(self):
+        super().__init__('depth_processor')
+        self.bridge = CvBridge()
+
+        # Subscribers
+        self.rgb_sub = self.create_subscription(
+            Image, '/camera/color/image_raw', self.rgb_callback, 10
+        )
+        self.depth_sub = self.create_subscription(
+            Image, '/camera/depth/image_raw', self.depth_callback, 10
+        )
+
+        self.rgb_image = None
+        self.depth_image = None
+
+    def rgb_callback(self, msg):
+        self.rgb_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+    def depth_callback(self, msg):
+        # Depth geralmente é 32FC1 (float32) em metros
+        self.depth_image = self.bridge.imgmsg_to_cv2(msg, '32FC1')
+
+        if self.rgb_image is not None:
+            self.process_rgbd()
+
+    def process_rgbd(self):
+        """
+        Combinar RGB + Depth para detecção 3D.
+        """
+        # Exemplo: Detectar objetos próximos (< 1 metro)
+        close_mask = (self.depth_image < 1.0) & (self.depth_image > 0.1)
+
+        # Visualizar
+        depth_colored = cv2.applyColorMap(
+            cv2.convertScaleAbs(self.depth_image, alpha=50),
+            cv2.COLORMAP_JET
+        )
+
+        # Destacar objetos próximos em vermelho
+        depth_colored[close_mask] = [0, 0, 255]
+
+        # Mostrar lado a lado
+        combined = np.hstack([self.rgb_image, depth_colored])
+
+        cv2.imshow('RGB + Depth', combined)
+        cv2.waitKey(1)
+
+    def get_3d_position(self, pixel_x, pixel_y):
+        """
+        Converter pixel 2D + depth → posição 3D.
+
+        Requer calibração da câmera (camera_matrix).
+        """
+        if self.depth_image is None or self.camera_matrix is None:
+            return None
+
+        # Ler profundidade no pixel
+        depth = self.depth_image[pixel_y, pixel_x]
+
+        if depth == 0 or np.isnan(depth):
+            return None  # Sem leitura válida
+
+        # Parâmetros intrínsecos da câmera
+        fx = self.camera_matrix[0, 0]
+        fy = self.camera_matrix[1, 1]
+        cx = self.camera_matrix[0, 2]
+        cy = self.camera_matrix[1, 2]
+
+        # Converter para 3D
+        x = (pixel_x - cx) * depth / fx
+        y = (pixel_y - cy) * depth / fy
+        z = depth
+
+        return (x, y, z)  # Em metros
+```
+
+### ArUco Markers: Detecção de Pose Precisa
+
+```python
+import cv2.aruco as aruco
+
+class ArucoDetector(CameraProcessor):
+    """
+    Detectar marcadores ArUco para estimação de pose 6DOF.
+
+    Usado em:
+    - Calibração de espaço de trabalho
+    - Localização precisa de objetos
+    - Hand-eye calibration
+    """
+
+    def __init__(self):
+        super().__init__()
+
+        # Dicionário de ArUco (4x4, 50 marcadores)
+        self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
+        self.aruco_params = aruco.DetectorParameters()
+
+        # Tamanho real do marcador (em metros)
+        self.declare_parameter('marker_size', 0.05)  # 5cm
+
+    def process_image(self, image):
+        """
+        Detectar marcadores ArUco e estimar pose 3D.
+        """
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Detectar marcadores
+        corners, ids, rejected = aruco.detectMarkers(
+            gray, self.aruco_dict, parameters=self.aruco_params
+        )
+
+        if ids is not None:
+            # Desenhar marcadores detectados
+            aruco.drawDetectedMarkers(image, corners, ids)
+
+            if self.camera_matrix is not None:
+                # Estimar pose 3D de cada marcador
+                marker_size = self.get_parameter('marker_size').value
+
+                rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(
+                    corners, marker_size, self.camera_matrix, self.dist_coeffs
+                )
+
+                for i in range(len(ids)):
+                    # Desenhar eixos 3D
+                    cv2.drawFrameAxes(
+                        image, self.camera_matrix, self.dist_coeffs,
+                        rvecs[i], tvecs[i], marker_size * 0.5
+                    )
+
+                    # Informações de pose
+                    x, y, z = tvecs[i][0]
+                    self.get_logger().info(
+                        f'Marcador {ids[i][0]}: '
+                        f'posição=({x:.3f}, {y:.3f}, {z:.3f})m'
+                    )
+
         return image
 ```
 
 ---
 
-## 🤖 YOLO para Detecção
+## 🚨 Troubleshooting Comum
+
+### Problema 1: YOLO Muito Lento
+
+**Sintoma:** FPS < 10, latência alta
+
+**Soluções:**
 
 ```python
-import torch
+# 1. Usar modelo menor
+model = YOLO('yolov8n.pt')  # Ao invés de yolov8m.pt
 
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+# 2. Reduzir resolução da imagem
+image_resized = cv2.resize(image, (640, 480))  # Ao invés de 1920x1080
 
-def detect_with_yolo(image):
-    results = model(image)
-    
-    for *box, conf, cls in results.xyxy[0]:
-        x1, y1, x2, y2 = map(int, box)
-        label = model.names[int(cls)]
-        
-        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(image, f'{label} {conf:.2f}', 
-                    (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-    
-    return image
+# 3. Pular frames (processar 1 a cada N frames)
+self.frame_count += 1
+if self.frame_count % 3 != 0:
+    return image  # Pular este frame
+
+# 4. Usar INT8 quantization (inferência 4x mais rápida)
+model.export(format='onnx', int8=True)
 ```
+
+### Problema 2: Detecção de Cores Instável
+
+**Causa:** Iluminação variável, reflexos
+
+**Solução:**
+
+```python
+# Normalizar iluminação com CLAHE
+clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+hsv[:, :, 2] = clahe.apply(hsv[:, :, 2])  # Aplicar no canal V
+
+# Usar filtro temporal (média dos últimos N frames)
+self.color_detections.append(current_detection)
+if len(self.color_detections) > 5:
+    self.color_detections.pop(0)
+stable_detection = np.mean(self.color_detections, axis=0)
+```
+
+### Problema 3: Tracking Perde Objeto
+
+**Solução:** Combinar tracker com detector
+
+```python
+# Re-detectar a cada N frames com YOLO
+if self.frame_count % 30 == 0:  # A cada 30 frames
+    detections = self.yolo_detect(image)
+    if len(detections) > 0:
+        # Reinicializar tracker com nova detecção
+        self.tracker.init(image, detections[0].bbox)
+```
+
+---
+
+## 🏭 Casos de Uso em Produção
+
+### Tesla Optimus
+
+**Stack de visão:**
+- **8 câmeras** (360° coverage)
+- **YOLOv8** customizado para objetos de fábrica
+- **Depth estimation** via stereo (sem LIDAR)
+- **Tracking multi-objeto** com Kalman Filters
+
+**Caso:** Sortear peças na Gigafactory
+1. Câmera detecta 5 objetos diferentes na esteira
+2. YOLO classifica cada um (bateria, motor, parafuso, etc.)
+3. Tracking mantém ID de cada objeto enquanto se move
+4. Sistema decide qual pegar baseado em prioridade
+5. Depth estima distância exata para planejamento de trajetória
+
+### Figure 01
+
+**Visão para warehouse:**
+- **RealSense D435i** (RGB-D camera)
+- **Segmentation** para distinguir caixas individuais em pilhas
+- **ArUco markers** em prateleiras para localização precisa
+- **OCR** para ler códigos de barras
+
+### Boston Dynamics Spot
+
+**Mesmo não sendo humanoide, usa técnicas similares:**
+- 5 câmeras stereo para navegação 360°
+- Detecção de obstáculos em tempo real
+- Visual SLAM para mapeamento
+
+---
+
+## ✅ Checklist de Domínio
+
+Antes de avançar, certifique-se de que você consegue:
+
+- [ ] Converter mensagens ROS Image ↔ OpenCV com cv_bridge
+- [ ] Detectar objetos por cor usando HSV color space
+- [ ] Implementar detecção de objetos com YOLO
+- [ ] Comparar e escolher modelo YOLO adequado para seu caso
+- [ ] Implementar tracking de objetos com OpenCV trackers
+- [ ] Usar Kalman Filter para suavizar tracking
+- [ ] Processar depth images para estimar distâncias 3D
+- [ ] Detectar marcadores ArUco e estimar pose 6DOF
+- [ ] Otimizar performance de visão para tempo real
+- [ ] Debugar problemas comuns de detecção e tracking
 
 ---
 
@@ -92,5 +981,11 @@ def detect_with_yolo(image):
 :::tip Próximo Módulo
 **[🗺️ Navegação Autônoma →](./navegacao-autonoma)**
 
-Nav2, SLAM e path planning.
+Dominar Nav2, SLAM, mapeamento e planejamento de trajetória. Aprenda como humanoides navegam autonomamente em ambientes complexos usando LIDAR, odometria e mapas.
 :::
+
+**Recursos adicionais:**
+- [OpenCV Tutorials](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html)
+- [Ultralytics YOLOv8 Docs](https://docs.ultralytics.com/)
+- [RealSense SDK](https://github.com/IntelRealSense/librealsense)
+- [cv_bridge Tutorial](https://wiki.ros.org/cv_bridge/Tutorials)

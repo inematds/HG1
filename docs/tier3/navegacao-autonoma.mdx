@@ -9,56 +9,943 @@ import TabItem from '@theme/TabItem';
 
 # 🗺️ Navegação Autônoma
 
-:::tip Objetivo
-Nav2, SLAM, mapeamento e planejamento de trajetória.
+:::tip Objetivo do Módulo
+Dominar navegação autônoma para robôs humanoides: SLAM (mapeamento), Nav2 (navegação), localização, planejamento de trajetória e evitação de obstáculos. Aprenda as técnicas usadas por humanoides reais para navegar em ambientes dinâmicos.
 :::
+
+**Duração estimada:** 50 minutos
+**Pré-requisitos:** Módulos 1-5 (Python, ROS2, TF2, Visão)
 
 ---
 
-## 🗺️ SLAM (Simultaneous Localization and Mapping)
+## 🧭 Arquitetura de Navegação
 
-### SLAM com LIDAR
+### Stack Completo
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    APLICAÇÃO DO ROBÔ                          │
+│              (Goal: "Vá até a cozinha")                       │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                      NAV2 STACK                               │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐             │
+│  │   Planner  │  │ Controller │  │  Recovery  │             │
+│  │  (Global)  │→ │  (Local)   │→ │ Behaviors  │             │
+│  └────────────┘  └────────────┘  └────────────┘             │
+└────────────┬──────────────────────────────────────┬──────────┘
+             │                                       │
+             ▼                                       ▼
+┌────────────────────────┐              ┌────────────────────────┐
+│    MAPA GLOBAL         │              │   SENSORES             │
+│  (SLAM/Map Server)     │              │ - LIDAR                │
+│                        │              │ - Câmeras              │
+│  [█████    ██████]     │              │ - IMU                  │
+│  [█    ████      █]    │              │ - Odometria            │
+│  [██          ████]    │              │                        │
+└────────────────────────┘              └────────────────────────┘
+             │                                       │
+             │                                       │
+             ▼                                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│                      LOCALIZAÇÃO                              │
+│                 (AMCL / Particle Filter)                      │
+│         "Onde eu estou no mapa?"                              │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+                  [ TF2 Transforms ]
+                         │
+                         ▼
+                  [ Controle Motor ]
+```
+
+---
+
+## 🗺️ SLAM: Mapeamento e Localização Simultâneos
+
+### Conceito
+
+SLAM resolve o problema do ovo e da galinha:
+- **Para se localizar**, preciso de um mapa
+- **Para mapear**, preciso saber onde estou
+
+**Solução:** Fazer os dois ao mesmo tempo!
+
+### SLAM com LIDAR (Scan Matching)
 
 ```bash
 # Instalar SLAM Toolbox
 sudo apt install ros-humble-slam-toolbox
 
-# Lançar SLAM
-ros2 launch slam_toolbox online_async_launch.py
+# Instalar dependências
+sudo apt install ros-humble-nav2-bringup
 ```
 
-### Salvar Mapa
+**Configuração do SLAM:**
+
+```yaml
+# config/slam_params.yaml
+slam_toolbox:
+  ros__parameters:
+    # Modo de operação
+    mode: mapping  # ou "localization" para usar mapa existente
+
+    # Configurações de otimização
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+
+    # Parâmetros de scan matching
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+
+    # Loop closure (fechamento de loops para corrigir drift)
+    loop_search_maximum_distance: 3.0
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 10
+
+    # Qualidade do mapa
+    resolution: 0.05  # 5cm por pixel
+    max_laser_range: 20.0  # Máximo 20 metros
+
+    # TF frames
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+
+    # Frequência de publicação
+    transform_publish_period: 0.02  # 50Hz
+    map_update_interval: 5.0  # Atualizar mapa a cada 5s
+```
+
+**Launch SLAM:**
+
+```python
+# launch/slam_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node
+import os
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+    pkg_dir = get_package_share_directory('my_humanoid')
+    slam_params = os.path.join(pkg_dir, 'config', 'slam_params.yaml')
+
+    return LaunchDescription([
+        # SLAM Toolbox
+        Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',
+            name='slam_toolbox',
+            output='screen',
+            parameters=[slam_params]
+        ),
+
+        # RViz para visualização
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            arguments=['-d', os.path.join(pkg_dir, 'rviz', 'slam.rviz')]
+        )
+    ])
+```
+
+**Executar:**
 
 ```bash
-ros2 run nav2_map_server map_saver_cli -f my_map
-# Gera: my_map.pgm e my_map.yaml
+# 1. Lançar simulação do robô (LIDAR + odometria)
+ros2 launch my_humanoid robot_sim.launch.py
+
+# 2. Lançar SLAM
+ros2 launch my_humanoid slam_launch.py
+
+# 3. Teleoperar robô para construir mapa
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 4. Salvar mapa quando terminar
+ros2 run nav2_map_server map_saver_cli -f ~/maps/my_office
+
+# Gera:
+# - my_office.pgm (imagem do mapa)
+# - my_office.yaml (metadados)
+```
+
+### Salvar e Carregar Mapas
+
+```yaml
+# my_office.yaml (gerado automaticamente)
+image: my_office.pgm
+resolution: 0.050000  # metros por pixel
+origin: [-10.0, -10.0, 0.0]  # canto inferior esquerdo (x, y, theta)
+negate: 0
+occupied_thresh: 0.65  # Pixel > 65% preto = ocupado
+free_thresh: 0.196     # Pixel < 19.6% preto = livre
+
+# Valores de pixel:
+# - 0 (preto): Ocupado (parede, obstáculo)
+# - 255 (branco): Livre
+# - 205 (cinza): Desconhecido
+```
+
+**Carregar mapa existente:**
+
+```bash
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=my_office.yaml
 ```
 
 ---
 
-## 🧭 Nav2 (Navigation Stack)
+## 🧭 Nav2: Navigation Stack
 
-### Enviar Goal
+### Instalação e Setup
+
+```bash
+# Instalar Nav2
+sudo apt install ros-humble-navigation2 ros-humble-nav2-bringup
+
+# Instalar dependências
+sudo apt install ros-humble-turtlebot3-gazebo
+```
+
+### Configuração Completa do Nav2
+
+```yaml
+# config/nav2_params.yaml
+bt_navigator:
+  ros__parameters:
+    use_sim_time: True
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+
+    # Behavior Tree (BT) para navegação
+    default_nav_to_pose_bt_xml: ""
+    plugin_lib_names:
+    - nav2_compute_path_to_pose_action_bt_node
+    - nav2_follow_path_action_bt_node
+    - nav2_back_up_action_bt_node
+    - nav2_spin_action_bt_node
+    - nav2_wait_action_bt_node
+    - nav2_clear_costmap_service_bt_node
+    - nav2_is_stuck_condition_bt_node
+    - nav2_goal_reached_condition_bt_node
+
+controller_server:
+  ros__parameters:
+    use_sim_time: True
+    controller_frequency: 20.0  # Hz
+
+    # DWB Controller (Dynamic Window Approach)
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+      max_vel_x: 0.5  # m/s (velocidade máxima humanoid)
+      max_vel_y: 0.0  # Não-holonômico
+      max_vel_theta: 1.0  # rad/s
+      min_speed_xy: 0.0
+      max_speed_xy: 0.5
+      min_speed_theta: 0.0
+
+      # Aceleração
+      acc_lim_x: 2.5
+      acc_lim_y: 0.0
+      acc_lim_theta: 3.2
+      decel_lim_x: -2.5
+      decel_lim_y: 0.0
+      decel_lim_theta: -3.2
+
+      # DWB Specific
+      vx_samples: 20
+      vy_samples: 0
+      vtheta_samples: 40
+      sim_time: 1.7
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+
+      # Críticas (funções de custo)
+      critics: [
+        "RotateToGoal",
+        "Oscillation",
+        "BaseObstacle",
+        "GoalAlign",
+        "PathAlign",
+        "PathDist",
+        "GoalDist"
+      ]
+
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 32.0
+      GoalAlign.scale: 24.0
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+
+planner_server:
+  ros__parameters:
+    use_sim_time: True
+    planner_plugins: ["GridBased"]
+
+    GridBased:
+      plugin: "nav2_navfn_planner/NavfnPlanner"
+      tolerance: 0.5
+      use_astar: false  # Dijkstra (mais robusto)
+      allow_unknown: true
+
+costmap_2d:
+  ros__parameters:
+    use_sim_time: True
+
+    # Costmap global (mapa completo)
+    global_costmap:
+      global_frame: map
+      robot_base_frame: base_link
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      resolution: 0.05
+      width: 20
+      height: 20
+      origin_x: -10.0
+      origin_y: -10.0
+
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0  # Quão rápido o custo decai
+        inflation_radius: 0.55    # Distância de segurança (55cm)
+
+    # Costmap local (ao redor do robô)
+    local_costmap:
+      global_frame: odom
+      robot_base_frame: base_link
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      resolution: 0.05
+      width: 3
+      height: 3
+      origin_x: -1.5
+      origin_y: -1.5
+      rolling_window: true
+
+      plugins: ["obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+
+recoveries_server:
+  ros__parameters:
+    use_sim_time: True
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+
+    recovery_plugins: ["spin", "backup", "wait"]
+
+    spin:
+      plugin: "nav2_recoveries/Spin"
+    backup:
+      plugin: "nav2_recoveries/BackUp"
+    wait:
+      plugin: "nav2_recoveries/Wait"
+
+amcl:
+  ros__parameters:
+    use_sim_time: True
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 100.0
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    max_particles: 2000
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "differential"
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.25
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+```
+
+### Enviar Navegação Goals
+
+<Tabs>
+<TabItem value="python" label="Python (Simples)">
 
 ```python
-from nav2_simple_commander.robot_navigator import BasicNavigator
+import rclpy
+from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from nav2_simple_commander.robot_navigator import BasicNavigator
 
-navigator = BasicNavigator()
+class NavigationClient(Node):
+    """
+    Cliente simples para enviar goals de navegação.
+    """
 
-goal = PoseStamped()
-goal.header.frame_id = 'map'
-goal.header.stamp = navigator.get_clock().now().to_msg()
-goal.pose.position.x = 3.0
-goal.pose.position.y = 1.0
-goal.pose.orientation.w = 1.0
+    def __init__(self):
+        super().__init__('navigation_client')
+        self.navigator = BasicNavigator()
 
-navigator.goToPose(goal)
+        # Aguardar Nav2 estar pronto
+        self.get_logger().info('Aguardando Nav2...')
+        self.navigator.waitUntilNav2Active()
+        self.get_logger().info('Nav2 ativo!')
 
-while not navigator.isTaskComplete():
-    feedback = navigator.getFeedback()
-    print(f'Distance remaining: {feedback.distance_remaining:.2f}m')
+    def navigate_to_pose(self, x, y, theta=0.0):
+        """
+        Navegar até posição (x, y, theta) no frame 'map'.
+        """
+        goal = PoseStamped()
+        goal.header.frame_id = 'map'
+        goal.header.stamp = self.navigator.get_clock().now().to_msg()
+
+        # Posição
+        goal.pose.position.x = x
+        goal.pose.position.y = y
+        goal.pose.position.z = 0.0
+
+        # Orientação (quaternion de yaw)
+        goal.pose.orientation.z = np.sin(theta / 2.0)
+        goal.pose.orientation.w = np.cos(theta / 2.0)
+
+        self.get_logger().info(f'Navegando para ({x}, {y}, {theta})')
+
+        # Enviar goal
+        self.navigator.goToPose(goal)
+
+        # Monitorar progresso
+        while not self.navigator.isTaskComplete():
+            feedback = self.navigator.getFeedback()
+
+            if feedback:
+                distance = feedback.distance_remaining
+                self.get_logger().info(
+                    f'Progresso: {distance:.2f}m restantes'
+                )
+
+            rclpy.spin_once(self, timeout_sec=0.1)
+
+        # Verificar resultado
+        result = self.navigator.getResult()
+
+        if result == NavigationResult.SUCCEEDED:
+            self.get_logger().info('✅ Navegação bem-sucedida!')
+        elif result == NavigationResult.CANCELED:
+            self.get_logger().warn('⚠️  Navegação cancelada')
+        elif result == NavigationResult.FAILED:
+            self.get_logger().error('❌ Navegação falhou')
+
+def main():
+    rclpy.init()
+    client = NavigationClient()
+
+    # Navegar para 3 pontos
+    waypoints = [
+        (2.0, 1.0, 0.0),     # Ponto 1
+        (3.0, 3.0, 1.57),    # Ponto 2 (90° virado)
+        (0.0, 0.0, 0.0)      # Voltar para origem
+    ]
+
+    for x, y, theta in waypoints:
+        client.navigate_to_pose(x, y, theta)
+
+    client.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 ```
+
+</TabItem>
+<TabItem value="action" label="Action Client (Avançado)">
+
+```python
+from rclpy.action import ActionClient
+from nav2_msgs.action import NavigateToPose
+
+class AdvancedNavigationClient(Node):
+    def __init__(self):
+        super().__init__('advanced_navigation_client')
+
+        self.action_client = ActionClient(
+            self,
+            NavigateToPose,
+            'navigate_to_pose'
+        )
+
+    def send_goal(self, x, y, theta=0.0):
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+
+        goal_msg.pose.pose.position.x = x
+        goal_msg.pose.pose.position.y = y
+        goal_msg.pose.pose.orientation.z = np.sin(theta / 2.0)
+        goal_msg.pose.pose.orientation.w = np.cos(theta / 2.0)
+
+        self.action_client.wait_for_server()
+
+        send_goal_future = self.action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        current_pose = feedback.current_pose
+        distance = feedback.distance_remaining
+        time_elapsed = feedback.navigation_time
+
+        self.get_logger().info(
+            f'Navegando: {distance:.2f}m restantes, '
+            f'{time_elapsed.sec}s decorridos'
+        )
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+
+        if not goal_handle.accepted:
+            self.get_logger().error('Goal rejeitado!')
+            return
+
+        self.get_logger().info('Goal aceito!')
+
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.result_callback)
+
+    def result_callback(self, future):
+        result = future.result().result
+        status = future.result().status
+
+        if status == 4:  # SUCCEEDED
+            self.get_logger().info('✅ Navegação completada!')
+        else:
+            self.get_logger().error(f'❌ Falhou com status {status}')
+
+    def cancel_navigation(self):
+        """Cancelar navegação em andamento."""
+        self.get_logger().info('Cancelando navegação...')
+        cancel_future = self.goal_handle.cancel_goal_async()
+        cancel_future.add_done_callback(self.cancel_done)
+
+    def cancel_done(self, future):
+        cancel_response = future.result()
+        if len(cancel_response.goals_canceling) > 0:
+            self.get_logger().info('Navegação cancelada com sucesso')
+```
+
+</TabItem>
+<TabItem value="cli" label="Via CLI">
+
+```bash
+# Enviar goal via linha de comando
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "
+pose:
+  header:
+    frame_id: 'map'
+  pose:
+    position:
+      x: 2.0
+      y: 1.0
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+"
+
+# Cancelar navegação
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose --feedback
+# Pressionar Ctrl+C para cancelar
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🎯 Localização com AMCL
+
+AMCL (Adaptive Monte Carlo Localization) usa **Particle Filter** para estimar onde o robô está no mapa.
+
+### Como Funciona
+
+```
+1. Inicializar partículas (hipóteses de localização)
+   [Particle 1: x=1.0, y=2.0, θ=0.5, weight=0.1]
+   [Particle 2: x=1.1, y=1.9, θ=0.6, weight=0.15]
+   ...
+   [Particle N: x=0.9, y=2.1, θ=0.4, weight=0.05]
+
+2. A cada movimento:
+   - Prever nova posição de cada partícula (baseado em odometria)
+   - Partícula 1: x += dx, y += dy, θ += dθ
+
+3. A cada leitura de sensor (LIDAR):
+   - Comparar scan esperado vs scan real
+   - Atualizar peso de cada partícula
+   - Partículas que "explicam bem" a leitura ganham peso
+
+4. Resample:
+   - Eliminar partículas com baixo peso
+   - Duplicar partículas com alto peso
+   - Resultado: partículas convergem para posição real
+
+5. Estimar pose:
+   - Média ponderada de todas as partículas
+   - Pose estimada = soma(particle.pose * particle.weight)
+```
+
+### Definir Pose Inicial
+
+```python
+from geometry_msgs.msg import PoseWithCovarianceStamped
+
+class InitialPoseSetter(Node):
+    def __init__(self):
+        super().__init__('initial_pose_setter')
+
+        self.pub = self.create_publisher(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            10
+        )
+
+    def set_initial_pose(self, x, y, theta):
+        """
+        Definir pose inicial do robô no mapa.
+        Necessário para AMCL começar a localização.
+        """
+        pose = PoseWithCovarianceStamped()
+        pose.header.frame_id = 'map'
+        pose.header.stamp = self.get_clock().now().to_msg()
+
+        # Posição
+        pose.pose.pose.position.x = x
+        pose.pose.pose.position.y = y
+        pose.pose.pose.position.z = 0.0
+
+        # Orientação
+        pose.pose.pose.orientation.z = np.sin(theta / 2.0)
+        pose.pose.pose.orientation.w = np.cos(theta / 2.0)
+
+        # Covariância (incerteza)
+        # Diagonal: [x, y, z, rot_x, rot_y, rot_z]
+        pose.pose.covariance = [
+            0.25, 0.0, 0.0, 0.0, 0.0, 0.0,   # x: ±0.5m
+            0.0, 0.25, 0.0, 0.0, 0.0, 0.0,   # y: ±0.5m
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.07    # θ: ±15°
+        ]
+
+        self.pub.publish(pose)
+        self.get_logger().info(f'Pose inicial definida: ({x}, {y}, {theta})')
+
+# Usar:
+setter = InitialPoseSetter()
+setter.set_initial_pose(0.0, 0.0, 0.0)  # Origem do mapa
+```
+
+---
+
+## 🚧 Evitação de Obstáculos Dinâmicos
+
+### Costmap Layers
+
+Nav2 usa **costmaps** (mapas de custo) para planejar trajetórias seguras:
+
+```
+Valor do pixel | Significado
+---------------|----------------------------------
+  0-127        | Livre (custo baixo)
+  128-252      | Inflado (perto de obstáculo)
+  253          | Obstáculo inscrito (robot toca)
+  254          | Obstáculo letal
+  255          | Desconhecido
+```
+
+**Exemplo de costmap com inflation:**
+
+```
+█ = Obstáculo (custo 254)
+◆ = Inflado (custo 200)
+· = Livre (custo 0)
+
+█ █ █ █ █ █
+█ ◆ ◆ ◆ ◆ █
+█ ◆ · · ◆ █
+█ ◆ ◆ ◆ ◆ █
+█ █ █ █ █ █
+```
+
+### Adicionar Camada de Obstáculos Dinâmicos
+
+```python
+from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import Point
+from nav2_msgs.msg import Costmap
+
+class DynamicObstacleLayer(Node):
+    """
+    Adicionar obstáculos dinâmicos ao costmap.
+
+    Caso de uso: Humanoides detectando pessoas se movendo
+    e ajustando trajetória em tempo real.
+    """
+
+    def __init__(self):
+        super().__init__('dynamic_obstacle_layer')
+
+        # Publicar obstáculos para costmap
+        self.costmap_pub = self.create_publisher(
+            OccupancyGrid,
+            '/local_costmap/dynamic_obstacles',
+            10
+        )
+
+        # Subscrever detecções de pessoas (da visão)
+        self.person_sub = self.create_subscription(
+            PersonDetections,
+            '/detected_persons',
+            self.person_callback,
+            10
+        )
+
+    def person_callback(self, msg):
+        """
+        Adicionar pessoas detectadas como obstáculos temporários.
+        """
+        costmap = OccupancyGrid()
+        costmap.header.frame_id = 'odom'
+        costmap.header.stamp = self.get_clock().now().to_msg()
+
+        # Configurar grid
+        costmap.info.resolution = 0.05  # 5cm
+        costmap.info.width = 100
+        costmap.info.height = 100
+
+        # Inicializar como livre
+        costmap.data = [0] * (100 * 100)
+
+        # Para cada pessoa detectada
+        for person in msg.persons:
+            # Converter posição 3D → grid 2D
+            grid_x = int(person.position.x / costmap.info.resolution)
+            grid_y = int(person.position.y / costmap.info.resolution)
+
+            # Marcar área ao redor como obstáculo
+            radius = int(0.5 / costmap.info.resolution)  # 50cm de raio
+
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    if dx*dx + dy*dy <= radius*radius:
+                        idx = (grid_y + dy) * 100 + (grid_x + dx)
+                        if 0 <= idx < len(costmap.data):
+                            costmap.data[idx] = 254  # Obstáculo letal
+
+        self.costmap_pub.publish(costmap)
+```
+
+---
+
+## 🚨 Troubleshooting Comum
+
+### Problema 1: Robô não se move
+
+**Possíveis causas:**
+
+```bash
+# 1. Nav2 não está rodando
+ros2 node list | grep nav2
+
+# 2. Nenhum mapa carregado
+ros2 topic echo /map --once
+
+# 3. AMCL não localizou o robô
+ros2 topic echo /amcl_pose --once
+
+# 4. Nenhum goal enviado
+ros2 topic echo /goal_pose --once
+
+# 5. Controller não está recebendo trajetória
+ros2 topic echo /plan --once
+```
+
+**Solução:** Verificar cada componente individualmente.
+
+### Problema 2: Robô colidindo com obstáculos
+
+**Causa:** `inflation_radius` muito pequeno
+
+**Solução:**
+
+```yaml
+# Aumentar raio de inflação
+inflation_layer:
+  inflation_radius: 0.75  # Era 0.55, aumentar para 0.75m
+```
+
+### Problema 3: AMCL não converge (partículas espalhadas)
+
+**Causa:** Pose inicial muito longe da posição real
+
+**Solução:**
+
+```bash
+# Redefinir pose inicial manualmente no RViz:
+# 1. Abrir RViz
+# 2. Clicar em "2D Pose Estimate"
+# 3. Clicar no mapa onde robô está e arrastar para orientação
+
+# Ou via código:
+setter.set_initial_pose(x_real, y_real, theta_real)
+```
+
+### Problema 4: Planejador não encontra caminho
+
+**Causa:** `allow_unknown: false` e mapa tem áreas desconhecidas
+
+**Solução:**
+
+```yaml
+GridBased:
+  allow_unknown: true  # Permitir planejar por áreas desconhecidas
+```
+
+---
+
+## 🏭 Casos de Uso em Produção
+
+### Tesla Optimus (Factory Floor)
+
+**Setup de navegação:**
+- **Mapa pré-construído** da Gigafactory (fixo)
+- **Localização:** Visual SLAM + ArUco markers no teto
+- **Sensores:** 8 câmeras (stereo depth), sem LIDAR
+- **Velocidade:** 1.5 m/s máximo
+
+**Caso:** Levar peças entre estações
+1. Receber goal: "Vá para estação B-12"
+2. Consultar mapa global, planejar caminho
+3. Evitar outros robôs e pessoas em tempo real
+4. Parar em zona de segurança (±5cm de precisão)
+5. Sinalizar chegada para próxima tarefa
+
+### Agility Digit (Warehouse)
+
+**Setup:**
+- **SLAM ativo** (mapa muda com reconfiguração de warehouse)
+- **LIDAR + câmeras** para navegação 360°
+- **Multi-floor:** Elevadores integrados ao planner
+- **Colaborativo:** Sincronizar com outros robôs via fleet management
+
+**Caso:** Entrega de pacotes
+1. Receber lista de pacotes e locais
+2. Otimizar rota (TSP - Traveling Salesman Problem)
+3. Navegar até cada prateleira
+4. Evitar empilhadeiras e humanos
+5. Retornar para estação de carregamento
+
+### Boston Dynamics Atlas (Disaster Response)
+
+**Setup:**
+- **SLAM em tempo real** (ambiente desconhecido)
+- **Multi-sensor fusion:** LIDAR + câmeras + IMU
+- **Terreno irregular:** Planner 3D (não só 2D)
+- **Sem GPS:** Localização puramente visual
+
+**Caso:** Busca e resgate
+1. Entrar em prédio desconhecido
+2. Construir mapa 3D enquanto explora
+3. Detectar vítimas com câmeras térmicas
+4. Planejar rota de retorno
+5. Evitar áreas instáveis
+
+---
+
+## ✅ Checklist de Domínio
+
+Antes de avançar, certifique-se de que você consegue:
+
+- [ ] Construir mapa com SLAM Toolbox
+- [ ] Salvar e carregar mapas com map_server
+- [ ] Configurar Nav2 com parâmetros customizados
+- [ ] Enviar navigation goals via Python e CLI
+- [ ] Entender costmaps (static, obstacle, inflation layers)
+- [ ] Configurar AMCL para localização
+- [ ] Definir pose inicial do robô
+- [ ] Adicionar obstáculos dinâmicos ao costmap
+- [ ] Debugar problemas comuns de navegação
+- [ ] Integrar visão computacional com navegação
 
 ---
 
@@ -67,5 +954,11 @@ while not navigator.isTaskComplete():
 :::tip Próximo Módulo
 **[🦾 Manipulação →](./manipulacao)**
 
-MoveIt, cinemática inversa e planejamento de trajetória.
+Dominar MoveIt, cinemática inversa, planejamento de trajetória para braços e grasping. Aprenda como humanoides manipulam objetos com precisão.
 :::
+
+**Recursos adicionais:**
+- [Nav2 Documentation](https://navigation.ros.org/)
+- [SLAM Toolbox](https://github.com/SteveMacenski/slam_toolbox)
+- [AMCL](https://navigation.ros.org/configuration/packages/configuring-amcl.html)
+- [Costmap 2D](https://navigation.ros.org/configuration/packages/configuring-costmaps.html)

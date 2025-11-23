@@ -62,6 +62,167 @@ v = np.array([1, 0])
 v_rotated = R @ v  # @ é multiplicação de matriz
 ```
 
+### Transformações 3D
+
+<Tabs>
+<TabItem value="translation" label="🔀 Translação">
+
+```python
+import numpy as np
+
+def translate_point(point, translation):
+    """
+    Translada um ponto no espaço 3D
+
+    Args:
+        point: np.array([x, y, z])
+        translation: np.array([dx, dy, dz])
+
+    Returns:
+        Ponto transladado
+    """
+    return point + translation
+
+# Exemplo: Mover ponto 1m para frente
+point = np.array([0.0, 0.0, 1.0])  # Posição inicial
+translation = np.array([1.0, 0.0, 0.0])  # 1m no eixo X
+new_point = translate_point(point, translation)
+# array([1.0, 0.0, 1.0])
+```
+
+**Caso de uso:** Mover o corpo do robô após um passo
+
+</TabItem>
+<TabItem value="rotation" label="🔄 Rotação">
+
+```python
+def rotation_matrix_z(theta):
+    """Matriz de rotação em torno do eixo Z"""
+    return np.array([
+        [np.cos(theta), -np.sin(theta), 0],
+        [np.sin(theta),  np.cos(theta), 0],
+        [0,              0,              1]
+    ])
+
+def rotation_matrix_y(theta):
+    """Matriz de rotação em torno do eixo Y"""
+    return np.array([
+        [np.cos(theta),  0, np.sin(theta)],
+        [0,              1, 0],
+        [-np.sin(theta), 0, np.cos(theta)]
+    ])
+
+def rotation_matrix_x(theta):
+    """Matriz de rotação em torno do eixo X"""
+    return np.array([
+        [1, 0,              0],
+        [0, np.cos(theta), -np.sin(theta)],
+        [0, np.sin(theta),  np.cos(theta)]
+    ])
+
+# Exemplo: Rotacionar vetor 90° em Z
+v = np.array([1, 0, 0])
+R = rotation_matrix_z(np.pi / 2)
+v_rotated = R @ v
+# array([0, 1, 0]) - agora aponta para Y
+```
+
+**Caso de uso:** Calcular orientação da cabeça do robô
+
+</TabItem>
+<TabItem value="homogeneous" label="📐 Coordenadas Homogêneas">
+
+```python
+def homogeneous_transform(rotation, translation):
+    """
+    Cria matriz de transformação homogênea 4x4
+    Usada em robótica para combinar rotação + translação
+    """
+    T = np.eye(4)
+    T[:3, :3] = rotation
+    T[:3, 3] = translation
+    return T
+
+# Exemplo: Transformar ponto do frame do pé para frame mundial
+R_foot_to_world = rotation_matrix_z(np.pi / 6)  # 30°
+t_foot_to_world = np.array([0.5, 0.0, 0.0])
+T = homogeneous_transform(R_foot_to_world, t_foot_to_world)
+
+# Ponto em coordenadas do pé
+p_foot = np.array([0.1, 0.0, 0.0, 1.0])  # Homogêneo (x,y,z,1)
+
+# Transformar para coordenadas mundiais
+p_world = T @ p_foot
+print(p_world[:3])  # Apenas x,y,z
+```
+
+**Caso de uso:** Forward kinematics - calcular posição da mão a partir dos ângulos das juntas
+
+</TabItem>
+</Tabs>
+
+---
+
+### Performance: NumPy vs Python Puro
+
+```python
+import time
+import numpy as np
+
+# Teste: Somar 1 milhão de números
+n = 1_000_000
+
+# Python puro
+start = time.time()
+python_sum = sum(range(n))
+python_time = time.time() - start
+
+# NumPy
+start = time.time()
+numpy_sum = np.arange(n).sum()
+numpy_time = time.time() - start
+
+print(f"Python: {python_time:.4f}s")
+print(f"NumPy:  {numpy_time:.4f}s")
+print(f"Speedup: {python_time / numpy_time:.1f}x mais rápido")
+
+# Saída típica:
+# Python: 0.0234s
+# NumPy:  0.0012s
+# Speedup: 19.5x mais rápido
+```
+
+**Por que NumPy é mais rápido?**
+- Operações vetorizadas em C
+- Menos overhead de Python
+- Usa SIMD (Single Instruction, Multiple Data)
+
+---
+
+### Broadcasting: Operações Elemento-Wise
+
+```python
+# Aplicar transformação a múltiplos pontos simultaneamente
+points = np.array([
+    [1, 0, 0],  # Ponto 1
+    [0, 1, 0],  # Ponto 2
+    [0, 0, 1],  # Ponto 3
+])  # Shape: (3, 3)
+
+# Adicionar offset a TODOS os pontos de uma vez
+offset = np.array([1, 2, 3])
+points_translated = points + offset  # Broadcasting!
+# array([[2, 2, 3],
+#        [1, 3, 3],
+#        [1, 2, 4]])
+
+# Sem NumPy, precisaria de loop:
+# for i in range(len(points)):
+#     points[i] += offset
+```
+
+**Caso de uso:** Atualizar posição de todos os pontos de uma point cloud simultaneamente
+
 ---
 
 ## 🏗️ Programação Orientada a Objetos
@@ -89,12 +250,12 @@ class HumanoidRobot:
             joint_angles=np.zeros(12),
             battery_level=100.0
         )
-    
+
     def walk_forward(self, distance: float):
         """Andar para frente"""
         self.state.position[0] += distance
         self.state.battery_level -= distance * 0.1  # Gasta bateria
-    
+
     def get_status(self) -> dict:
         return {
             'name': self.name,
@@ -108,6 +269,162 @@ robot.walk_forward(5.0)
 print(robot.get_status())
 # {'name': 'Atlas-01', 'position': [5.0, 0.0, 0.0], 'battery': '99.5%'}
 ```
+
+---
+
+### Hierarquia de Classes para Sensores
+
+```python
+from abc import ABC, abstractmethod
+from typing import Any
+import numpy as np
+
+class Sensor(ABC):
+    """Classe base abstrata para todos os sensores"""
+
+    def __init__(self, name: str, update_rate: float):
+        self.name = name
+        self.update_rate = update_rate  # Hz
+        self._last_reading = None
+        self._is_active = False
+
+    @abstractmethod
+    def read(self) -> Any:
+        """Ler dados do sensor - deve ser implementado por subclasses"""
+        pass
+
+    def start(self):
+        """Ativar sensor"""
+        self._is_active = True
+        print(f"[{self.name}] Sensor ativado @ {self.update_rate} Hz")
+
+    def stop(self):
+        """Desativar sensor"""
+        self._is_active = False
+        print(f"[{self.name}] Sensor desativado")
+
+class IMUSensor(Sensor):
+    """Inertial Measurement Unit - mede aceleração e velocidade angular"""
+
+    def __init__(self, name: str = "IMU"):
+        super().__init__(name, update_rate=200.0)  # 200 Hz típico
+        self.accel = np.zeros(3)  # ax, ay, az
+        self.gyro = np.zeros(3)   # wx, wy, wz
+
+    def read(self) -> dict:
+        """Simular leitura de IMU (em aplicação real, leria hardware)"""
+        # Adicionar ruído gaussiano para simular sensor real
+        self.accel = np.random.normal(0, 0.01, 3)
+        self.gyro = np.random.normal(0, 0.001, 3)
+
+        return {
+            'acceleration': self.accel,
+            'angular_velocity': self.gyro,
+            'timestamp': time.time()
+        }
+
+class ForceSensor(Sensor):
+    """Sensor de força nos pés"""
+
+    def __init__(self, foot: str):
+        super().__init__(f"Force_{foot}", update_rate=100.0)
+        self.foot = foot  # "left" ou "right"
+        self.force = 0.0
+
+    def read(self) -> dict:
+        """Ler força aplicada"""
+        # Simular peso do robô (em aplicação real, leria célula de carga)
+        self.force = np.random.normal(500, 10)  # ~50kg com ruído
+
+        return {
+            'foot': self.foot,
+            'force_newtons': self.force,
+            'contact': self.force > 50  # Pé tocando chão?
+        }
+
+# Uso
+imu = IMUSensor()
+imu.start()
+data = imu.read()
+print(f"Aceleração: {data['acceleration']}")
+
+left_foot = ForceSensor("left")
+left_foot.start()
+force_data = left_foot.read()
+print(f"Força no pé esquerdo: {force_data['force_newtons']:.1f}N")
+```
+
+**Vantagens de usar herança:**
+- Código reutilizável (métodos `start()` e `stop()`)
+- Interface consistente (todos têm `.read()`)
+- Fácil adicionar novos sensores
+- Type hints melhoram autocomplete
+
+---
+
+### Padrão Observer para Eventos
+
+```python
+from typing import Callable, List
+
+class EventEmitter:
+    """Permite subscribers ouvirem eventos"""
+
+    def __init__(self):
+        self._listeners: dict[str, List[Callable]] = {}
+
+    def on(self, event: str, callback: Callable):
+        """Registrar callback para evento"""
+        if event not in self._listeners:
+            self._listeners[event] = []
+        self._listeners[event].append(callback)
+
+    def emit(self, event: str, *args, **kwargs):
+        """Disparar evento, chamando todos os callbacks"""
+        if event in self._listeners:
+            for callback in self._listeners[event]:
+                callback(*args, **kwargs)
+
+class SmartRobot(EventEmitter):
+    """Robô que emite eventos quando algo acontece"""
+
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+        self.battery = 100.0
+
+    def walk(self, distance: float):
+        """Andar e emitir eventos"""
+        self.emit('walk_start', distance=distance)
+
+        # Simular caminhada
+        self.battery -= distance * 2
+
+        self.emit('walk_end', distance=distance)
+
+        # Verificar bateria baixa
+        if self.battery < 20:
+            self.emit('battery_low', level=self.battery)
+
+# Uso
+robot = SmartRobot("Atlas")
+
+# Registrar callbacks
+robot.on('walk_start', lambda distance: print(f"Iniciando caminhada de {distance}m"))
+robot.on('walk_end', lambda distance: print(f"Caminhada de {distance}m concluída"))
+robot.on('battery_low', lambda level: print(f"⚠️ BATERIA BAIXA: {level:.1f}%"))
+
+robot.walk(5.0)
+# Iniciando caminhada de 5.0m
+# Caminhada de 5.0m concluída
+
+robot.walk(50.0)
+# Iniciando caminhada de 50.0m
+# Caminhada de 50.0m concluída
+# ⚠️ BATERIA BAIXA: 0.0%
+```
+
+**Caso de uso:** Sistema de telemetria que reage a eventos do robô
 
 ---
 
@@ -150,6 +467,661 @@ async def main():
 
 ---
 
+### Sistema de Controle Completo
+
+```python
+import asyncio
+import time
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class SensorData:
+    """Dados agregados de todos os sensores"""
+    imu_accel: np.ndarray
+    imu_gyro: np.ndarray
+    left_foot_force: float
+    right_foot_force: float
+    timestamp: float
+
+class HumanoidController:
+    """Controlador assíncrono completo"""
+
+    def __init__(self):
+        self.sensor_data: Optional[SensorData] = None
+        self.is_walking = False
+        self.target_velocity = 0.0
+        self._running = False
+
+    async def sensor_loop(self):
+        """Loop de leitura de sensores @ 200 Hz"""
+        while self._running:
+            # Simular leitura de sensores
+            self.sensor_data = SensorData(
+                imu_accel=np.random.normal(0, 0.01, 3),
+                imu_gyro=np.random.normal(0, 0.001, 3),
+                left_foot_force=np.random.normal(500, 10),
+                right_foot_force=np.random.normal(500, 10),
+                timestamp=time.time()
+            )
+            await asyncio.sleep(1/200)  # 5ms
+
+    async def control_loop(self):
+        """Loop de controle @ 100 Hz"""
+        while self._running:
+            if self.sensor_data is None:
+                await asyncio.sleep(1/100)
+                continue
+
+            # Usar dados dos sensores para controle
+            if self.is_walking:
+                # Lógica de controle de marcha
+                accel_magnitude = np.linalg.norm(self.sensor_data.imu_accel)
+
+                # Ajustar velocidade baseado em estabilidade
+                if accel_magnitude > 1.0:
+                    print(f"⚠️ Instabilidade detectada: {accel_magnitude:.2f} m/s²")
+                    self.target_velocity *= 0.9  # Reduzir velocidade
+
+            await asyncio.sleep(1/100)  # 10ms
+
+    async def vision_loop(self):
+        """Loop de visão computacional @ 30 Hz"""
+        frame_count = 0
+        while self._running:
+            # Simular processamento de imagem
+            frame_count += 1
+
+            if frame_count % 30 == 0:  # A cada 1 segundo
+                print(f"Vision: {frame_count} frames processados")
+
+            await asyncio.sleep(1/30)  # 33ms
+
+    async def command_listener(self):
+        """Escuta comandos de usuário"""
+        while self._running:
+            # Em aplicação real, escutaria topic ROS2 ou stdin
+            await asyncio.sleep(0.1)
+
+    async def run(self):
+        """Rodar todos os loops em paralelo"""
+        self._running = True
+
+        await asyncio.gather(
+            self.sensor_loop(),
+            self.control_loop(),
+            self.vision_loop(),
+            self.command_listener()
+        )
+
+    def start_walking(self, velocity: float):
+        """Comando: iniciar caminhada"""
+        self.is_walking = True
+        self.target_velocity = velocity
+        print(f"🚶 Iniciando caminhada @ {velocity} m/s")
+
+    def stop_walking(self):
+        """Comando: parar caminhada"""
+        self.is_walking = False
+        self.target_velocity = 0.0
+        print("🛑 Parando caminhada")
+
+# Uso
+async def main():
+    controller = HumanoidController()
+
+    # Iniciar controle em background
+    control_task = asyncio.create_task(controller.run())
+
+    # Simular comandos
+    await asyncio.sleep(1.0)
+    controller.start_walking(0.5)
+
+    await asyncio.sleep(5.0)
+    controller.stop_walking()
+
+    await asyncio.sleep(1.0)
+    controller._running = False
+    await control_task
+
+# asyncio.run(main())
+```
+
+**Vantagens de async/await:**
+- Múltiplas tarefas concorrentes sem threading
+- Menor overhead que threads
+- Código mais legível que callbacks
+- Ideal para I/O-bound (sensores, câmeras)
+
+---
+
+### Async vs Threading vs Multiprocessing
+
+<Tabs>
+<TabItem value="async" label="⚡ Asyncio (1 thread)">
+
+**Quando usar:**
+- I/O-bound: câmeras, sensores, rede
+- Tarefas leves e frequentes
+- Coordenação simples entre tarefas
+
+**Prós:**
+- ✅ Baixo overhead
+- ✅ Fácil debugar
+- ✅ Compartilha memória facilmente
+
+**Contras:**
+- ❌ Não usa múltiplos cores
+- ❌ Task bloqueante trava tudo
+
+```python
+async def async_example():
+    await asyncio.gather(
+        read_camera(),
+        read_imu(),
+        control_loop()
+    )
+```
+
+</TabItem>
+<TabItem value="threading" label="🧵 Threading (múltiplas threads)">
+
+**Quando usar:**
+- I/O-bound com bibliotecas que bloqueiam
+- Integração com código legado
+- Callbacks de C/C++
+
+**Prós:**
+- ✅ Usa bibliotecas que bloqueiam
+- ✅ Bom para I/O
+
+**Contras:**
+- ❌ GIL limita CPU-bound
+- ❌ Race conditions
+- ❌ Overhead maior
+
+```python
+import threading
+
+def threaded_example():
+    t1 = threading.Thread(target=read_camera)
+    t2 = threading.Thread(target=read_imu)
+    t1.start()
+    t2.start()
+```
+
+</TabItem>
+<TabItem value="multiprocessing" label="🔀 Multiprocessing">
+
+**Quando usar:**
+- CPU-bound: visão computacional pesada, ML inference
+- Precisa usar múltiplos cores
+- Processamento paralelo pesado
+
+**Prós:**
+- ✅ Usa múltiplos cores (não afetado por GIL)
+- ✅ Isolamento total entre processos
+
+**Contras:**
+- ❌ Alto overhead (pickling de dados)
+- ❌ Difícil compartilhar memória
+- ❌ Mais complexo
+
+```python
+from multiprocessing import Process, Queue
+
+def process_example():
+    q = Queue()
+    p1 = Process(target=process_images, args=(q,))
+    p2 = Process(target=run_inference, args=(q,))
+    p1.start()
+    p2.start()
+```
+
+</TabItem>
+</Tabs>
+
+**Recomendação para robótica:**
+- **Asyncio:** Controle, sensores, comunicação ROS2
+- **Threading:** Callbacks de drivers C++
+- **Multiprocessing:** Visão computacional, ML inference
+
+---
+
+## 🎯 Boas Práticas para Python em Robótica
+
+### Type Hints: Código Mais Seguro
+
+```python
+from typing import Tuple, List, Optional
+import numpy as np
+from numpy.typing import NDArray
+
+def calculate_ik(
+    target_position: NDArray[np.float64],
+    current_angles: NDArray[np.float64],
+    max_iterations: int = 100,
+    tolerance: float = 0.01
+) -> Tuple[NDArray[np.float64], bool]:
+    """
+    Inverse Kinematics solver
+
+    Args:
+        target_position: Target [x, y, z] position
+        current_angles: Current joint angles
+        max_iterations: Maximum solver iterations
+        tolerance: Position error tolerance (meters)
+
+    Returns:
+        (joint_angles, success): Solved joint angles and success flag
+    """
+    # Implementação simplificada
+    solved_angles = current_angles.copy()
+    success = True
+
+    return solved_angles, success
+
+# Type checker (mypy) detecta erros:
+# result = calculate_ik([1, 2, 3], "invalid")  # ❌ Erro!
+result = calculate_ik(np.array([1, 2, 3]), np.zeros(6))  # ✅ OK
+```
+
+**Benefícios:**
+- Autocomplete melhor no VS Code
+- Detecta bugs antes de rodar
+- Documenta código automaticamente
+- Facilita manutenção
+
+---
+
+### Logging Profissional
+
+```python
+import logging
+from datetime import datetime
+
+# Configurar logger
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.FileHandler(f'robot_{datetime.now():%Y%m%d_%H%M%S}.log'),
+        logging.StreamHandler()
+    ]
+)
+
+class RobotWithLogging:
+    def __init__(self, name: str):
+        self.name = name
+        self.logger = logging.getLogger(f'robot.{name}')
+
+    def walk(self, distance: float):
+        self.logger.info(f"Walking {distance}m")
+
+        try:
+            # Simular possível erro
+            if distance > 100:
+                raise ValueError("Distance too large")
+
+            # ... caminhar ...
+            self.logger.debug(f"Current position: {self.get_position()}")
+
+        except ValueError as e:
+            self.logger.error(f"Walk failed: {e}")
+            raise
+
+        self.logger.info("Walk completed successfully")
+
+    def get_position(self):
+        return [0, 0, 0]
+
+# Uso
+robot = RobotWithLogging("Atlas")
+robot.walk(5.0)
+
+# Output no arquivo e console:
+# 2025-01-15 10:30:45 [INFO] robot.Atlas: Walking 5.0m
+# 2025-01-15 10:30:45 [DEBUG] robot.Atlas: Current position: [0, 0, 0]
+# 2025-01-15 10:30:45 [INFO] robot.Atlas: Walk completed successfully
+```
+
+**Níveis de log:**
+- `DEBUG`: Informação detalhada para debug
+- `INFO`: Confirmação que tudo funcionou
+- `WARNING`: Algo inesperado, mas não crítico
+- `ERROR`: Erro que impediu operação
+- `CRITICAL`: Erro grave que pode travar sistema
+
+---
+
+### Unit Tests para Código Crítico
+
+```python
+import unittest
+import numpy as np
+
+class TestKinematics(unittest.TestCase):
+    """Testes para funções de cinemática"""
+
+    def setUp(self):
+        """Executado antes de cada teste"""
+        self.robot = HumanoidRobot("Test")
+
+    def test_forward_kinematics_zero_angles(self):
+        """Com ângulos zero, mão deve estar na posição inicial"""
+        angles = np.zeros(6)
+        position = self.robot.forward_kinematics(angles)
+
+        expected = np.array([0.5, 0.0, 1.0])  # Posição conhecida
+        np.testing.assert_array_almost_equal(position, expected, decimal=3)
+
+    def test_walk_updates_position(self):
+        """Andar deve atualizar posição corretamente"""
+        initial_pos = self.robot.state.position.copy()
+
+        self.robot.walk_forward(5.0)
+
+        final_pos = self.robot.state.position
+        self.assertAlmostEqual(final_pos[0], initial_pos[0] + 5.0)
+
+    def test_battery_depletes(self):
+        """Bateria deve diminuir ao andar"""
+        initial_battery = self.robot.state.battery_level
+
+        self.robot.walk_forward(10.0)
+
+        self.assertLess(self.robot.state.battery_level, initial_battery)
+
+    def tearDown(self):
+        """Executado após cada teste"""
+        del self.robot
+
+# Rodar testes
+if __name__ == '__main__':
+    unittest.main()
+```
+
+**Rodar testes:**
+```bash
+python3 -m pytest test_kinematics.py -v
+```
+
+---
+
+## 🚀 Exemplos do Mundo Real
+
+### Tesla Optimus: Control Stack
+
+```python
+"""
+Inspirado na arquitetura do Tesla Bot (Optimus)
+Fonte: Tesla AI Day 2022
+"""
+
+import asyncio
+import numpy as np
+from dataclasses import dataclass
+from typing import Dict
+
+@dataclass
+class OptimusState:
+    """Estado do robô Optimus"""
+    # Posição e orientação
+    base_position: np.ndarray  # [x, y, z]
+    base_orientation: np.ndarray  # quaternion
+
+    # 28 graus de liberdade
+    joint_positions: np.ndarray  # (28,)
+    joint_velocities: np.ndarray  # (28,)
+    joint_torques: np.ndarray  # (28,)
+
+    # Sensores
+    imu_data: Dict[str, np.ndarray]
+    force_torque: Dict[str, np.ndarray]  # Cada pé e mão
+    vision_data: Dict[str, np.ndarray]
+
+class OptimusController:
+    """
+    Controlador hierárquico similar ao usado no Optimus
+
+    Hierarquia:
+    1. High-level planner (NN-based, 10 Hz)
+    2. Mid-level controller (MPC, 100 Hz)
+    3. Low-level control (PID, 1000 Hz)
+    """
+
+    def __init__(self):
+        self.state = self._initialize_state()
+        self.control_frequency = {
+            'high': 10,    # Hz
+            'mid': 100,    # Hz
+            'low': 1000    # Hz
+        }
+
+    def _initialize_state(self) -> OptimusState:
+        """Inicializar estado do robô"""
+        return OptimusState(
+            base_position=np.zeros(3),
+            base_orientation=np.array([0, 0, 0, 1]),
+            joint_positions=np.zeros(28),
+            joint_velocities=np.zeros(28),
+            joint_torques=np.zeros(28),
+            imu_data={},
+            force_torque={},
+            vision_data={}
+        )
+
+    async def high_level_planner(self):
+        """
+        Planner de alto nível
+        Decide qual comportamento executar (andar, pegar objeto, etc.)
+        """
+        while True:
+            # Neural network inference para decision making
+            # Exemplo simplificado
+            behavior = self._decide_behavior()
+            print(f"[Planner] Executing: {behavior}")
+
+            await asyncio.sleep(1 / self.control_frequency['high'])
+
+    async def mid_level_controller(self):
+        """
+        Controlador de nível médio
+        Model Predictive Control para otimizar trajetória
+        """
+        while True:
+            # MPC solver para próximos 1-2 segundos
+            optimized_trajectory = self._solve_mpc()
+
+            await asyncio.sleep(1 / self.control_frequency['mid'])
+
+    async def low_level_controller(self):
+        """
+        Controlador de baixo nível
+        PID control para tracking de trajetória
+        """
+        while True:
+            # Ler sensores
+            self._read_sensors()
+
+            # Computar torques
+            torques = self._compute_joint_torques()
+
+            # Enviar para motores
+            self._send_motor_commands(torques)
+
+            await asyncio.sleep(1 / self.control_frequency['low'])
+
+    def _decide_behavior(self) -> str:
+        """Simplificado - em Optimus usa NN"""
+        return "walking"
+
+    def _solve_mpc(self) -> np.ndarray:
+        """Simplificado - MPC solver"""
+        return np.zeros(28)
+
+    def _read_sensors(self):
+        """Ler todos os sensores"""
+        pass
+
+    def _compute_joint_torques(self) -> np.ndarray:
+        """Computar torques para cada junta"""
+        return np.zeros(28)
+
+    def _send_motor_commands(self, torques: np.ndarray):
+        """Enviar comandos para motores"""
+        pass
+
+# Sistema completo
+async def run_optimus():
+    controller = OptimusController()
+
+    await asyncio.gather(
+        controller.high_level_planner(),
+        controller.mid_level_controller(),
+        controller.low_level_controller()
+    )
+```
+
+**Conceitos usados:**
+- Controle hierárquico (3 níveis)
+- Async para diferentes frequências
+- Dataclasses para estado complexo
+- Type hints para clareza
+
+---
+
+## 🔧 Troubleshooting Comum
+
+### Problema 1: Performance Ruim com NumPy
+
+❌ **Código lento:**
+```python
+# Loop sobre array (LENTO!)
+result = []
+for i in range(len(points)):
+    result.append(points[i] * 2)
+result = np.array(result)
+```
+
+✅ **Código vetorizado (RÁPIDO!):**
+```python
+# Operação vetorizada
+result = points * 2
+```
+
+**Speedup:** 50-100x mais rápido
+
+---
+
+### Problema 2: Memory Leak em Loops Infinitos
+
+❌ **Código com leak:**
+```python
+async def sensor_loop():
+    data_history = []
+    while True:
+        data = read_sensor()
+        data_history.append(data)  # Cresce infinitamente!
+        await asyncio.sleep(0.01)
+```
+
+✅ **Código correto:**
+```python
+from collections import deque
+
+async def sensor_loop():
+    # Limite de 1000 leituras
+    data_history = deque(maxlen=1000)
+    while True:
+        data = read_sensor()
+        data_history.append(data)  # Remove automaticamente o mais antigo
+        await asyncio.sleep(0.01)
+```
+
+---
+
+### Problema 3: Race Condition em Async
+
+❌ **Código com race condition:**
+```python
+class Counter:
+    def __init__(self):
+        self.count = 0
+
+    async def increment(self):
+        # NÃO é atômico!
+        temp = self.count
+        await asyncio.sleep(0)  # Outro task pode rodar aqui
+        self.count = temp + 1
+```
+
+✅ **Código thread-safe:**
+```python
+import asyncio
+
+class Counter:
+    def __init__(self):
+        self.count = 0
+        self._lock = asyncio.Lock()
+
+    async def increment(self):
+        async with self._lock:
+            temp = self.count
+            await asyncio.sleep(0)
+            self.count = temp + 1
+```
+
+---
+
+## 📊 Comparação: Python vs C++ em Robótica
+
+| Aspecto | Python 🐍 | C++ ⚙️ |
+|---------|-----------|--------|
+| **Velocidade** | 10-100x mais lento | Muito rápido |
+| **Desenvolvimento** | Rápido (horas) | Lento (dias) |
+| **Debugging** | Fácil | Difícil |
+| **Bibliotecas ML** | Excelente (PyTorch, TF) | Limitado |
+| **Controle baixo nível** | Limitado | Excelente |
+| **Real-time** | Difícil (&lt;1ms) | Possível (&lt;1ms) |
+
+**Quando usar cada um:**
+
+**Python:**
+- Prototipagem rápida
+- Visão computacional (OpenCV, YOLO)
+- Machine Learning (treinamento e inference)
+- High-level planning
+- Integração com ROS2
+
+**C++:**
+- Controle real-time crítico (&lt;1ms)
+- Drivers de hardware
+- Otimização extrema
+- Sistemas embarcados
+- Firmware
+
+**Tendência atual (2025):**
+- **Alto nível:** Python (80%)
+- **Baixo nível:** C++ (20%)
+- **Híbrido:** Python para lógica + C++ para performance crítica
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Entendo operações básicas com NumPy (dot, norm, @)
+- [ ] Sei criar matrizes de transformação 3D
+- [ ] Consigo usar classes e herança em Python
+- [ ] Entendo async/await e quando usar
+- [ ] Sei a diferença entre asyncio, threading e multiprocessing
+- [ ] Aplico type hints no meu código
+- [ ] Uso logging ao invés de print()
+- [ ] Escrevo unit tests para código crítico
+- [ ] Entendo trade-offs entre Python e C++
+
+---
+
 ## 🔗 Próximos Passos
 
 :::tip Próximo Módulo
@@ -157,3 +1129,9 @@ async def main():
 
 Nodes, topics, services e comunicação entre processos.
 :::
+
+---
+
+**⏱️ Tempo estimado:** 25-30 min
+**🧠 Nível:** Intermediário
+**💻 Hands-on:** 80% prático, 20% teórico

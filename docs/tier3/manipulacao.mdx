@@ -9,29 +9,809 @@ import TabItem from '@theme/TabItem';
 
 # 🦾 Manipulação
 
-:::tip Objetivo
-MoveIt, inverse kinematics e planejamento de trajetória para braços.
+:::tip Objetivo do Módulo
+Dominar manipulação robótica: MoveIt para planejamento de trajetória, cinemática inversa (IK) para controle preciso de braços, grasping para pegar objetos e controle de força. Essas são as habilidades essenciais para humanoides realizarem tarefas do mundo real.
 :::
+
+**Duração estimada:** 50 minutos
+**Pré-requisitos:** Módulos 1-6 (Python, ROS2, TF2, Visão, Navegação)
 
 ---
 
-## 🦾 MoveIt
+## 🦾 Fundamentos de Manipulação
 
-### Mover Braço para Posição
+### Arquitetura de Controle de Braço
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    APLICAÇÃO (HIGH-LEVEL)                     │
+│         "Pegue o copo na posição (0.5, 0.3, 0.8)"            │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                       MOVEIT                                  │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐        │
+│  │  IK Solver  │ → │   Planner   │ → │  Collision  │        │
+│  │  (pose→ang) │   │  (trajeto)  │   │  Detection  │        │
+│  └─────────────┘   └─────────────┘   └─────────────┘        │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+                   [Ângulos de Juntas]
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  CONTROLADORES DE JUNTAS                      │
+│    Joint 1: PID(θ_des=45°, θ_atual=44.8°) → torque          │
+│    Joint 2: PID(θ_des=90°, θ_atual=89.5°) → torque          │
+│    ...                                                        │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ▼
+                    [Atuadores]
+                    (Motores/Servos)
+```
+
+### Cinemática: Forward vs Inverse
+
+**Cinemática Direta (FK):** Ângulos → Posição do efetuador
+
+```
+Dado: θ1=45°, θ2=30°, θ3=60°
+Calcular: Posição da mão (x, y, z)?
+
+x = L1*cos(θ1) + L2*cos(θ1+θ2) + L3*cos(θ1+θ2+θ3)
+y = L1*sin(θ1) + L2*sin(θ1+θ2) + L3*sin(θ1+θ2+θ3)
+z = altura_base + ...
+```
+
+**Cinemática Inversa (IK):** Posição → Ângulos das juntas
+
+```
+Dado: Quero mão em (x=0.5, y=0.3, z=1.0)
+Calcular: θ1, θ2, θ3, ... ?
+
+Problema: Pode ter 0, 1 ou infinitas soluções!
+```
+
+---
+
+## 🛠️ MoveIt: Framework de Manipulação
+
+### Instalação
+
+```bash
+# Instalar MoveIt 2
+sudo apt install ros-humble-moveit
+
+# Instalar dependências
+sudo apt install ros-humble-moveit-visual-tools
+sudo apt install ros-humble-moveit-servo
+sudo apt install ros-humble-pilz-industrial-motion-planner
+```
+
+### Setup Assistant (Configuração Rápida)
+
+```bash
+# Lançar MoveIt Setup Assistant
+ros2 launch moveit_setup_assistant setup_assistant.launch.py
+
+# Etapas:
+# 1. Carregar URDF do robô
+# 2. Definir "Planning Groups" (ex: left_arm, right_arm)
+# 3. Escolher IK solver (KDL, TracIK, etc.)
+# 4. Configurar self-collision checking
+# 5. Gerar package de configuração
+```
+
+### Configuração Manual
+
+```yaml
+# config/moveit_config.yaml
+planning_plugin: pilz_industrial_motion_planner/CommandPlanner
+
+planning_pipelines:
+  ompl:
+    planning_plugin: ompl_interface/OMPLPlanner
+    request_adapters: >-
+      default_planner_request_adapters/AddTimeOptimalParameterization
+      default_planner_request_adapters/FixWorkspaceBounds
+      default_planner_request_adapters/FixStartStateBounds
+      default_planner_request_adapters/FixStartStateCollision
+      default_planner_request_adapters/FixStartStatePathConstraints
+    start_state_max_bounds_error: 0.1
+
+  pilz:
+    planning_plugin: pilz_industrial_motion_planner/CommandPlanner
+
+# Algoritmos de planejamento OMPL
+planner_configs:
+  RRTConnect:
+    type: geometric::RRTConnect
+    range: 0.0  # Max length of motions
+
+  RRT:
+    type: geometric::RRT
+    range: 0.0
+
+  RRTstar:
+    type: geometric::RRTstar
+    range: 0.0
+
+  LBKPIECE:
+    type: geometric::LBKPIECE
+    range: 0.0
+
+left_arm:
+  planner_configs:
+    - RRTConnect
+    - RRTstar
+    - RRT
+  projection_evaluator: joints(left_shoulder_pan,left_shoulder_lift)
+  longest_valid_segment_fraction: 0.005
+
+kinematics:
+  left_arm:
+    kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin
+    kinematics_solver_search_resolution: 0.005
+    kinematics_solver_timeout: 0.05
+    kinematics_solver_attempts: 3
+
+  right_arm:
+    kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
+    kinematics_solver_search_resolution: 0.005
+    kinematics_solver_timeout: 0.05
+```
+
+---
+
+## 🐍 MoveIt Python API
+
+### Exemplo Completo: Mover Braço
 
 ```python
-import moveit_commander
+import rclpy
+from rclpy.node import Node
+from moveit.planning import MoveItPy
+from moveit.core.robot_state import RobotState
+from geometry_msgs.msg import Pose, PoseStamped
+import numpy as np
 
-robot = moveit_commander.RobotCommander()
-arm = moveit_commander.MoveGroupCommander('left_arm')
+class ArmController(Node):
+    """
+    Controlador de braço usando MoveIt.
 
-# Definir pose alvo
-arm.set_pose_target([0.5, 0.3, 1.0, 0, 0, 0, 1])  # x,y,z, qx,qy,qz,qw
+    Usado em:
+    - Tesla Optimus: pegar peças, apertar parafusos
+    - Figure 01: manipular caixas em warehouse
+    - Boston Dynamics Atlas: abrir portas, girar válvulas
+    """
 
-# Planejar e executar
-plan = arm.plan()
-arm.execute(plan[1])
+    def __init__(self):
+        super().__init__('arm_controller')
+
+        # Inicializar MoveIt
+        self.moveit = MoveItPy(node_name="arm_controller_moveit")
+
+        # Obter grupo de planejamento (braço esquerdo)
+        self.arm_group = self.moveit.get_planning_component("left_arm")
+
+        # Obter estado atual do robô
+        self.robot = self.moveit.get_robot_model()
+        self.robot_state = self.moveit.get_robot_state()
+
+        self.get_logger().info('Arm Controller inicializado')
+        self.get_logger().info(f'Grupos disponíveis: {self.moveit.get_group_names()}')
+
+    def move_to_pose(self, target_pose):
+        """
+        Mover efetuador para pose 3D (posição + orientação).
+
+        Args:
+            target_pose: geometry_msgs/Pose ou [x, y, z, qx, qy, qz, qw]
+        """
+        # ====================================
+        # PASSO 1: Definir pose alvo
+        # ====================================
+        if isinstance(target_pose, list):
+            pose = Pose()
+            pose.position.x = target_pose[0]
+            pose.position.y = target_pose[1]
+            pose.position.z = target_pose[2]
+
+            pose.orientation.x = target_pose[3]
+            pose.orientation.y = target_pose[4]
+            pose.orientation.z = target_pose[5]
+            pose.orientation.w = target_pose[6]
+        else:
+            pose = target_pose
+
+        self.get_logger().info(
+            f'Movendo para pose: ({pose.position.x:.3f}, '
+            f'{pose.position.y:.3f}, {pose.position.z:.3f})'
+        )
+
+        # ====================================
+        # PASSO 2: Definir goal para o planejador
+        # ====================================
+        self.arm_group.set_goal_state(pose_stamped_msg=pose, pose_link="left_gripper")
+
+        # ====================================
+        # PASSO 3: Planejar trajetória
+        # ====================================
+        plan_result = self.arm_group.plan()
+
+        if not plan_result:
+            self.get_logger().error('❌ Planejamento falhou!')
+            return False
+
+        # Obter trajetória planejada
+        trajectory = plan_result.trajectory
+
+        self.get_logger().info(
+            f'✅ Trajetória planejada: {len(trajectory.joint_trajectory.points)} pontos, '
+            f'duração: {trajectory.joint_trajectory.points[-1].time_from_start.sec}s'
+        )
+
+        # ====================================
+        # PASSO 4: Executar trajetória
+        # ====================================
+        # Em robô real: envia comandos para controladores de juntas
+        # Em simulação: Gazebo atualiza posições
+
+        success = self.arm_group.execute()
+
+        if success:
+            self.get_logger().info('✅ Movimento completado!')
+        else:
+            self.get_logger().error('❌ Execução falhou!')
+
+        return success
+
+    def move_to_joint_values(self, joint_angles):
+        """
+        Mover braço para ângulos de junta específicos.
+
+        Args:
+            joint_angles: dict ou list
+                ex: [0.0, -1.57, 1.57, -1.57, 0.0, 0.0]
+        """
+        self.get_logger().info(f'Movendo para ângulos: {joint_angles}')
+
+        # Definir goal como valores de juntas
+        if isinstance(joint_angles, dict):
+            self.arm_group.set_goal_state(configuration_name="joint_angles")
+        else:
+            # Converter lista para joint state
+            joint_names = self.arm_group.get_active_joints()
+            joint_state = {}
+            for i, name in enumerate(joint_names):
+                joint_state[name] = joint_angles[i]
+
+            self.robot_state.set_joint_group_positions("left_arm", joint_angles)
+            self.arm_group.set_goal_state(robot_state=self.robot_state)
+
+        # Planejar e executar
+        plan_result = self.arm_group.plan()
+        if plan_result:
+            return self.arm_group.execute()
+        return False
+
+    def move_cartesian_path(self, waypoints, eef_step=0.01):
+        """
+        Mover seguindo waypoints cartesianos (caminho linear).
+
+        Args:
+            waypoints: lista de Poses
+            eef_step: distância máxima entre pontos (metros)
+        """
+        self.get_logger().info(f'Planejando caminho cartesiano com {len(waypoints)} waypoints')
+
+        # Compute cartesian path
+        (plan, fraction) = self.arm_group.compute_cartesian_path(
+            waypoints=waypoints,
+            eef_step=eef_step,
+            jump_threshold=0.0
+        )
+
+        self.get_logger().info(f'Caminho planejado: {fraction * 100:.1f}% completo')
+
+        if fraction > 0.95:  # 95% do caminho é viável
+            return self.arm_group.execute(plan)
+        else:
+            self.get_logger().error(
+                f'❌ Caminho cartesiano não é totalmente viável ({fraction * 100:.1f}%)'
+            )
+            return False
+
+    def get_current_pose(self):
+        """Obter pose atual do efetuador."""
+        current_state = self.arm_group.get_current_state()
+        pose = self.arm_group.get_current_pose()
+        return pose
+
+    def named_target(self, target_name):
+        """
+        Mover para pose pré-definida (ex: "home", "ready", "stow").
+        """
+        self.get_logger().info(f'Movendo para target nomeado: {target_name}')
+
+        self.arm_group.set_named_target(target_name)
+        plan = self.arm_group.plan()
+
+        if plan:
+            return self.arm_group.execute()
+        return False
+
+def main():
+    rclpy.init()
+    controller = ArmController()
+
+    # ====================================
+    # Exemplo 1: Mover para pose específica
+    # ====================================
+    target_pose = [
+        0.5,   # x (metros)
+        0.3,   # y
+        1.0,   # z
+        0.0,   # qx (quaternion)
+        0.0,   # qy
+        0.0,   # qz
+        1.0    # qw
+    ]
+    controller.move_to_pose(target_pose)
+
+    # ====================================
+    # Exemplo 2: Mover para joint angles
+    # ====================================
+    home_angles = [0.0, -1.57, 1.57, -1.57, 0.0, 0.0]
+    controller.move_to_joint_values(home_angles)
+
+    # ====================================
+    # Exemplo 3: Caminho cartesiano (linha reta)
+    # ====================================
+    current = controller.get_current_pose()
+
+    # Criar 5 waypoints em linha reta
+    waypoints = []
+    for i in range(5):
+        wp = Pose()
+        wp.position.x = current.position.x + i * 0.1  # Move 10cm por vez
+        wp.position.y = current.position.y
+        wp.position.z = current.position.z
+        wp.orientation = current.orientation
+        waypoints.append(wp)
+
+    controller.move_cartesian_path(waypoints)
+
+    # ====================================
+    # Exemplo 4: Target nomeado
+    # ====================================
+    controller.named_target("home")
+
+    controller.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 ```
+
+---
+
+## 🎯 Grasping: Pegar Objetos
+
+### Estratégias de Grasping
+
+<Tabs>
+<TabItem value="force" label="Force-Based">
+
+```python
+class ForceGrasp(Node):
+    """
+    Grasping baseado em controle de força.
+    Usado para objetos delicados (ovos, copos).
+    """
+
+    def __init__(self):
+        super().__init__('force_grasp')
+
+        # Subscriber para sensores de força nos dedos
+        self.force_sub = self.create_subscription(
+            WrenchStamped,
+            '/gripper/force',
+            self.force_callback,
+            10
+        )
+
+        # Publisher para controle do gripper
+        self.gripper_pub = self.create_publisher(
+            GripperCommand,
+            '/gripper/command',
+            10
+        )
+
+        self.target_force = 5.0  # Newtons
+        self.current_force = 0.0
+
+    def force_callback(self, msg):
+        """Ler força atual nos dedos."""
+        self.current_force = msg.wrench.force.z
+
+    def grasp_object(self):
+        """
+        Fechar gripper até detectar força alvo.
+        """
+        cmd = GripperCommand()
+
+        # Loop de controle (100Hz)
+        rate = self.create_rate(100)
+
+        while self.current_force < self.target_force:
+            # Fechar gripper gradualmente
+            cmd.position -= 0.001  # 1mm por iteração
+            cmd.max_effort = 20.0  # Newtons máximo
+
+            self.gripper_pub.publish(cmd)
+            rate.sleep()
+
+            if cmd.position < 0.01:  # Limite mínimo (1cm)
+                self.get_logger().warn('Gripper totalmente fechado, objeto muito pequeno?')
+                break
+
+        self.get_logger().info(
+            f'Objeto agarrado! Força: {self.current_force:.2f}N, '
+            f'Posição: {cmd.position:.3f}m'
+        )
+```
+
+</TabItem>
+<TabItem value="vision" label="Vision-Based">
+
+```python
+class VisionGrasp(Node):
+    """
+    Grasping guiado por visão.
+    Detecta objeto, estima pose 3D, planeja grasp.
+    """
+
+    def __init__(self):
+        super().__init__('vision_grasp')
+
+        self.arm = ArmController()
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Subscriber para detecções de objetos
+        self.object_sub = self.create_subscription(
+            DetectedObject,
+            '/detected_objects',
+            self.object_callback,
+            10
+        )
+
+    def object_callback(self, msg):
+        """
+        Callback quando objeto é detectado.
+        """
+        obj = msg  # DetectedObject tem: bbox, pose, class_name
+
+        if obj.class_name != "cup":
+            return  # Ignorar outros objetos
+
+        self.get_logger().info(f'Copo detectado em camera frame: {obj.pose}')
+
+        # ====================================
+        # PASSO 1: Transformar pose de camera → world
+        # ====================================
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                'world',
+                'camera_optical_frame',
+                rclpy.time.Time()
+            )
+
+            obj_pose_world = self.apply_transform(obj.pose, transform)
+
+            self.get_logger().info(
+                f'Copo em world frame: ({obj_pose_world.position.x:.3f}, '
+                f'{obj_pose_world.position.y:.3f}, {obj_pose_world.position.z:.3f})'
+            )
+
+        except Exception as e:
+            self.get_logger().error(f'Falha em TF: {e}')
+            return
+
+        # ====================================
+        # PASSO 2: Calcular pose de pre-grasp
+        # ====================================
+        # Aproximar de cima para evitar colisão
+        pregrasp_pose = Pose()
+        pregrasp_pose.position.x = obj_pose_world.position.x
+        pregrasp_pose.position.y = obj_pose_world.position.y
+        pregrasp_pose.position.z = obj_pose_world.position.z + 0.15  # 15cm acima
+
+        # Orientação: gripper apontando para baixo
+        pregrasp_pose.orientation.x = 0.707
+        pregrasp_pose.orientation.y = 0.0
+        pregrasp_pose.orientation.z = 0.0
+        pregrasp_pose.orientation.w = 0.707
+
+        # ====================================
+        # PASSO 3: Mover para pre-grasp
+        # ====================================
+        self.get_logger().info('Movendo para pre-grasp...')
+        if not self.arm.move_to_pose(pregrasp_pose):
+            self.get_logger().error('Falha ao alcançar pre-grasp')
+            return
+
+        # ====================================
+        # PASSO 4: Abrir gripper
+        # ====================================
+        self.open_gripper()
+
+        # ====================================
+        # PASSO 5: Descer para grasp
+        # ====================================
+        grasp_pose = pregrasp_pose
+        grasp_pose.position.z -= 0.15  # Descer 15cm
+
+        waypoints = [pregrasp_pose, grasp_pose]
+        if not self.arm.move_cartesian_path(waypoints):
+            self.get_logger().error('Falha ao descer para objeto')
+            return
+
+        # ====================================
+        # PASSO 6: Fechar gripper
+        # ====================================
+        self.close_gripper()
+
+        # ====================================
+        # PASSO 7: Levantar objeto
+        # ====================================
+        lift_pose = grasp_pose
+        lift_pose.position.z += 0.2  # Levantar 20cm
+
+        if self.arm.move_to_pose(lift_pose):
+            self.get_logger().info('✅ Objeto agarrado e levantado!')
+        else:
+            self.get_logger().error('❌ Falha ao levantar objeto')
+
+    def open_gripper(self):
+        """Abrir gripper totalmente."""
+        cmd = GripperCommand()
+        cmd.position = 0.08  # 8cm aberto
+        self.gripper_pub.publish(cmd)
+
+    def close_gripper(self):
+        """Fechar gripper."""
+        cmd = GripperCommand()
+        cmd.position = 0.0
+        cmd.max_effort = 50.0
+        self.gripper_pub.publish(cmd)
+```
+
+</TabItem>
+<TabItem value="grasp_planner" label="Grasp Planner">
+
+```python
+class GraspPlanner:
+    """
+    Planejador de grasps usando geometria do objeto.
+
+    Gera múltiplos candidatos de grasp e escolhe melhor.
+    """
+
+    def __init__(self):
+        pass
+
+    def generate_grasp_candidates(self, object_mesh):
+        """
+        Gerar possíveis grasps para objeto.
+
+        Returns:
+            List[GraspCandidate]
+        """
+        candidates = []
+
+        # Simplificação: grasps ao redor do objeto em Z
+        for angle in np.linspace(0, 2 * np.pi, 16):  # 16 ângulos
+            grasp = GraspCandidate()
+
+            # Posição do gripper
+            radius = object_mesh.bounding_box.x / 2 + 0.05  # 5cm de margem
+            grasp.pose.position.x = object_mesh.center.x + radius * np.cos(angle)
+            grasp.pose.position.y = object_mesh.center.y + radius * np.sin(angle)
+            grasp.pose.position.z = object_mesh.center.z
+
+            # Orientação: gripper apontando para centro
+            grasp.pose.orientation = self.quaternion_from_yaw(angle + np.pi)
+
+            # Calcular score do grasp
+            grasp.score = self.score_grasp(grasp, object_mesh)
+
+            candidates.append(grasp)
+
+        # Ordenar por score (melhor primeiro)
+        candidates.sort(key=lambda g: g.score, reverse=True)
+
+        return candidates
+
+    def score_grasp(self, grasp, object_mesh):
+        """
+        Avaliar qualidade do grasp.
+
+        Critérios:
+        - Distância até colisão
+        - Estabilidade (centro de massa)
+        - Reachability (IK factível?)
+        """
+        score = 100.0
+
+        # Penalizar grasps perto de obstáculos
+        if self.check_collision(grasp.pose):
+            score -= 50.0
+
+        # Preferir grasps de cima (mais estáveis)
+        if grasp.pose.position.z > object_mesh.center.z:
+            score += 20.0
+
+        # Verificar se IK existe
+        if not self.is_reachable(grasp.pose):
+            score = 0.0  # Grasp impossível
+
+        return score
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚨 Troubleshooting Comum
+
+### Problema 1: IK não encontra solução
+
+**Sintomas:**
+```
+[ERROR] IK solver failed to find solution
+```
+
+**Causas e soluções:**
+
+```python
+# Causa 1: Pose fora do alcance do braço
+# Solução: Verificar workspace limits
+
+max_reach = 0.85  # metros (soma dos comprimentos dos links)
+distance = np.sqrt(x**2 + y**2 + z**2)
+
+if distance > max_reach:
+    self.get_logger().error(f'Pose muito longe: {distance:.2f}m > {max_reach}m')
+
+# Causa 2: Orientação impossível
+# Solução: Relaxar constraints de orientação
+
+self.arm_group.set_position_only_ik(True)  # Ignorar orientação
+
+# Causa 3: IK solver ruim
+# Solução: Trocar para TracIK (mais robusto que KDL)
+
+# Em moveit_config.yaml:
+# kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
+```
+
+### Problema 2: Planejamento muito lento
+
+**Solução:**
+
+```yaml
+# Reduzir timeout e aumentar tentativas
+planning_time: 2.0  # Reduzir de 5.0 para 2.0 segundos
+planning_attempts: 5  # Aumentar tentativas
+
+# Usar planner mais rápido
+default_planner: RRTConnect  # Mais rápido que RRTstar
+```
+
+### Problema 3: Colisão não detectada
+
+**Solução:**
+
+```python
+# Adicionar collision objects manualmente
+from moveit_msgs.msg import CollisionObject
+from shape_msgs.msg import SolidPrimitive
+
+def add_table_collision(self):
+    """Adicionar mesa como obstáculo."""
+    collision_object = CollisionObject()
+    collision_object.header.frame_id = "world"
+    collision_object.id = "table"
+
+    # Definir forma (caixa)
+    box = SolidPrimitive()
+    box.type = SolidPrimitive.BOX
+    box.dimensions = [1.0, 2.0, 0.05]  # 1m x 2m x 5cm
+
+    # Posição da mesa
+    pose = Pose()
+    pose.position.x = 0.5
+    pose.position.y = 0.0
+    pose.position.z = 0.75
+    pose.orientation.w = 1.0
+
+    collision_object.primitives.append(box)
+    collision_object.primitive_poses.append(pose)
+    collision_object.operation = CollisionObject.ADD
+
+    # Publicar
+    self.planning_scene.add_object(collision_object)
+```
+
+---
+
+## 🏭 Casos de Uso em Produção
+
+### Tesla Optimus (Gigafactory)
+
+**Tarefas de manipulação:**
+1. **Pegar bateria** (8kg, delicada)
+   - Grasp force-controlled: 30N
+   - Pre-grasp de cima (evitar cabos)
+   - Verificar peso após grasp (se < 7kg, bateria escorregou)
+
+2. **Apertar parafusos** (torque preciso)
+   - Usar ferramenta com sensor de torque
+   - Planejar approach perpendicular ao parafuso
+   - Controlar força de inserção: 5-10N
+
+3. **Inserir componentes** (±0.5mm precisão)
+   - Visual servoing (correção em tempo real)
+   - Compliance control (permitir pequenos desvios)
+   - Sensor tátil para confirmar inserção
+
+### Figure 01 (Warehouse)
+
+**Manipulação de caixas:**
+- **Peso variável:** 1-15kg
+- **Grasp adaptativo:** Ajustar força baseado em peso estimado
+- **Stacking:** Planejar trajetória para evitar derrubar outras caixas
+
+**Setup:**
+```python
+# Estimar peso via força necessária para levantar
+initial_height = get_current_height()
+apply_upward_force(20)  # Newtons
+time.sleep(0.1)
+new_height = get_current_height()
+
+if new_height > initial_height:
+    # Objeto leve
+    weight_estimate = "light"
+    grasp_force = 10  # N
+else:
+    # Objeto pesado
+    weight_estimate = "heavy"
+    grasp_force = 50  # N
+```
+
+---
+
+## ✅ Checklist de Domínio
+
+Antes de avançar, certifique-se de que você consegue:
+
+- [ ] Configurar MoveIt para um robô
+- [ ] Mover braço para pose cartesiana
+- [ ] Mover para ângulos de juntas específicos
+- [ ] Planejar caminhos cartesianos (linhas retas)
+- [ ] Implementar grasping force-based
+- [ ] Implementar grasping vision-guided
+- [ ] Adicionar collision objects ao planning scene
+- [ ] Debugar problemas de IK e planejamento
+- [ ] Escolher IK solver adequado (KDL vs TracIK)
+- [ ] Integrar manipulação com visão e navegação
 
 ---
 
@@ -40,5 +820,11 @@ arm.execute(plan[1])
 :::tip Próximo Módulo
 **[🧠 IA e Aprendizado →](./ia-aprendizado)**
 
-Reinforcement Learning, LLMs e imitation learning.
+Dominar Reinforcement Learning para controle, LLMs para reasoning de alto nível, e imitation learning. Aprenda como humanoides aprendem tarefas complexas.
 :::
+
+**Recursos adicionais:**
+- [MoveIt 2 Tutorials](https://moveit.picknik.ai/main/index.html)
+- [MoveIt Python API](https://github.com/moveit/moveit2/tree/main/moveit_py)
+- [Grasp Planning](https://github.com/atenpas/gpd)
+- [Manipulation Primitives](https://manipulation.csail.mit.edu/)
