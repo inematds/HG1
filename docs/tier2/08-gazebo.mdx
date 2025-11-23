@@ -1,0 +1,189 @@
+---
+sidebar_position: 8
+title: 8. Gazebo Fortress
+description: Simulador open-source para robótica com ROS2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🏗️ Gazebo Fortress
+
+:::tip Objetivo do Módulo
+Dominar o Gazebo: criar mundos, simular física e integrar com ROS2.
+:::
+
+---
+
+## 📦 Instalação
+
+### Ubuntu 22.04 + ROS2 Humble
+
+```bash
+# Gazebo já vem com ROS2 Desktop
+sudo apt install ros-humble-desktop-full
+
+# Pacotes extras
+sudo apt install ros-humble-gazebo-ros-pkgs
+sudo apt install ros-humble-gazebo-plugins
+
+# Verificar instalação
+gazebo --version
+# Gazebo multi-robot simulator, version 11.10.2
+```
+
+---
+
+## 🌍 Criar Seu Primeiro Mundo
+
+### Mundo Básico (XML SDF)
+
+```xml
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="humanoid_lab">
+    <!-- Sol -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Chão -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Caixa para manipular -->
+    <model name="box1">
+      <pose>2 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.5 0.5 0.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.5</size></box>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
+```
+
+**Salvar:** `~/gazebo_ws/worlds/lab.world`
+
+**Lançar:**
+
+```bash
+gazebo ~/gazebo_ws/worlds/lab.world
+```
+
+---
+
+## 🤖 Importar Modelo de Humanoide
+
+### Opção 1: Modelos Prontos
+
+```bash
+# Baixar Unitree H1 (exemplo)
+cd ~/.gazebo/models
+git clone https://github.com/unitreerobotics/unitree_ros.git
+
+# Incluir no mundo
+<include>
+  <uri>model://unitree_h1</uri>
+  <pose>0 0 1 0 0 0</pose>
+</include>
+```
+
+### Opção 2: Converter URDF → SDF
+
+```bash
+# Se você tem URDF do robô
+gz sdf -p robot.urdf > robot.sdf
+```
+
+---
+
+## ⚙️ Física e Plugins
+
+### Configurar Motor
+
+```xml
+<plugin name="joint_controller" filename="libgazebo_ros_joint_state_publisher.so">
+  <ros>
+    <namespace>/robot</namespace>
+    <remapping>joint_states:=joint_states</remapping>
+  </ros>
+  <update_rate>100</update_rate>
+  <joint_name>left_knee</joint_name>
+</plugin>
+```
+
+### Controlar via ROS2
+
+```python
+import rclpy
+from sensor_msgs.msg import JointState
+
+node = rclpy.create_node('joint_commander')
+pub = node.create_publisher(JointState, '/robot/joint_commands', 10)
+
+msg = JointState()
+msg.name = ['left_knee']
+msg.position = [1.57]  # 90 graus
+
+pub.publish(msg)
+```
+
+---
+
+## 📹 Câmera Simulada
+
+```xml
+<sensor name="camera" type="camera">
+  <camera>
+    <horizontal_fov>1.57</horizontal_fov>
+    <image>
+      <width>1280</width>
+      <height>720</height>
+    </image>
+  </camera>
+  <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+    <ros>
+      <namespace>/robot</namespace>
+      <remapping>image_raw:=camera/image_raw</remapping>
+    </ros>
+  </plugin>
+</sensor>
+```
+
+**Ver imagem:**
+
+```bash
+ros2 run rqt_image_view rqt_image_view /robot/camera/image_raw
+```
+
+---
+
+## 🎮 Teleoperação
+
+```bash
+# Terminal 1: Lançar Gazebo com robô
+gazebo my_world.world
+
+# Terminal 2: Teleop
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r /cmd_vel:=/robot/cmd_vel
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🎥 NVIDIA Isaac Sim →](./isaac-sim)**
+
+Ray tracing, IA e sim-to-real transfer.
+:::

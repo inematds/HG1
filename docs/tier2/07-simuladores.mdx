@@ -1,0 +1,149 @@
+---
+sidebar_position: 7
+title: 7. Introdução a Simuladores
+description: Gazebo vs Isaac Sim vs Webots - quando usar cada um
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🌐 Introdução a Simuladores
+
+:::tip Objetivo do Módulo
+Entender as diferenças entre os principais simuladores e escolher o ideal para cada uso.
+:::
+
+---
+
+## 🎯 Por Que Simular?
+
+### Vantagens
+
+✅ **Segurança** - Testar sem risco de quebrar hardware  
+✅ **Custo** - Não precisa comprar robô de $90k  
+✅ **Velocidade** - Testar 1000 cenários em paralelo  
+✅ **Reprodutibilidade** - Mesmo teste, mesmos resultados  
+
+### Limitações
+
+❌ **Sim-to-Real Gap** - Comportamento difere do real  
+❌ **Física aproximada** - Colisões, fricção não são perfeitas  
+❌ **Sensores idealizados** - Sem ruído realista  
+
+---
+
+## 🏗️ Comparação de Simuladores
+
+| Aspecto | Gazebo Fortress | Isaac Sim | Webots |
+|---------|----------------|-----------|--------|
+| **Preço** | Grátis | Grátis | Grátis |
+| **Física** | ODE/Bullet/DART | PhysX 5 | ODE |
+| **Gráficos** | OpenGL | Ray tracing (RTX) | OpenGL |
+| **ROS2** | Nativo | Plugin | Plugin |
+| **GPU Necessária** | Não | NVIDIA RTX obrigatória | Não |
+| **IA/ML** | Básico | Nativo (Pytorch) | Básico |
+| **Curva Aprendizado** | Moderada | Íngreme | Fácil |
+| **Comunidade** | Grande (10+ anos) | Crescendo | Média |
+
+---
+
+## 🔧 Gazebo Fortress
+
+### Quando Usar
+
+✅ Aprender ROS2  
+✅ Testes rápidos de navegação  
+✅ Hardware limitado (sem GPU dedicada)  
+✅ Projetos open-source colaborativos  
+
+### Instalação
+
+```bash
+sudo apt install ros-humble-gazebo-ros-pkgs
+gazebo --version  # Deve mostrar Gazebo 11.x
+```
+
+---
+
+## 🎥 NVIDIA Isaac Sim
+
+### Quando Usar
+
+✅ IA/Reinforcement Learning  
+✅ Gráficos ultra-realistas (ray tracing)  
+✅ Simulação de frota (100+ robôs)  
+✅ Treinar modelos de visão  
+
+### Requisitos
+
+- **GPU:** NVIDIA RTX 2060 ou superior  
+- **VRAM:** 8 GB mínimo (16 GB recomendado)  
+- **RAM:** 32 GB  
+- **Armazenamento:** 50 GB  
+
+### Instalação
+
+```bash
+# Download: https://developer.nvidia.com/isaac-sim
+# Requer conta NVIDIA (grátis)
+```
+
+---
+
+## 🤖 Webots
+
+### Quando Usar
+
+✅ Ensino (interface amigável)  
+✅ Robôs móveis simples  
+✅ Prototipagem rápida  
+
+### Instalação
+
+```bash
+sudo snap install webots
+```
+
+---
+
+## 📊 Qual Escolher?
+
+<Tabs>
+<TabItem value="beginner" label="🎓 Iniciante">
+
+**Recomendação:** Gazebo
+
+- Mais tutoriais disponíveis
+- Integração perfeita com ROS2
+- Roda em qualquer PC
+
+</TabItem>
+<TabItem value="ai" label="🧠 IA/ML">
+
+**Recomendação:** Isaac Sim
+
+- Domínio randomization nativo
+- PyTorch integrado
+- Sintético dataset generation
+
+</TabItem>
+<TabItem value="education" label="👨‍🏫 Educação">
+
+**Recomendação:** Webots
+
+- Interface gráfica intuitiva
+- Controladores em Python/C++
+- Documentação excelente
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🏗️ Gazebo Fortress →](./gazebo)**
+
+Instalação, criação de mundos e física.
+:::

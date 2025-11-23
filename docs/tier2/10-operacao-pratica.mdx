@@ -1,0 +1,231 @@
+---
+sidebar_position: 10
+title: 10. Operação Prática Completa
+description: Projeto final - missão end-to-end
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🚀 Operação Prática Completa
+
+:::tip Objetivo do Módulo
+Integrar todos os conhecimentos do Tier 2 em um projeto prático completo.
+:::
+
+---
+
+## 🎯 Projeto Final: Missão de Inspeção
+
+### Objetivo
+
+Programar um humanoide simulado para:
+
+1. ✅ **Caminhar** até área específica (5 metros)
+2. ✅ **Inspecionar** objeto com câmera
+3. ✅ **Pegar** objeto (se possível)
+4. ✅ **Retornar** à base
+5. ✅ **Reportar** status (telemetria)
+
+### Tempo Estimado
+
+4-6 horas para completar
+
+---
+
+## 📋 Checklist de Preparação
+
+### Software
+
+```bash
+□ ROS2 Humble instalado
+□ Gazebo funcionando
+□ Foxglove Studio instalado
+□ Joystick conectado (opcional)
+```
+
+### Conhecimento
+
+```markdown
+□ Tier 1 completo
+□ Módulos 1-9 do Tier 2 completos
+□ Familiaridade com Python
+```
+
+---
+
+## 🏗️ Passo 1: Setup do Ambiente
+
+### Criar Workspace
+
+```bash
+mkdir -p ~/humanoid_mission_ws/src
+cd ~/humanoid_mission_ws
+colcon build
+source install/setup.bash
+```
+
+### Lançar Gazebo
+
+```bash
+# Terminal 1
+gazebo --verbose
+```
+
+### Lançar Foxglove
+
+```bash
+# Terminal 2
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+```
+
+---
+
+## 🚶 Passo 2: Implementar Navegação
+
+### Código Python
+
+```python
+import rclpy
+from geometry_msgs.msg import Twist
+
+class WalkController:
+    def __init__(self):
+        self.node = rclpy.create_node('walk_controller')
+        self.pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
+
+    def walk_forward(self, distance_m):
+        """Andar para frente X metros"""
+        speed = 0.5  # m/s
+        duration = distance_m / speed
+
+        msg = Twist()
+        msg.linear.x = speed
+
+        start = self.node.get_clock().now()
+        while (self.node.get_clock().now() - start).nanoseconds < duration * 1e9:
+            self.pub.publish(msg)
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+
+        # Parar
+        msg.linear.x = 0.0
+        self.pub.publish(msg)
+
+# Uso
+controller = WalkController()
+controller.walk_forward(5.0)  # 5 metros
+```
+
+---
+
+## 📸 Passo 3: Capturar Imagem
+
+```python
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
+
+class CameraInspector:
+    def __init__(self):
+        self.node = rclpy.create_node('camera_inspector')
+        self.bridge = CvBridge()
+        self.image = None
+
+        self.sub = self.node.create_subscription(
+            Image, '/camera/image_raw', self.image_callback, 10
+        )
+
+    def image_callback(self, msg):
+        self.image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+    def save_inspection_image(self, filename):
+        if self.image is not None:
+            cv2.imwrite(filename, self.image)
+            print(f"Saved {filename}")
+
+# Uso
+inspector = CameraInspector()
+rclpy.spin_once(inspector.node, timeout_sec=1.0)
+inspector.save_inspection_image('inspection.jpg')
+```
+
+---
+
+## 📊 Passo 4: Monitoramento
+
+### Dashboard Foxglove
+
+Criar layout com:
+- **3D View** do robô
+- **Image View** da câmera
+- **Plot** de velocidade
+- **Diagnostics**
+
+---
+
+## 🎓 Desafios Extras
+
+### Fácil
+
+- ✅ Fazer robô girar 360° antes de retornar
+
+### Médio
+
+- ✅ Detectar cor do objeto com OpenCV
+- ✅ Evitar obstáculo simples
+
+### Difícil
+
+- ✅ Usar Nav2 para navegação autônoma
+- ✅ Integrar com Isaac Sim
+- ✅ Treinar RL agent para tarefa
+
+---
+
+## 🏆 Conclusão do Tier 2
+
+### O Que Você Aprendeu
+
+✅ Segurança operacional  
+✅ Interfaces de controle  
+✅ Telemetria e monitoramento  
+✅ Calibração de sensores  
+✅ Manutenção preventiva  
+✅ Simuladores (Gazebo, Isaac Sim)  
+✅ Operação prática completa  
+
+### Próximos Passos
+
+:::tip Tier 3: Programando Humanoides
+**Em breve:** Programação avançada com ROS2, visão computacional, IA e navegação autônoma.
+
+**Enquanto aguarda:**
+- Pratique projetos extras em simulação
+- Contribua para projetos open-source
+- Participe de comunidades (r/ROS, Discord)
+:::
+
+---
+
+## 📚 Recursos Finais
+
+- **[ROS2 Documentation](https://docs.ros.org/en/humble/)**
+- **[Gazebo Tutorials](https://gazebosim.org/docs)**
+- **[Isaac Sim Docs](https://docs.omniverse.nvidia.com/isaacsim/)**
+- **[Foxglove](https://foxglove.dev/)**
+
+---
+
+## 🎉 Parabéns!
+
+Você completou o **Tier 2: Operando Humanoides**! 
+
+Agora você está apto para:
+- Operar robôs humanoides em simulação
+- Monitorar sistemas em tempo real
+- Fazer manutenção preventiva
+- Usar simuladores profissionais
+
+**Total de conteúdo:** ~3.5 horas  
+**Certificado:** [Em breve]  
+**Próximo tier:** Tier 3 (Programação Avançada)

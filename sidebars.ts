@@ -31,7 +31,27 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Tier 2 and Tier 3 sidebars will be added as content is created
+  // Tier 2: Operando Humanoides (Operation)
+  tier2: [
+    {
+      type: 'category',
+      label: 'Tier 2: Operando Humanoides',
+      items: [
+        'tier2/introducao-operacao',
+        'tier2/seguranca',
+        'tier2/interface-controle',
+        'tier2/telemetria',
+        'tier2/calibracao',
+        'tier2/manutencao',
+        'tier2/simuladores',
+        'tier2/gazebo',
+        'tier2/isaac-sim',
+        'tier2/operacao-pratica',
+      ],
+    },
+  ],
+
+  // Tier 3 sidebar will be added as content is created
 };
 
 export default sidebars;

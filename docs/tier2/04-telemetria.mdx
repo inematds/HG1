@@ -1,0 +1,98 @@
+---
+sidebar_position: 4
+title: 4. Telemetria e Monitoramento
+description: Dashboards, logs e diagnóstico em tempo real
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📊 Telemetria e Monitoramento
+
+:::tip Objetivo do Módulo
+Aprender a monitorar o status do robô em tempo real, criar dashboards, analisar logs e configurar alertas automáticos.
+:::
+
+---
+
+## 🎯 O Que é Telemetria?
+
+**Telemetria** é a coleta automática e transmissão de dados de medição do robô para uma estação de monitoramento.
+
+### Métricas Críticas
+
+| Métrica | Frequência | Ação se Anormal |
+|---------|-----------|-----------------|
+| **Temperatura motores** | 10 Hz | &gt;70°C → Reduzir carga |
+| **Tensão bateria** | 1 Hz | &lt;20% → Retornar base |
+| **Corrente motores** | 10 Hz | &gt;90% max → E-Stop |
+| **Estado IMU** | 100 Hz | Drift &gt;1° → Recalibrar |
+| **Latência rede** | 1 Hz | &gt;100ms → Alerta operador |
+
+---
+
+## 📈 Dashboards: Foxglove Studio
+
+**Instalação:**
+
+```bash
+# Ubuntu
+wget https://github.com/foxglove/studio/releases/download/v1.87.0/foxglove-studio-1.87.0-linux-amd64.deb
+sudo dpkg -i foxglove-studio-1.87.0-linux-amd64.deb
+
+# Ponte ROS2
+sudo apt install ros-humble-foxglove-bridge
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+```
+
+**Conectar:** ws://localhost:8765
+
+---
+
+## 🗂️ Logs e Diagnóstico
+
+### ROS Bag (Gravação de Dados)
+
+```bash
+# Gravar sessão
+ros2 bag record -a -o minha_sessao
+
+# Reproduzir
+ros2 bag play minha_sessao/
+
+# Ver info
+ros2 bag info minha_sessao/
+```
+
+---
+
+## 🔔 Sistema de Alertas
+
+### Email Alert
+
+```python
+import smtplib
+from email.mime.text import MIMEText
+
+def send_alert(subject, message):
+    msg = MIMEText(message)
+    msg['Subject'] = subject
+    msg['From'] = 'robot@empresa.com'
+    msg['To'] = 'operador@empresa.com'
+
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login('robot@empresa.com', 'senha')
+    server.send_message(msg)
+    server.quit()
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[⚙️ Calibração de Sistemas →](./calibracao)**
+
+Aprenda a calibrar IMU, encoders, sensores de força e câmeras.
+:::

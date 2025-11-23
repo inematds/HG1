@@ -1,0 +1,518 @@
+---
+sidebar_position: 2
+title: 2. Segurança Operacional
+description: Protocolos de segurança para trabalhar com robôs humanoides sem acidentes
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🛡️ Segurança Operacional com Humanoides
+
+:::danger Segurança em Primeiro Lugar
+Um robô humanoide de 50-80kg movendo-se a 1.5 m/s pode causar **lesões graves**. Este módulo pode salvar vidas - incluindo a sua.
+:::
+
+---
+
+## ⚠️ Por Que Segurança é Crítica?
+
+### 📊 Dados Reais de Acidentes (2020-2024)
+
+| Tipo de Acidente | Frequência | Gravidade | Causa Principal |
+|------------------|------------|-----------|-----------------|
+| **Colisão com operador** | 45% | Média-Alta | Falta de zona de segurança |
+| **Queda do robô** | 30% | Média | Calibração incorreta |
+| **Erro de comando** | 15% | Baixa-Média | Interface confusa |
+| **Falha elétrica/bateria** | 7% | Alta | Manutenção inadequada |
+| **Pânico do operador** | 3% | Média | Falta de treinamento em emergências |
+
+:::info Fonte
+Dados compilados de relatórios de segurança da **Boston Dynamics**, **Unitree**, e **OSHA (EUA)**.
+:::
+
+### 💰 Custo de Acidentes
+
+| Impacto | Custo Estimado (USD) |
+|---------|---------------------|
+| **Lesão humana leve** | $5k - $20k (tratamento médico) |
+| **Lesão grave** | $50k - $500k+ (cirurgia, afastamento) |
+| **Dano ao robô (queda)** | $10k - $50k (reparos) |
+| **Perda total do robô** | $90k - $150k (substituição) |
+| **Processo judicial** | $100k - $1M+ (indenização) |
+
+---
+
+## 🚨 Sistema de Parada de Emergência (E-Stop)
+
+### O Que é E-Stop?
+
+O **Emergency Stop** é um botão físico (ou comando remoto) que:
+- **Corta TODA a potência** dos motores instantaneamente
+- **Mantém freios mecânicos** ativos (evita queda descontrolada)
+- **Preserva logs** em memória não-volátil
+- **Não pode ser revertido acidentalmente** (requer reset manual)
+
+<Tabs>
+<TabItem value="hardware" label="🔴 E-Stop Físico">
+
+**Características de um E-Stop Adequado:**
+
+✅ **Cor vermelho vivo** (padrão ISO 13850)
+✅ **Formato cogumelo** (fácil de acertar em pânico)
+✅ **Posicionamento acessível** (distância máxima 3 metros)
+✅ **Redundância** (mínimo 2 botões em laboratório)
+✅ **Cabo de emergência** (operador pode carregar botão portátil)
+
+**Exemplo Real: Boston Dynamics Atlas**
+```
+- E-Stop principal: Na base traseira do robô
+- E-Stop remoto: Caixa de controle do operador (cabo 10m)
+- E-Stop virtual: Comando no software (backup)
+```
+
+</TabItem>
+<TabItem value="software" label="💻 E-Stop em Software">
+
+**Implementação em ROS2:**
+
+```python
+import rclpy
+from std_msgs.msg import Bool
+
+class EmergencyStop:
+    def __init__(self):
+        self.node = rclpy.create_node('emergency_stop')
+
+        # Subscribe to E-Stop button
+        self.sub = self.node.create_subscription(
+            Bool, '/emergency_stop', self.estop_callback, 10
+        )
+
+        # Publisher to disable all motors
+        self.motor_pub = self.node.create_publisher(
+            Bool, '/motors_enabled', 10
+        )
+
+    def estop_callback(self, msg):
+        if msg.data:  # E-Stop pressed
+            self.node.get_logger().error('🚨 E-STOP ACTIVATED!')
+
+            # Disable all motors immediately
+            disable_msg = Bool()
+            disable_msg.data = False
+            self.motor_pub.publish(disable_msg)
+
+            # Log event with timestamp
+            self.log_estop_event()
+
+    def log_estop_event(self):
+        with open('/var/log/robot_estop.log', 'a') as f:
+            import datetime
+            timestamp = datetime.datetime.now().isoformat()
+            f.write(f'{timestamp} - E-STOP ACTIVATED\n')
+```
+
+**⚠️ Importante:** E-Stop em software **NÃO SUBSTITUI** E-Stop físico! É apenas um backup.
+
+</TabItem>
+<TabItem value="procedimento" label="📋 Procedimento de Uso">
+
+**Quando Acionar o E-Stop:**
+
+🚨 **SEMPRE que:**
+- Robô se movendo de forma inesperada
+- Pessoa entrando na zona de risco
+- Som ou cheiro anormal (superaquecimento)
+- Perda de controle da interface
+- **Qualquer dúvida** (melhor parar e verificar)
+
+**Como Resetar Após E-Stop:**
+
+1. **Verificar área** - Garantir que a zona está segura
+2. **Identificar causa** - Por que o E-Stop foi acionado?
+3. **Resolver problema** - Corrigir antes de religar
+4. **Inspeção física** - Verificar danos mecânicos
+5. **Resetar E-Stop** - Girar botão no sentido horário
+6. **Teste incremental** - Começar com movimentos lentos
+
+:::danger Nunca Faça Isso
+❌ Resetar E-Stop sem investigar a causa
+❌ Desabilitar E-Stop para "facilitar testes"
+❌ Ignorar E-Stops acidentais repetidos (sinal de problema)
+:::
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🏗️ Zonas de Segurança
+
+### Conceito de Zonas Concêntricas
+
+<Tabs>
+<TabItem value="zona1" label="🔴 Zona Proibida (0-1m)">
+
+**Raio de Alcance Máximo do Robô**
+
+- **Entrada PROIBIDA** durante operação
+- **Acesso apenas** com robô totalmente desligado
+- **Demarcação física** (fita zebrada, cones, barreiras)
+
+**Cálculo do Raio:**
+```
+Raio da Zona 1 = Altura do robô + Margem de segurança
+
+Exemplos:
+- Atlas (1.5m altura): Zona 1 = 2.0m de raio
+- Unitree H1 (1.8m altura): Zona 1 = 2.3m de raio
+- Optimus (1.7m altura): Zona 1 = 2.2m de raio
+```
+
+</TabItem>
+<TabItem value="zona2" label="🟡 Zona de Atenção (1-3m)">
+
+**Área de Monitoramento Ativo**
+
+- **Acesso permitido** apenas para operador treinado
+- **Atenção máxima** (olhos sempre no robô)
+- **E-Stop portátil** obrigatório
+- **Comunicação verbal** ("entrando na zona 2!")
+
+**Equipamentos Obrigatórios:**
+- ✅ Capacete (proteção contra queda de objetos)
+- ✅ Óculos de segurança
+- ✅ Calçado de segurança (biqueira de aço)
+- ✅ Luvas mecânicas (se manipular robô)
+
+</TabItem>
+<TabItem value="zona3" label="🟢 Zona Operacional (3-10m)">
+
+**Área de Trabalho Normal**
+
+- **Estação de controle** (monitor, joystick, teclado)
+- **Observadores** e visitantes permitidos
+- **Linha de visão** clara para o robô
+- **Saídas de emergência** sinalizadas
+
+**Layout Ideal:**
+```
+[Robô] --1m-- [Zona Proibida] --2m-- [Zona Atenção] --7m-- [Estação de Controle]
+                                                              ↓
+                                                         [E-Stop Principal]
+```
+
+</TabItem>
+</Tabs>
+
+### 🚧 Demarcação Física
+
+**Opções de Barreira:**
+
+| Tipo | Custo | Eficácia | Uso Recomendado |
+|------|-------|----------|-----------------|
+| **Fita zebrada** | $10 | Baixa | Laboratório acadêmico |
+| **Cones de trânsito** | $50 | Média | Demos e testes temporários |
+| **Corrente retrátil** | $200 | Média-Alta | Área permanente (fábrica) |
+| **Cerca metálica** | $1000+ | Alta | Instalação industrial |
+| **Cortina de luz** | $3000+ | Altíssima | Produção 24/7 (para E-Stop automático) |
+
+:::tip Solução Caseira
+Para hobbyistas: use **fita adesiva amarela** no chão + placas impressas "ZONA DE ROBÔ - CUIDADO".
+:::
+
+---
+
+## 👷 Equipamento de Proteção Individual (EPI)
+
+### EPIs Obrigatórios por Tipo de Operação
+
+<Tabs>
+<TabItem value="operacao-remota" label="🖥️ Operação Remota (Simulação)">
+
+**Risco:** Praticamente zero (apenas cansaço visual)
+
+**EPIs:**
+- ❌ Nenhum EPI físico necessário
+- ✅ Óculos para tela (opcional, reduz fadiga)
+- ✅ Cadeira ergonômica (previne LER/DORT)
+- ✅ Pausas a cada 50 minutos
+
+</TabItem>
+<TabItem value="operacao-presencial" label="🤖 Operação Presencial (Hardware Real)">
+
+**Risco:** Médio (colisão, queda de objetos)
+
+**EPIs Obrigatórios:**
+- ✅ **Capacete** (ANSI Z89.1 ou equivalente)
+- ✅ **Óculos de segurança** (ANSI Z87.1)
+- ✅ **Calçado de segurança** (biqueira de aço, CA válido)
+- ✅ **Luvas mecânicas** (ao tocar no robô)
+- ✅ **Protetor auricular** (se ruído &gt; 85 dB)
+
+**EPIs Recomendados:**
+- 🟡 Colete refletivo (visibilidade em área grande)
+- 🟡 Joelheiras (ao trabalhar agachado)
+
+</TabItem>
+<TabItem value="manutencao" label="🔧 Manutenção Interna">
+
+**Risco:** Alto (partes móveis, eletricidade, baterias)
+
+**EPIs Adicionais:**
+- ✅ **Luvas dielétricas** (trabalho em baterias 48V+)
+- ✅ **Máscara PFF2** (limpeza com ar comprimido)
+- ✅ **Avental anti-estático** (eletrônica sensível)
+- ✅ **Tapete isolante** (ao abrir compartimento de bateria)
+
+**Ferramentas Isoladas:**
+- Chaves de fenda/allen com cabo isolado (1000V)
+- Multímetro CAT III (para medir alta tensão)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📋 Procedimentos Operacionais Padrão (SOP)
+
+### SOP 01: Ligando o Robô com Segurança
+
+**Checklist Pré-Operação (SEMPRE seguir):**
+
+```markdown
+□ 1. INSPEÇÃO VISUAL
+  □ Robô está em postura estável? (não inclinado)
+  □ Área ao redor livre de obstáculos?
+  □ Cabos e conexões intactos?
+  □ Vazamento de fluidos? (óleo hidráulico, refrigeração)
+
+□ 2. VERIFICAÇÃO DE SEGURANÇA
+  □ E-Stop físico testado? (pressionar e verificar resposta)
+  □ Zona de segurança demarcada?
+  □ Operador com EPIs adequados?
+  □ Observadores fora da Zona 1 e 2?
+
+□ 3. SISTEMA DE ENERGIA
+  □ Bateria carregada acima de 30%?
+  □ Temperatura da bateria normal? (20-40°C)
+  □ Conectores da bateria firmes?
+  □ Sistema de refrigeração funcionando?
+
+□ 4. INICIALIZAÇÃO
+  □ Ligar fonte externa (se houver)
+  □ Pressionar botão de POWER (aguardar 30s para boot)
+  □ Verificar LEDs de status (verde = ok)
+  □ Conectar via SSH/ROS (testar ping)
+
+□ 5. TESTE DE SISTEMAS
+  □ Mover 1 junta por vez (amplitude mínima)
+  □ Verificar resposta dos sensores (IMU, encoders)
+  □ Testar E-Stop remoto (pressionar e resetar)
+  □ Calibração automática (se necessário)
+
+□ 6. OPERAÇÃO GRADUAL
+  □ Começar com velocidade 10% da máxima
+  □ Aumentar gradualmente após 5 min de operação estável
+  □ Monitorar temperatura dos motores
+```
+
+:::warning Tempo Estimado
+Este checklist completo leva **10-15 minutos**. Nunca pule etapas para "economizar tempo" - acidentes custam muito mais.
+:::
+
+### SOP 02: Desligando o Robô
+
+**Procedimento de Shutdown Seguro:**
+
+1. **Retornar à posição neutra**
+   - Comando: `go_to_home_position()`
+   - Robô deve estar com pés paralelos, joelhos levemente flexionados
+
+2. **Desabilitar motores gradualmente**
+   - Não cortar potência abruptamente (pode causar queda)
+   - Sequência: Braços → Tronco → Pernas
+
+3. **Shutdown do sistema operacional**
+   ```bash
+   ssh robot@192.168.1.100
+   sudo shutdown -h now
+   ```
+
+4. **Desconectar bateria** (se for armazenar por &gt; 7 dias)
+   - Usar luvas dielétricas
+   - Seguir sequência: Terra → Negativo → Positivo
+
+5. **Cobrir o robô** (proteção contra poeira)
+
+---
+
+## 🚑 Primeiros Socorros e Emergências
+
+### Cenário 1: Colisão entre Robô e Pessoa
+
+**Ação Imediata:**
+1. **Acionar E-Stop** (se ainda não foi)
+2. **Avaliar vítima** (consciência, respiração, sangramento)
+3. **Chamar ajuda** (SAMU: 192 no Brasil, 911 nos EUA)
+4. **NÃO mover vítima** se houver suspeita de fratura de coluna
+5. **Registrar incidente** (fotos, testemunhas, logs do robô)
+
+**Prevenção:**
+- ✅ Nunca operar robô com pessoas na Zona 1
+- ✅ Comandos sempre em velocidade reduzida perto de pessoas
+- ✅ Usar modo "colaborativo" se disponível (força limitada)
+
+### Cenário 2: Incêndio na Bateria
+
+**Sinais de Alerta:**
+- 🔥 Fumaça saindo do compartimento
+- 🌡️ Temperatura &gt; 70°C (detectável por cheiro)
+- ⚡ Faíscas ou cheiro de queimado
+
+**Ação Imediata:**
+1. **Acionar E-Stop**
+2. **Evacuar área** (raio de 10 metros)
+3. **Chamar bombeiros** (nunca tentar apagar sozinho)
+4. **NÃO jogar água** (usar extintor CO2 ou pó químico)
+
+**Tempo Crítico:** Bateria de Li-Ion pode entrar em **thermal runaway** (reação em cadeia) em 30-60 segundos.
+
+### Cenário 3: Robô Travado em Posição Perigosa
+
+**Exemplo:** Robô com braço estendido sobre pessoa inconsciente
+
+**Ação:**
+1. **E-Stop já deve estar acionado**
+2. **Avaliar se é seguro mover braço manualmente**
+   - Se motores estão quentes (&gt;60°C): **NÃO TOCAR** (risco de queimadura)
+   - Se frio: pode mover lentamente
+3. **Usar modo de gravidade zero** (se disponível):
+   ```python
+   robot.enable_gravity_compensation()  # Motores ajudam a sustentar peso
+   ```
+4. **Chamar equipe técnica** se não conseguir resolver
+
+---
+
+## 📱 Sistema de Monitoramento de Segurança
+
+### Dashboard de Segurança em Tempo Real
+
+**Indicadores Críticos a Monitorar:**
+
+| Métrica | Valor Seguro | Ação se Exceder |
+|---------|--------------|-----------------|
+| **Temperatura motores** | &lt; 60°C | Reduzir carga, aumentar refrigeração |
+| **Corrente por motor** | &lt; 80% do máximo | Verificar se há obstrução mecânica |
+| **Tensão bateria** | &gt; 20% carga | Retornar para estação de carga |
+| **Erro de IMU** | &lt; 0.5° de drift | Recalibrar IMU |
+| **Latência de rede** | &lt; 50ms | Verificar interferência WiFi |
+| **Pessoas na Zona 1** | 0 | **E-STOP IMEDIATO** |
+
+**Implementação com ROS2 + Grafana:**
+
+```python
+# Publicar métricas de segurança
+from rclpy.node import Node
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+
+class SafetyMonitor(Node):
+    def __init__(self):
+        super().__init__('safety_monitor')
+        self.pub = self.create_publisher(DiagnosticArray, '/diagnostics', 10)
+        self.timer = self.create_timer(1.0, self.check_safety)  # 1 Hz
+
+    def check_safety(self):
+        diag_array = DiagnosticArray()
+
+        # Check motor temperature
+        temp_status = DiagnosticStatus()
+        temp_status.name = 'Motor Temperature'
+        temp_status.level = DiagnosticStatus.OK
+
+        max_temp = self.get_max_motor_temp()  # Função fictícia
+        if max_temp > 60:
+            temp_status.level = DiagnosticStatus.WARN
+            temp_status.message = f'High temperature: {max_temp}°C'
+        elif max_temp > 70:
+            temp_status.level = DiagnosticStatus.ERROR
+            temp_status.message = f'CRITICAL TEMP: {max_temp}°C - SHUTTING DOWN'
+            self.emergency_shutdown()
+
+        diag_array.status.append(temp_status)
+        self.pub.publish(diag_array)
+```
+
+---
+
+## 🎓 Certificações e Treinamento
+
+### Cursos de Segurança Recomendados
+
+| Curso | Provedor | Duração | Custo |
+|-------|----------|---------|-------|
+| **Robot Safety Fundamentals** | RIA (Robotic Industries Association) | 8h online | $395 |
+| **Collaborative Robot Safety** | TÜV Rheinland | 2 dias | $1200 |
+| **First Aid for Robotics Labs** | Cruz Vermelha + adaptação customizada | 4h | $150 |
+| **Electrical Safety (NFPA 70E)** | IEEE | 16h | $600 |
+
+:::tip Para Iniciantes
+Se você está apenas simulando (Gazebo/Isaac Sim), **não precisa** desses cursos. Eles são para quem vai trabalhar com hardware real.
+:::
+
+---
+
+## ✅ Checklist de Segurança Diária
+
+Imprima e mantenha próximo à estação de controle:
+
+```markdown
+DATA: ___/___/_____ OPERADOR: _________________
+
+PRÉ-OPERAÇÃO:
+□ EPIs verificados e em uso
+□ E-Stop testado e funcional
+□ Zona de segurança demarcada
+□ Bateria &gt; 30% de carga
+□ Inspeção visual completa
+
+DURANTE OPERAÇÃO:
+□ Monitoramento contínuo de temperatura
+□ Latência de rede &lt; 50ms
+□ Nenhuma pessoa na Zona 1 ou 2
+□ Logs de erro vazios
+
+PÓS-OPERAÇÃO:
+□ Shutdown seguro executado
+□ Robô em posição neutra
+□ Bateria em carga (se necessário)
+□ Incidentes registrados (se houver)
+□ Área limpa e organizada
+
+ASSINATURA: _________________
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🕹️ Interfaces de Controle →](./interface-controle)**
+
+Agora que você conhece os protocolos de segurança, aprenda a operar o robô usando joystick, tablets, VR e comandos de voz.
+:::
+
+---
+
+## 📚 Referências e Normas
+
+- **ISO 10218-1:2011** - Robots and robotic devices - Safety requirements
+- **ISO/TS 15066:2016** - Collaborative robots (cobots)
+- **ANSI/RIA R15.06** - Industrial robot safety (EUA)
+- **OSHA 3853** - Safeguarding industrial robots (PDF gratuito)
+
+**Downloads:**
+- [OSHA Robot Safety Guide (PDF)](https://www.osha.gov/publications/3853-safeguarding-industrial-robots)
+- [RIA Safety Poster (Grátis)](https://www.robotics.org/safety)

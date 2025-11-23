@@ -1,0 +1,269 @@
+---
+sidebar_position: 5
+title: 5. Calibração de Sistemas
+description: Calibração de IMU, encoders, sensores de força e câmeras
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# ⚙️ Calibração de Sistemas
+
+:::tip Objetivo do Módulo
+Aprender a calibrar os principais sensores de um humanoide para garantir precisão máxima em operação.
+:::
+
+---
+
+## 🧭 Calibração de IMU (Unidade de Medição Inercial)
+
+### Por Que Calibrar?
+
+IMU mede **aceleração** e **rotação**, mas sofre de **drift** (desvio acumulado). Sem calibração, após 10 minutos o robô pode pensar que está inclinado 5°.
+
+### Procedimento de Calibração
+
+<Tabs>
+<TabItem value="static" label="🛑 Calibração Estática">
+
+**Quando:** Calibrar offsets de acelerômetro e giroscópio
+
+**Passos:**
+
+```bash
+# 1. Colocar robô em superfície PERFEITAMENTE plana
+# 2. Robô totalmente parado (motores desligados)
+# 3. Executar calibração
+
+ros2 run robot_calibration calibrate_imu
+
+# Aguardar 60 segundos (coleta 6000 amostras @ 100 Hz)
+# Saída:
+# Accel offset: x=0.02, y=-0.01, z=9.81
+# Gyro offset: x=0.001, y=0.002, z=0.000
+```
+
+**Salvar Calibração:**
+
+```yaml
+# imu_calibration.yaml
+accelerometer_offset:
+  x: 0.02
+  y: -0.01
+  z: 0.00  # Z deve ser ~0 (9.81 é gravidade)
+gyroscope_offset:
+  x: 0.001
+  y: 0.002
+  z: 0.000
+```
+
+</TabItem>
+<TabItem value="dynamic" label="🔄 Calibração Dinâmica">
+
+**Quando:** Calibrar matriz de transformação
+
+**Procedimento:**
+
+1. **Rotação em X** (pitch): Inclinar robô para frente/trás
+2. **Rotação em Y** (roll): Inclinar robô esquerda/direita
+3. **Rotação em Z** (yaw): Girar robô 360°
+
+```python
+import numpy as np
+
+# Dados coletados durante rotações
+accel_samples = []  # Lista de (ax, ay, az)
+gyro_samples = []   # Lista de (gx, gy, gz)
+
+# Calcular matriz de calibração
+accel_mean = np.mean(accel_samples, axis=0)
+accel_std = np.std(accel_samples, axis=0)
+
+# Fator de escala (ideal = 1.0)
+scale_factor = 9.81 / np.linalg.norm(accel_mean)
+
+print(f"Scale factor: {scale_factor}")  # Deve estar entre 0.95-1.05
+```
+
+</TabItem>
+</Tabs>
+
+### Verificação Pós-Calibração
+
+```bash
+# Verificar se IMU está reportando corretamente
+ros2 topic echo /imu/data
+
+# Com robô parado e plano:
+# - angular_velocity: ~(0, 0, 0)
+# - linear_acceleration.z: ~9.81 m/s²
+```
+
+---
+
+## 🔧 Calibração de Encoders
+
+### O Que São Encoders?
+
+Sensores que medem **ângulo das juntas** (quantos graus o joelho flexionou).
+
+### Calibrar Zero Mecânico
+
+<Tabs>
+<TabItem value="manual" label="🖐️ Calibração Manual">
+
+**Procedimento:**
+
+1. **Posicionar junta em posição conhecida** (ex: joelho totalmente reto = 0°)
+2. **Executar comando de calibração:**
+
+```python
+import rclpy
+from std_srvs.srv import Trigger
+
+# Chamar serviço de calibração
+client = node.create_client(Trigger, '/calibrate_joint_left_knee')
+client.wait_for_service()
+
+request = Trigger.Request()
+response = client.call(request)
+
+if response.success:
+    print("Calibrado: left_knee @ 0°")
+```
+
+</TabItem>
+<TabItem value="auto" label="🤖 Calibração Automática">
+
+**Usando Limites Mecânicos:**
+
+Alguns robôs têm **limit switches** (chaves fim-de-curso). O robô move a junta até tocar o limite, então sabe que está em 0°.
+
+```python
+def auto_calibrate_joint(joint_name):
+    # 1. Mover lentamente até limit switch
+    while not limit_switch_pressed(joint_name):
+        move_joint(joint_name, velocity=-0.1)  # Velocidade baixa
+
+    # 2. Zerar encoder
+    reset_encoder(joint_name)
+    print(f"{joint_name} calibrated to 0°")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## ⚖️ Calibração de Sensores de Força/Torque
+
+### Onde Estão?
+
+- **Pés** (medir força de contato com chão)
+- **Punhos** (medir força ao pegar objetos)
+
+### Calibração de Offset
+
+```python
+# Robô suspenso (pés no ar, sem carga)
+force_samples = []
+for i in range(100):
+    force = read_force_sensor('left_foot')
+    force_samples.append(force)
+
+offset = np.mean(force_samples, axis=0)
+# offset = (0.5, -0.2, 2.0) N
+
+# Salvar
+save_calibration('left_foot', offset)
+```
+
+### Calibração de Escala
+
+```python
+# Aplicar peso conhecido (ex: 10 kg = 98.1 N)
+force_with_weight = read_force_sensor('left_foot') - offset
+expected_force = 98.1  # N
+
+scale_factor = expected_force / force_with_weight[2]  # Eixo Z
+print(f"Scale: {scale_factor}")  # Deve ser ~1.0
+```
+
+---
+
+## 📷 Calibração de Câmeras
+
+### Parâmetros Intrínsecos
+
+**O que calibrar:** Distorção da lente, focal length
+
+**Ferramenta:** OpenCV
+
+```bash
+# Imprimir padrão xadrez
+# https://docs.opencv.org/4.x/pattern.png
+
+# Capturar 20+ fotos do padrão em ângulos diferentes
+ros2 run image_view image_saver --ros-args -r image:=/camera/image_raw
+
+# Calibrar
+ros2 run camera_calibration cameracalibrator --size 8x6 --square 0.025 image:=/camera/image_raw
+```
+
+**Saída:**
+
+```yaml
+image_width: 1280
+image_height: 720
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [800.0, 0.0, 640.0,
+         0.0, 800.0, 360.0,
+         0.0, 0.0, 1.0]
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.2, 0.05, 0.0, 0.0, 0.0]  # k1, k2, p1, p2, k3
+```
+
+### Parâmetros Extrínsecos
+
+**O que calibrar:** Posição da câmera relativa ao corpo do robô
+
+**Ferramenta:** TF tree + ArUco marker
+
+```python
+# Robô olha para marcador ArUco de posição conhecida
+# Sistema calcula transformação camera → base_link
+```
+
+---
+
+## 🎯 Checklist de Calibração Completo
+
+```markdown
+PRÉ-OPERAÇÃO DIÁRIA:
+□ IMU: Verificar drift (&lt; 0.5°/min)
+□ Encoders: Testar 5 juntas aleatórias
+□ Força: Zero com robô suspenso
+
+SEMANAL:
+□ Câmeras: Verificar foco e distorção
+□ IMU: Calibração estática completa
+
+MENSAL:
+□ Encoders: Calibração completa de todos
+□ Força: Teste com pesos conhecidos
+□ Câmeras: Recalibração intrinseca
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🔧 Manutenção Preventiva →](./manutencao)**
+
+Aprenda inspeção, lubrificação e troca de componentes.
+:::

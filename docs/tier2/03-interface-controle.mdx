@@ -1,0 +1,896 @@
+---
+sidebar_position: 3
+title: 3. Interfaces de Controle
+description: Joystick, VR, tablets e comandos de voz para operar humanoides
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🕹️ Interfaces de Controle para Humanoides
+
+:::tip Objetivo do Módulo
+Dominar as principais formas de controlar um robô humanoide: desde joysticks tradicionais até realidade virtual e comandos de voz.
+:::
+
+---
+
+## 🎮 Tipos de Interface de Controle
+
+### Comparação Geral
+
+| Interface | Precisão | Latência | Curva de Aprendizado | Custo | Melhor Para |
+|-----------|----------|----------|----------------------|-------|-------------|
+| **Teclado** | Baixa | Baixa (10ms) | Fácil | $0 | Testes iniciais |
+| **Joystick Gamepad** | Média | Baixa (15ms) | Fácil | $30-60 | Operação geral |
+| **Joystick Profissional** | Alta | Baixa (5ms) | Moderada | $200-500 | Tarefas de precisão |
+| **SpaceMouse** | Muito Alta | Baixa (5ms) | Difícil | $150-400 | Manipulação 6-DOF |
+| **Tablet Touchscreen** | Média | Média (50ms) | Fácil | $300-1000 | Supervisão mobile |
+| **VR (Realidade Virtual)** | Muito Alta | Média (30ms) | Difícil | $300-1500 | Teleoperação imersiva |
+| **Comandos de Voz** | Baixa | Alta (200ms) | Fácil | $0 | Comandos de alto nível |
+| **Motion Capture** | Altíssima | Baixa (10ms) | Difícil | $5k+ | Imitação de movimentos |
+
+---
+
+## ⌨️ Controle por Teclado
+
+### Quando Usar
+
+- ✅ Testes rápidos em simulação
+- ✅ Aprender comandos básicos
+- ✅ Desenvolvimento de software (debug)
+- ❌ **NUNCA** em hardware real (muito impreciso)
+
+### Mapeamento Básico ROS2
+
+<Tabs>
+<TabItem value="teleop-twist" label="🚶 Movimento Base">
+
+**Pacote:** `teleop_twist_keyboard`
+
+```bash
+# Instalar
+sudo apt install ros-humble-teleop-twist-keyboard
+
+# Executar
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+**Teclas Padrão:**
+```
+        i      (frente)
+   j    k    l (esquerda, parar, direita)
+        ,      (trás)
+
+u  o   (girar enquanto anda)
+m  .   (girar enquanto anda para trás)
+
+q/z : Aumentar/diminuir velocidade linear (10%)
+w/x : Aumentar/diminuir velocidade angular (10%)
+
+CTRL-C para sair
+```
+
+</TabItem>
+<TabItem value="joint-control" label="🦾 Controle de Juntas">
+
+**Script Python Customizado:**
+
+```python
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+import sys
+import termios
+import tty
+
+class KeyboardJointControl(Node):
+    def __init__(self):
+        super().__init__('keyboard_joint_control')
+        self.publisher = self.create_publisher(JointState, '/joint_commands', 10)
+
+        # Estado atual das juntas
+        self.joint_positions = {
+            'left_shoulder': 0.0,
+            'right_shoulder': 0.0,
+            'left_knee': 0.0,
+            'right_knee': 0.0,
+        }
+
+        self.current_joint = 'left_shoulder'
+        self.step = 0.1  # radianos por tecla
+
+    def get_key(self):
+        """Captura uma tecla sem esperar Enter"""
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            key = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return key
+
+    def process_key(self, key):
+        if key == 'w':  # Aumentar ângulo
+            self.joint_positions[self.current_joint] += self.step
+        elif key == 's':  # Diminuir ângulo
+            self.joint_positions[self.current_joint] -= self.step
+        elif key == '1':  # Selecionar junta
+            self.current_joint = 'left_shoulder'
+        elif key == '2':
+            self.current_joint = 'right_shoulder'
+        elif key == '3':
+            self.current_joint = 'left_knee'
+        elif key == '4':
+            self.current_joint = 'right_knee'
+        elif key == 'q':  # Sair
+            return False
+
+        # Publicar novo estado
+        msg = JointState()
+        msg.name = list(self.joint_positions.keys())
+        msg.position = list(self.joint_positions.values())
+        self.publisher.publish(msg)
+
+        print(f'Junta: {self.current_joint} | Ângulo: {self.joint_positions[self.current_joint]:.2f} rad')
+        return True
+
+    def run(self):
+        print("=== Controle de Juntas por Teclado ===")
+        print("1/2/3/4: Selecionar junta")
+        print("W/S: Aumentar/Diminuir ângulo")
+        print("Q: Sair\n")
+
+        running = True
+        while running:
+            key = self.get_key()
+            running = self.process_key(key)
+
+def main():
+    rclpy.init()
+    node = KeyboardJointControl()
+    node.run()
+    rclpy.shutdown()
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🎮 Joystick Gamepad (Xbox/PlayStation)
+
+### Hardware Recomendado
+
+<Tabs>
+<TabItem value="budget" label="💰 Entrada ($30-60)">
+
+**Xbox One Controller (com fio)**
+- **Preço:** $40 (Amazon)
+- **Conexão:** USB
+- **Latência:** ~15ms
+- **Compatibilidade:** Linux nativo (driver `xpad`)
+
+**Configuração:**
+```bash
+# Verificar se foi detectado
+sudo apt install joystick
+jstest /dev/input/js0
+
+# Instalar pacote ROS2
+sudo apt install ros-humble-joy
+sudo apt install ros-humble-teleop-twist-joy
+```
+
+</TabItem>
+<TabItem value="mid" label="🚀 Intermediário ($60-150)">
+
+**PlayStation 5 DualSense**
+- **Preço:** $70
+- **Conexão:** USB-C ou Bluetooth
+- **Latência:** ~10ms (USB), ~20ms (BT)
+- **Extras:** Feedback háptico avançado, gatilhos adaptativos
+
+**Vantagens:**
+- ✅ Gatilhos analógicos (melhor controle de velocidade)
+- ✅ Feedback tátil (sentir colisões no jogo)
+- ✅ Bateria interna (uso sem fio)
+
+**Driver Linux:**
+```bash
+# Instalar suporte PS5
+sudo apt install ds5-tool
+```
+
+</TabItem>
+<TabItem value="pro" label="💎 Profissional ($200-500)">
+
+**Logitech Extreme 3D Pro (Joystick de Voo)**
+- **Preço:** $40 (mas design profissional)
+- **Conexão:** USB
+- **Controles:** 1 stick 3-axis + 12 botões + throttle
+- **Uso:** Controle fino de movimentos (braços, câmera)
+
+**Thrustmaster HOTAS (Hands On Throttle And Stick)**
+- **Preço:** $250-500
+- **Controles:** 2 sticks independentes + pedais (opcional)
+- **Uso:** Teleoperação avançada (uma mão = movimento, outra = braços)
+
+</TabItem>
+</Tabs>
+
+### Configuração ROS2 Joy
+
+**Arquivo de configuração:** `config/joy_teleop.yaml`
+
+```yaml
+teleop_twist_joy_node:
+  ros__parameters:
+    # Eixos do joystick (valores de 0 a N, conforme seu controle)
+    axis_linear:  1   # Stick esquerdo vertical (frente/trás)
+    axis_angular: 2   # Stick direito horizontal (girar)
+
+    # Escala de velocidade
+    scale_linear: 1.0   # m/s máximo
+    scale_angular: 2.0  # rad/s máximo
+
+    # Botão "turbo" (segurar para velocidade máxima)
+    enable_button: 5    # Botão RB (bumper direito)
+
+    # Botão "slow mode" (precisão)
+    enable_turbo_button: 4  # Botão LB (bumper esquerdo)
+```
+
+**Lançar nó:**
+```bash
+ros2 launch teleop_twist_joy teleop-launch.py joy_config:='xbox'
+```
+
+### Mapeamento Avançado para Humanoides
+
+```yaml
+# Exemplo: Controlar Unitree H1
+humanoid_teleop:
+  ros__parameters:
+    # Movimento da base
+    axis_walk_forward: 1   # Stick esquerdo Y
+    axis_walk_strafe: 0    # Stick esquerdo X
+    axis_turn: 2           # Stick direito X
+
+    # Controle de altura (agachar)
+    axis_height: 5         # Gatilhos L2/R2 (analogicos)
+
+    # Braços
+    button_arm_mode: 3     # Botão Y (alternar modo braço)
+    axis_left_arm_x: 0     # Stick esquerdo X (quando em modo braço)
+    axis_left_arm_y: 1     # Stick esquerdo Y
+
+    # Comandos discretos
+    button_stand: 0        # A (posição neutra)
+    button_sit: 1          # B (sentar)
+    button_wave: 2         # X (acenar)
+    button_emergency_stop: 6  # Botão central esquerdo (E-STOP)
+
+    # Sensibilidade
+    deadzone: 0.1          # Zona morta (evitar drift)
+    max_linear_vel: 1.5    # m/s
+    max_angular_vel: 1.0   # rad/s
+```
+
+---
+
+## 🖱️ SpaceMouse (Controle 6-DOF)
+
+### O Que é 6-DOF?
+
+**6 Degrees of Freedom (6 Graus de Liberdade):**
+- **Translação:** X, Y, Z (mover nos 3 eixos)
+- **Rotação:** Roll, Pitch, Yaw (girar nos 3 eixos)
+
+**Exemplo de Uso:**
+- Controlar **mão do robô** no espaço 3D
+- Posicionar **câmera** da cabeça do robô
+- Teleoperar **braço** com precisão milimétrica
+
+### Hardware
+
+**3Dconnexion SpaceMouse Wireless**
+- **Preço:** $150
+- **Conexão:** USB wireless receiver
+- **Precisão:** 0.01mm de resolução
+- **Uso Profissional:** CAD, robótica, simulação
+
+### Integração ROS2
+
+**Driver:** `spacenav_node` (ROS2)
+
+```bash
+# Instalar driver do kernel
+sudo apt install spacenavd libspnav-dev
+
+# Clonar pacote ROS2
+cd ~/ros2_ws/src
+git clone https://github.com/ros-drivers/joystick_drivers.git -b ros2
+cd ~/ros2_ws
+colcon build --packages-select spacenav
+
+# Iniciar daemon
+sudo systemctl start spacenavd
+
+# Lançar nó ROS2
+ros2 run spacenav spacenav_node
+```
+
+**Tópico publicado:**
+```
+/spacenav/twist  (geometry_msgs/Twist)
+  - linear.x/y/z: translação
+  - angular.x/y/z: rotação
+```
+
+**Exemplo de Uso: Controlar Efetor Final (Mão)**
+
+```python
+import rclpy
+from geometry_msgs.msg import Twist, Pose
+from moveit_msgs.srv import GetPositionIK
+
+class SpaceMouseTeleop(Node):
+    def __init__(self):
+        super().__init__('spacemouse_teleop')
+
+        # Subscribe to SpaceMouse
+        self.sub = self.create_subscription(
+            Twist, '/spacenav/twist', self.spacemouse_callback, 10
+        )
+
+        # Publicar pose do efetor final
+        self.ee_pose_pub = self.create_publisher(
+            Pose, '/target_end_effector_pose', 10
+        )
+
+        # Pose atual (inicializar em posição neutra)
+        self.current_pose = Pose()
+        self.current_pose.position.x = 0.5  # 50cm à frente
+        self.current_pose.position.z = 1.0  # 1m de altura
+
+    def spacemouse_callback(self, msg):
+        # Fator de escala (ajustar conforme necessário)
+        scale_translation = 0.001  # 1mm por unidade
+        scale_rotation = 0.01      # 0.01 rad por unidade
+
+        # Atualizar posição
+        self.current_pose.position.x += msg.linear.x * scale_translation
+        self.current_pose.position.y += msg.linear.y * scale_translation
+        self.current_pose.position.z += msg.linear.z * scale_translation
+
+        # Atualizar orientação (usando quaternion - simplificado)
+        # (Em produção, usar biblioteca de transformação como tf2)
+
+        # Publicar nova pose
+        self.ee_pose_pub.publish(self.current_pose)
+        self.get_logger().info(f'EE Position: x={self.current_pose.position.x:.3f}')
+```
+
+---
+
+## 📱 Tablet Touchscreen
+
+### Vantagens da Interface Mobile
+
+- ✅ **Mobilidade** (acompanhar robô andando)
+- ✅ **Interface visual rica** (botões grandes, gráficos)
+- ✅ **Multitouch** (zoom, pan em mapas)
+- ✅ **Câmeras integradas** (AR - Realidade Aumentada)
+
+### Opções de Software
+
+<Tabs>
+<TabItem value="webviz" label="🌐 Webviz (Navegador Web)">
+
+**Descrição:** Interface web para ROS2 (similar ao rviz, mas no navegador)
+
+**Vantagens:**
+- ✅ Funciona em qualquer tablet (iPad, Android, Surface)
+- ✅ Sem instalação (apenas acessar URL)
+- ✅ Customizável (HTML/CSS/JS)
+
+**Setup:**
+
+```bash
+# Instalar Foxglove Studio (substituto do Webviz)
+# Acesse: https://foxglove.dev/download
+# Ou use versão web: https://studio.foxglove.dev/
+
+# Lançar ponte ROS2 → WebSocket
+sudo apt install ros-humble-rosbridge-suite
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+```
+
+**No tablet:**
+1. Abrir navegador
+2. Ir para `https://studio.foxglove.dev/`
+3. Conectar em `ws://IP_DO_ROBOT:9090`
+4. Adicionar painéis: Câmera, Telemetria, Mapa, Joystick Virtual
+
+</TabItem>
+<TabItem value="custom-app" label="📱 App Customizado">
+
+**React Native + ROS2 (via rosbridge)**
+
+```javascript
+// Exemplo: Botão de "Sentar"
+import React from 'react';
+import { Button } from 'react-native';
+import ROSLIB from 'roslib';
+
+const RobotControlApp = () => {
+  const ros = new ROSLIB.Ros({
+    url: 'ws://192.168.1.100:9090'  // IP do robô
+  });
+
+  const sendSitCommand = () => {
+    const cmdTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/robot_commands',
+      messageType: 'std_msgs/String'
+    });
+
+    const message = new ROSLIB.Message({
+      data: 'sit'
+    });
+
+    cmdTopic.publish(message);
+  };
+
+  return (
+    <Button title="🪑 Sentar" onPress={sendSitCommand} />
+  );
+};
+```
+
+**Deploy:**
+- iOS: Precisa Apple Developer Account ($99/ano)
+- Android: Grátis (Google Play ou sideload APK)
+
+</TabItem>
+<TabItem value="commercial" label="💼 Soluções Comerciais">
+
+**Unitree Official App (para H1/G1)**
+- **Plataforma:** iOS/Android
+- **Preço:** Grátis (incluído com robô)
+- **Recursos:**
+  - Joystick virtual
+  - Visualização de câmeras
+  - Logs de erro
+  - Modos pré-programados (andar, dançar, carregar)
+
+**ROS Mobile (Generic)**
+- **GitHub:** [https://github.com/ROS-Mobile](https://github.com/ROS-Mobile)
+- **Preço:** Open source
+- **Recursos:**
+  - Visualizar tópicos
+  - Publicar mensagens simples
+  - Mapa de navegação (Nav2)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🥽 Realidade Virtual (VR)
+
+### Por Que VR para Teleoperação?
+
+**Vantagens:**
+- ✅ **Imersão total** (ver pelo "olhos" do robô)
+- ✅ **Controle intuitivo** (mover seus braços = mover braços do robô)
+- ✅ **Percepção de profundidade** (crucial para manipulação)
+- ✅ **Treinamento seguro** (simular cenários perigosos)
+
+**Desvantagens:**
+- ❌ Latência (30-50ms causa enjoo)
+- ❌ Fadiga (uso contínuo &gt; 1h é cansativo)
+- ❌ Custo (headset + workstation potente)
+
+### Hardware VR para Robótica
+
+| Headset | Preço | Tracking | Latência | Uso Recomendado |
+|---------|-------|----------|----------|-----------------|
+| **Meta Quest 3** | $500 | Inside-out (câmeras) | ~35ms | Simulação, demos |
+| **Valve Index** | $1000 | External (base stations) | ~25ms | Teleoperação precisa |
+| **HTC Vive Pro 2** | $1400 | External (SteamVR 2.0) | ~20ms | Profissional |
+| **Varjo XR-4** | $4000 | Mixed Reality (alta res) | ~15ms | Industrial (NASA, BMW) |
+
+### Stack de Software
+
+<Tabs>
+<TabItem value="unity-ros" label="🎮 Unity + ROS#">
+
+**Descrição:** Renderizar câmeras do robô em VR usando Unity
+
+**Arquitetura:**
+```
+Robot (ROS2) → ROS# Bridge → Unity (VR) → Meta Quest 3
+```
+
+**Passos:**
+
+1. **Instalar Unity 2022 LTS**
+   - Download: [https://unity.com/](https://unity.com/)
+
+2. **Instalar ROS# Package**
+   ```bash
+   # No computador do robô
+   sudo apt install ros-humble-rosbridge-suite
+   ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+   ```
+
+3. **Configurar Unity:**
+   - Asset Store → ROS TCP Connector
+   - Criar objeto `ROS Connection` com IP do robô
+
+4. **Subscriber de Câmera:**
+   ```csharp
+   // Script C# no Unity
+   using RosSharp.RosBridgeClient;
+   using UnityEngine;
+
+   public class RobotCameraVR : MonoBehaviour
+   {
+       RosSocket rosSocket;
+       string topic = "/robot/camera/image_raw";
+
+       void Start()
+       {
+           rosSocket = new RosSocket("ws://192.168.1.100:9090");
+           rosSocket.Subscribe<sensor_msgs.Image>(topic, UpdateTexture);
+       }
+
+       void UpdateTexture(sensor_msgs.Image imageMsg)
+       {
+           // Converter ROS Image → Unity Texture2D
+           // Aplicar em um Quad na frente da câmera VR
+       }
+   }
+   ```
+
+</TabItem>
+<TabItem value="gazebo-vr" label="🏗️ Gazebo + VR Plugin">
+
+**Descrição:** Visualizar simulação Gazebo em VR
+
+**Plugin:** `gazebo_vr`
+
+```bash
+# Instalar
+cd ~/gazebo_ws/src
+git clone https://github.com/osrf/gazebo_vr.git
+cd ~/gazebo_ws
+colcon build
+
+# Lançar Gazebo com VR
+export GAZEBO_PLUGIN_PATH=~/gazebo_ws/install/lib:$GAZEBO_PLUGIN_PATH
+gazebo --verbose -s libgazebo_vr.so
+```
+
+**Controles:**
+- Headset = Câmera
+- Controladores = Teleoperação de braços (se configurado)
+
+</TabItem>
+<TabItem value="isaac-vr" label="🎥 Isaac Sim + VR">
+
+**Descrição:** NVIDIA Isaac Sim tem suporte nativo para VR
+
+**Setup:**
+
+1. **Lançar Isaac Sim:**
+   ```bash
+   ~/.local/share/ov/pkg/isaac_sim-*/isaac-sim.sh
+   ```
+
+2. **Ativar VR:**
+   - Window → Extensions
+   - Buscar "VR"
+   - Ativar "omni.kit.vr"
+
+3. **Conectar Headset:**
+   - Suporta SteamVR (Valve Index, HTC Vive)
+   - Window → VR → Start VR Session
+
+**Recursos:**
+- ✅ Ray tracing em VR (gráficos ultra-realistas)
+- ✅ Controlar robô com controladores VR
+- ✅ Physics interaction (pegar objetos virtuais)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🎤 Comandos de Voz
+
+### Quando Usar
+
+- ✅ Comandos de alto nível ("vá para a cozinha")
+- ✅ Mãos ocupadas (operador carregando equipamento)
+- ✅ Acessibilidade (pessoas com mobilidade reduzida)
+- ❌ Ambientes ruidosos (fábrica com &gt; 80 dB)
+- ❌ Comandos de precisão (difícil dizer "mova 5.3cm")
+
+### Stack de Reconhecimento de Voz
+
+<Tabs>
+<TabItem value="google-cloud" label="☁️ Google Cloud Speech-to-Text">
+
+**Prós:** Alta precisão, multi-idioma
+**Contras:** Pago ($0.006 por 15s), precisa internet
+
+```python
+import rclpy
+from google.cloud import speech_v1
+from std_msgs.msg import String
+
+class VoiceCommands(Node):
+    def __init__(self):
+        super().__init__('voice_commands')
+        self.client = speech_v1.SpeechClient()
+        self.cmd_pub = self.create_publisher(String, '/voice_commands', 10)
+
+    def listen(self):
+        config = speech_v1.RecognitionConfig(
+            encoding=speech_v1.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
+            language_code='pt-BR',  # Português Brasil
+        )
+
+        # Streaming audio (microfone)
+        streaming_config = speech_v1.StreamingRecognitionConfig(config=config)
+
+        # Processar resposta
+        for response in responses:
+            for result in response.results:
+                transcript = result.alternatives[0].transcript
+                self.process_command(transcript)
+
+    def process_command(self, text):
+        text = text.lower()
+
+        if 'sentar' in text:
+            cmd = String()
+            cmd.data = 'sit'
+            self.cmd_pub.publish(cmd)
+        elif 'levantar' in text or 'ficar em pé' in text:
+            cmd = String()
+            cmd.data = 'stand'
+            self.cmd_pub.publish(cmd)
+        elif 'parar' in text or 'pare' in text:
+            cmd = String()
+            cmd.data = 'emergency_stop'
+            self.cmd_pub.publish(cmd)
+        # Adicionar mais comandos...
+```
+
+</TabItem>
+<TabItem value="whisper" label="🤖 Whisper (OpenAI) - Local">
+
+**Prós:** Grátis, roda local, código aberto
+**Contras:** Precisa GPU NVIDIA (modelo grande)
+
+```bash
+# Instalar Whisper
+pip3 install openai-whisper
+
+# Download modelo (escolher tamanho)
+# tiny: 39M params, rápido mas menos preciso
+# base: 74M params
+# small: 244M params
+# medium: 769M params (recomendado)
+# large: 1550M params (melhor, mas lento)
+```
+
+```python
+import whisper
+import pyaudio
+
+model = whisper.load_model("medium")  # Roda em RTX 3060
+
+# Capturar 3 segundos de áudio
+def record_audio():
+    # Código de gravação...
+    return audio_data
+
+# Transcrever
+result = model.transcribe(audio_data, language='pt')
+print(result["text"])  # "Robô, vá para a cozinha"
+```
+
+</TabItem>
+<TabItem value="vosk" label="🗣️ Vosk - Offline e Leve">
+
+**Prós:** Roda em Raspberry Pi, totalmente offline
+**Contras:** Menor precisão que Whisper/Google
+
+```bash
+pip3 install vosk
+# Download modelo português
+wget https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
+unzip vosk-model-small-pt-0.3.zip
+```
+
+```python
+from vosk import Model, KaldiRecognizer
+import pyaudio
+
+model = Model("vosk-model-small-pt-0.3")
+recognizer = KaldiRecognizer(model, 16000)
+
+mic = pyaudio.PyAudio()
+stream = mic.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
+stream.start_stream()
+
+while True:
+    data = stream.read(4000)
+    if recognizer.AcceptWaveform(data):
+        result = recognizer.Result()
+        # {"text": "sentar"}
+        print(result)
+```
+
+</TabItem>
+</Tabs>
+
+### Lista de Comandos de Voz Recomendados
+
+```yaml
+# Comandos seguros para voz (inequívocos)
+comandos:
+  movimentacao:
+    - "andar para frente"
+    - "andar para trás"
+    - "girar para esquerda"
+    - "girar para direita"
+    - "parar"  # SEMPRE deve funcionar!
+
+  posturas:
+    - "sentar"
+    - "levantar"
+    - "agachar"
+    - "posição neutra"
+
+  emergencia:
+    - "parada de emergência"
+    - "desligar motores"
+
+  tarefas:
+    - "ir para cozinha"  # Requer Nav2 com mapa
+    - "pegar caixa"      # Requer detecção de objetos
+    - "seguir pessoa"    # Requer tracking visual
+
+# ❌ EVITAR comandos ambíguos:
+  - "mais rápido" (quanto mais? 10%? 50%?)
+  - "mover braço direito" (para onde? quanto?)
+  - "um pouco para esquerda" (impreciso)
+```
+
+---
+
+## 🎯 Comparação Prática: Qual Interface Usar?
+
+### Cenário 1: Desenvolvimento de Software (Simulação)
+
+**Escolha:** Teclado + Mouse
+- Rápido para testar comandos
+- Não precisa hardware extra
+- Fácil debug (logs no terminal)
+
+### Cenário 2: Operação em Fábrica (Produção)
+
+**Escolha:** Tablet + Comandos de Voz
+- Operador pode andar pela linha de produção
+- Voz para comandos rápidos ("parar", "retomar")
+- Tablet para visualizar status
+
+### Cenário 3: Teleoperação Complexa (Resgate, Demolição)
+
+**Escolha:** VR + Joystick Profissional (HOTAS)
+- VR para imersão e percepção espacial
+- Joystick para controle preciso de movimento
+- Feedback háptico (sentir resistência ao pegar objeto)
+
+### Cenário 4: Pesquisa Acadêmica (Motion Capture)
+
+**Escolha:** Motion Capture (Vicon, OptiTrack)
+- Imitar movimentos humanos com alta precisão
+- Coletar dados para machine learning
+- Custo alto, mas necessário para certos estudos
+
+---
+
+## 🛠️ Projeto Prático: Implementar Multi-Interface
+
+**Objetivo:** Criar sistema que aceita comandos de **teclado, joystick E voz** simultaneamente.
+
+**Arquitetura:**
+```
+[Teclado] ─┐
+           ├─→ [Arbitrator Node] ─→ [Robot Controller]
+[Joystick]─┤      (prioridade)
+           │
+[Voz] ─────┘
+```
+
+**Lógica de Prioridade:**
+1. **E-Stop (voz ou botão):** SEMPRE tem prioridade máxima
+2. **Joystick:** Prioridade alta (controle fino)
+3. **Voz:** Prioridade média (comandos de alto nível)
+4. **Teclado:** Prioridade baixa (backup)
+
+**Código Arbitrator:**
+
+```python
+class CommandArbitrator(Node):
+    def __init__(self):
+        super().__init__('command_arbitrator')
+
+        # Subscribers
+        self.sub_kbd = self.create_subscription(Twist, '/cmd_kbd', self.kbd_cb, 10)
+        self.sub_joy = self.create_subscription(Twist, '/cmd_joy', self.joy_cb, 10)
+        self.sub_voice = self.create_subscription(String, '/cmd_voice', self.voice_cb, 10)
+
+        # Publisher final
+        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        # Estado
+        self.last_command_source = None
+        self.last_command_time = self.get_clock().now()
+
+    def joy_cb(self, msg):
+        # Joystick sempre sobrescreve outros
+        self.publish_command(msg, 'joystick')
+
+    def voice_cb(self, msg):
+        # Voz só funciona se joystick não foi usado nos últimos 2s
+        elapsed = (self.get_clock().now() - self.last_command_time).nanoseconds / 1e9
+        if self.last_command_source != 'joystick' or elapsed > 2.0:
+            # Converter comando de voz em Twist
+            cmd = self.voice_to_twist(msg.data)
+            self.publish_command(cmd, 'voice')
+
+    def publish_command(self, msg, source):
+        self.pub.publish(msg)
+        self.last_command_source = source
+        self.last_command_time = self.get_clock().now()
+        self.get_logger().info(f'Command from {source}')
+```
+
+---
+
+## 📚 Recursos e Ferramentas
+
+### Pacotes ROS2 Essenciais
+
+```bash
+sudo apt install ros-humble-joy
+sudo apt install ros-humble-teleop-twist-joy
+sudo apt install ros-humble-teleop-twist-keyboard
+sudo apt install ros-humble-rosbridge-suite  # Para web/mobile
+```
+
+### Tutoriais Recomendados
+
+- **[ROS2 Joy Teleop Tutorial](https://index.ros.org/p/teleop_twist_joy/)**
+- **[Foxglove Studio Docs](https://foxglove.dev/docs)**
+- **[Unity VR + ROS](https://github.com/Unity-Technologies/ROS-TCP-Connector)**
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[📊 Telemetria e Monitoramento →](./telemetria)**
+
+Aprenda a monitorar o status do robô em tempo real: temperatura, bateria, erros e logs.
+:::

@@ -1,0 +1,165 @@
+---
+sidebar_position: 9
+title: 9. NVIDIA Isaac Sim
+description: Simulador com ray tracing e IA integrada
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🎥 NVIDIA Isaac Sim
+
+:::tip Objetivo do Módulo
+Usar Isaac Sim para gráficos realistas, IA e treinamento de modelos.
+:::
+
+---
+
+## 💻 Requisitos de Sistema
+
+### Mínimo
+
+- **GPU:** NVIDIA RTX 2060 (6 GB VRAM)
+- **CPU:** Intel i7 ou AMD Ryzen 7
+- **RAM:** 16 GB
+- **Armazenamento:** 50 GB SSD
+- **SO:** Ubuntu 20.04/22.04 ou Windows 10/11
+
+### Recomendado
+
+- **GPU:** NVIDIA RTX 4070 (12 GB VRAM)
+- **RAM:** 32 GB
+- **Armazenamento:** 100 GB NVMe SSD
+
+---
+
+## 📦 Instalação
+
+### Download
+
+1. Ir para https://developer.nvidia.com/isaac-sim
+2. Criar conta NVIDIA (grátis)
+3. Download **Isaac Sim 2023.1.1** (~20 GB)
+
+### Instalação Linux
+
+```bash
+# Extrair
+cd ~/Downloads
+chmod +x isaac-sim-*.AppImage
+./isaac-sim-*.AppImage --appimage-extract
+
+# Mover para local permanente
+mv squashfs-root ~/.local/share/ov/pkg/isaac_sim-2023.1.1
+
+# Criar launcher
+~/.local/share/ov/pkg/isaac_sim-*/isaac-sim.sh
+```
+
+---
+
+## 🌍 Primeiro Mundo
+
+### Interface
+
+1. **Content Browser** (bottom): Arrastar objetos para cena
+2. **Viewport** (center): Ver mundo 3D
+3. **Property** (right): Editar objetos
+4. **Stage** (left): Hierarquia da cena
+
+### Adicionar Humanoide
+
+```python
+# Isaac Sim usa Python Scripting
+from omni.isaac.core.objects import DynamicCuboid
+from omni.isaac.core.utils.stage import add_reference_to_stage
+
+# Importar URDF
+add_reference_to_stage(
+    usd_path="/path/to/robot.usd",
+    prim_path="/World/Robot"
+)
+```
+
+---
+
+## 🤖 ROS2 Bridge
+
+### Configurar
+
+1. **Window → Extensions**
+2. Buscar "ROS2"
+3. Ativar "omni.isaac.ros2_bridge"
+
+### Publicar Tópicos
+
+```python
+# No Isaac Sim Python console
+import omni.isaac.core
+from omni.isaac.core.utils.extensions import enable_extension
+
+enable_extension("omni.isaac.ros2_bridge")
+
+# Criar publisher de câmera
+import omni.isaac.ros2_bridge as ros_bridge
+ros_bridge.create_camera_publisher(
+    camera_prim_path="/World/Robot/camera",
+    topic_name="/robot/camera/image_raw"
+)
+```
+
+**Ver no ROS2:**
+
+```bash
+ros2 topic list
+# /robot/camera/image_raw
+
+ros2 run rqt_image_view rqt_image_view
+```
+
+---
+
+## 🧠 Treinamento de RL
+
+### Cartpole Example
+
+```bash
+# Isaac Sim vem com exemplos
+cd ~/.local/share/ov/pkg/isaac_sim-*/standalone_examples/api/omni.isaac.gym
+
+# Treinar
+python cartpole.py
+```
+
+**Saída:**
+
+```
+Episode 1: Reward = 12.3
+Episode 100: Reward = 85.7
+Episode 500: Reward = 195.2  # Resolvido!
+```
+
+---
+
+## 🎨 Ray Tracing
+
+### Ativar
+
+1. **Viewport Settings** (canto superior esquerdo)
+2. **Renderer:** RTX - Real-Time
+3. **Denoiser:** On
+
+**Performance:**
+
+- RTX 3060: ~30 FPS
+- RTX 4080: ~90 FPS
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🚀 Operação Prática Completa →](./operacao-pratica)**
+
+Projeto final integrando tudo que aprendeu.
+:::

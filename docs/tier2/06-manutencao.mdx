@@ -1,0 +1,238 @@
+---
+sidebar_position: 6
+title: 6. Manutenção Preventiva
+description: Inspeção, lubrificação e troca de componentes
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🔧 Manutenção Preventiva
+
+:::tip Objetivo do Módulo
+Aprender a fazer inspeção, lubrificação e manutenção para aumentar vida útil do robô.
+:::
+
+---
+
+## 📋 Checklist de Inspeção Diária
+
+### Antes de Ligar o Robô
+
+```markdown
+□ VISUAL EXTERNA
+  □ Arranhões ou amassados na estrutura?
+  □ Parafusos soltos ou faltando?
+  □ Cabos expostos ou danificados?
+  □ Vazamento de fluidos?
+
+□ ARTICULAÇÕES
+  □ Amplitude de movimento livre? (mover manualmente)
+  □ Ruídos anormais ao mover?
+  □ Resistência excessiva?
+
+□ BATERIA
+  □ Conectores firmes?
+  □ Inchaço da bateria? (sinal de perigo!)
+  □ Temperatura normal (&lt; 30°C em repouso)?
+
+□ SENSORES
+  □ Câmeras limpas (sem poeira/impressões digitais)?
+  □ LIDAR girando livremente?
+  □ LEDs de status acesos?
+```
+
+---
+
+## 🛢️ Lubrificação
+
+### Quando Lubrificar?
+
+| Componente | Frequência | Tipo de Lubrificante |
+|------------|-----------|---------------------|
+| **Engrenagens** | A cada 200h operação | Graxa sintética (NLGI 2) |
+| **Rolamentos** | A cada 500h | Óleo 10W-40 |
+| **Juntas esféricas** | A cada 100h | Graxa de lítio |
+| **Guias lineares** | A cada 50h | Óleo fino (ISO VG 32) |
+
+### Procedimento de Lubrificação
+
+```markdown
+1. DESLIGAR robô completamente
+2. LIMPAR área ao redor da junta
+3. APLICAR 2-3 gotas de lubrificante
+4. MOVER junta manualmente 10x (distribuir)
+5. REMOVER excesso com pano limpo
+```
+
+:::warning Cuidado
+❌ NUNCA lubrificar em excesso (atrai poeira)
+❌ NÃO misturar tipos de lubrificante
+❌ NÃO lubrificar motores selados
+:::
+
+---
+
+## 🔩 Aperto de Parafusos
+
+### Torque Recomendado
+
+| Parafuso | Localização | Torque (Nm) |
+|----------|-------------|-------------|
+| **M3** | Eletrônica | 0.5 |
+| **M4** | Estrutura leve | 1.2 |
+| **M5** | Fixação motores | 2.5 |
+| **M6** | Estrutura principal | 5.0 |
+| **M8** | Pernas/carga | 10.0 |
+
+**Ferramenta:** Torquímetro calibrado
+
+```bash
+# Verificar parafusos semanalmente
+# Reapertar se necessário (não forçar além do especificado)
+```
+
+---
+
+## 🔋 Manutenção de Bateria
+
+### Ciclo de Vida
+
+Bateria Li-Ion típica: **1000-2000 ciclos** (carga completa)
+
+### Prolongar Vida Útil
+
+```markdown
+✅ Manter carga entre 20-80% (não deixar descarregar totalmente)
+✅ Armazenar em 50% de carga se não usar por &gt; 1 mês
+✅ Evitar temperaturas extremas (&lt; 0°C ou &gt; 45°C)
+✅ Calibrar BMS a cada 3 meses (ciclo 100% → 0% → 100%)
+
+❌ Não carregar imediatamente após uso intenso (esperar esfriar)
+❌ Não armazenar com 100% de carga por semanas
+```
+
+### Quando Substituir?
+
+Trocar bateria se:
+- Capacidade &lt; 80% da original
+- Inchaço visível
+- Temperatura &gt; 60°C em uso normal
+- Mais de 2000 ciclos
+
+**Custo:** $500-2000 dependendo do modelo
+
+---
+
+## ⚙️ Troca de Componentes
+
+### Componentes de Desgaste
+
+<Tabs>
+<TabItem value="correias" label="🔗 Correias">
+
+**Vida útil:** 500-1000 horas
+
+**Sinais de desgaste:**
+- Rachaduras visíveis
+- Dentes quebrados
+- Alongamento (&gt;2%)
+
+**Substituição:**
+
+```markdown
+1. Afrouxar tensor
+2. Remover correia antiga
+3. Instalar nova correia
+4. Ajustar tensão (deve ceder 5mm com pressão de dedo)
+5. Testar movimento
+```
+
+</TabItem>
+<TabItem value="rolamentos" label="⚫ Rolamentos">
+
+**Vida útil:** 2000-5000 horas
+
+**Sinais:**
+- Ruído ao girar
+- Jogo excessivo (folga)
+- Travamento
+
+**Substituição:**
+
+```markdown
+1. Desmontar junta
+2. Remover rolamento (saca-rolamento ou prensa)
+3. Limpar alojamento
+4. Instalar novo (pressão uniforme)
+5. Lubrificar
+```
+
+**Custo:** $5-50 por rolamento
+
+</TabItem>
+<TabItem value="encoders" label="📐 Encoders">
+
+**Vida útil:** 10.000+ horas (raramente falham)
+
+**Substituição apenas se:**
+- Leituras erráticas
+- Perda de sinal
+- Dano físico
+
+**Custo:** $50-300
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🧹 Limpeza
+
+### Limpeza Externa
+
+```markdown
+SEMANAL:
+- Passar pano seco em estrutura
+- Limpar câmeras com pano de microfibra
+- Aspirar poeira de ventilação
+
+MENSAL:
+- Ar comprimido em juntas (baixa pressão!)
+- Limpar LIDAR com álcool isopropílico
+- Verificar filtros de ar (trocar se sujo)
+```
+
+### Limpeza Interna
+
+```markdown
+TRIMESTRAL:
+- Abrir compartimentos (com ESD protection)
+- Ar comprimido em placas eletrônicas
+- Verificar acúmulo de poeira em coolers
+- Limpar dissipadores de calor
+```
+
+---
+
+## 📊 Registro de Manutenção
+
+### Planilha de Controle
+
+| Data | Horas Total | Atividade | Responsável | Próxima Manutenção |
+|------|-------------|-----------|-------------|--------------------|
+| 2024-01-15 | 50h | Lubrificação juntas | João | 150h |
+| 2024-01-22 | 75h | Aperto parafusos | Maria | 175h |
+| 2024-02-10 | 200h | Troca de correia | João | 700h |
+
+**Importante:** Manter registro para garantia e análise de falhas
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🌐 Introdução a Simuladores →](./simuladores)**
+
+Comparação entre Gazebo, Isaac Sim e Webots.
+:::
