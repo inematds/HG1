@@ -1,0 +1,172 @@
+---
+sidebar_position: 1
+title: 1. Introdução à Programação
+description: Fundamentos de programação para robótica humanoide
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 💻 Introdução à Programação de Humanoides
+
+:::tip Objetivo do Módulo
+Entender o que significa programar um robô humanoide e preparar o ambiente de desenvolvimento.
+:::
+
+---
+
+## 🎯 O Que é Programar um Humanoide?
+
+### Níveis de Programação
+
+<Tabs>
+<TabItem value="alto" label="🔷 Alto Nível">
+
+**Programação de Tarefas e Comportamentos**
+
+```python
+# Exemplo: Comando de alto nível
+robot.walk_to_location("kitchen")
+robot.pick_object("cup")
+robot.return_to_base()
+```
+
+**Quem faz:** Engenheiros de aplicação, integradores
+**Linguagens:** Python, JavaScript
+**Abstração:** Alta (não precisa saber como andar)
+
+</TabItem>
+<TabItem value="medio" label="🔶 Médio Nível">
+
+**Programação de Controladores**
+
+```python
+# Exemplo: Controle de marcha
+def walking_controller():
+    left_leg.swing_forward(speed=0.5)
+    right_leg.push_ground(force=800)
+    balance_torso(imu_data)
+```
+
+**Quem faz:** Engenheiros de robótica
+**Linguagens:** Python, C++
+**Abstração:** Média (entende física e controle)
+
+</TabItem>
+<TabItem value="baixo" label="🔻 Baixo Nível">
+
+**Programação de Firmware**
+
+```cpp
+// Exemplo: Driver de motor
+void set_motor_torque(int motor_id, float torque) {
+    can_send(motor_id, torque_to_current(torque));
+}
+```
+
+**Quem faz:** Engenheiros de firmware
+**Linguagens:** C, C++, Assembly
+**Abstração:** Baixa (acessa hardware diretamente)
+
+</TabItem>
+</Tabs>
+
+**Neste Tier:** Foco em **médio e alto nível** (Python + ROS2)
+
+---
+
+## 🛠️ Stack de Desenvolvimento
+
+### Ferramentas Essenciais
+
+| Ferramenta | Uso | Instalação |
+|------------|-----|------------|
+| **Ubuntu 22.04** | Sistema operacional | ISO oficial |
+| **ROS2 Humble** | Framework de robótica | `apt install ros-humble-desktop` |
+| **Python 3.10** | Linguagem principal | Já incluído no Ubuntu 22.04 |
+| **VS Code** | Editor de código | `snap install code --classic` |
+| **Git** | Controle de versão | `apt install git` |
+
+### Ambiente de Desenvolvimento
+
+```bash
+# Instalar dependências
+sudo apt update
+sudo apt install python3-pip python3-venv
+sudo apt install ros-humble-desktop-full
+
+# Criar workspace ROS2
+mkdir -p ~/humanoid_ws/src
+cd ~/humanoid_ws
+colcon build
+echo "source ~/humanoid_ws/install/setup.bash" >> ~/.bashrc
+```
+
+---
+
+## 📚 Pré-Requisitos
+
+### Conhecimento Necessário
+
+```markdown
+✅ OBRIGATÓRIO:
+- Python básico (variáveis, funções, loops)
+- Linux terminal (cd, ls, mkdir)
+- Tier 1 e 2 completos
+
+🟡 RECOMENDADO:
+- Git (clone, commit, push)
+- Matemática (álgebra linear, geometria)
+- Física (cinemática, dinâmica)
+
+❌ NÃO NECESSÁRIO:
+- C++ (usaremos Python)
+- ROS1 (começaremos direto no ROS2)
+- Machine Learning (ensinado no módulo 8)
+```
+
+---
+
+## 🎓 Estrutura do Tier 3
+
+### 10 Módulos Progressivos
+
+| # | Módulo | Tempo | Foco |
+|---|--------|-------|------|
+| **1** | 💻 Introdução à Programação | 15 min | Setup, conceitos, ambiente |
+| **2** | 🐍 Python para Robótica | 25 min | NumPy, classes, async |
+| **3** | 🤖 ROS2 Fundamentos | 30 min | Nodes, topics, services |
+| **4** | 🚀 ROS2 Avançado | 30 min | Actions, lifecycle, parameters |
+| **5** | 👁️ Visão Computacional | 35 min | OpenCV, detecção, tracking |
+| **6** | 🗺️ Navegação Autônoma | 30 min | Nav2, SLAM, path planning |
+| **7** | 🦾 Manipulação | 30 min | MoveIt, inverse kinematics |
+| **8** | 🧠 IA e Aprendizado | 35 min | RL, LLMs, imitation learning |
+| **9** | 🔗 Integração de Sistemas | 25 min | Multi-node, deployment |
+| **10** | 🏆 Projeto Final | 40 min | Robô autônomo completo |
+
+**Total:** ~4.5 horas
+
+---
+
+## 💼 Oportunidades de Carreira
+
+### Salários (EUA, 2025)
+
+| Cargo | Júnior | Pleno | Sênior |
+|-------|--------|-------|--------|
+| **Robotics Software Engineer** | $80k | $120k | $180k |
+| **ROS2 Developer** | $75k | $110k | $160k |
+| **Computer Vision Engineer** | $90k | $130k | $200k |
+| **AI/ML Robotics Engineer** | $100k | $150k | $250k |
+
+**Empresas contratando:** Tesla, Boston Dynamics, Agility Robotics, Figure AI, Unitree
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🐍 Python para Robótica →](./python-robotica)**
+
+Aprenda Python avançado: NumPy, OOP, asyncio e boas práticas.
+:::

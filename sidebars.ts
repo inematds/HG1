@@ -51,7 +51,25 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Tier 3 sidebar will be added as content is created
+  // Tier 3: Programando Humanoides (Programming)
+  tier3: [
+    {
+      type: 'category',
+      label: 'Tier 3: Programando Humanoides',
+      items: [
+        'tier3/introducao-programacao',
+        'tier3/python-robotica',
+        'tier3/ros2-fundamentos',
+        'tier3/ros2-avancado',
+        'tier3/visao-computacional',
+        'tier3/navegacao-autonoma',
+        'tier3/manipulacao',
+        'tier3/ia-aprendizado',
+        'tier3/integracao-sistemas',
+        'tier3/projeto-final',
+      ],
+    },
+  ],
 };
 
 export default sidebars;

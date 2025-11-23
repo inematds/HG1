@@ -1,0 +1,42 @@
+---
+sidebar_position: 8
+title: 8. IA e Aprendizado
+description: RL, LLMs e imitation learning
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🧠 IA e Aprendizado
+
+:::tip Objetivo
+Reinforcement Learning, LLMs para robôs e aprendizado por imitação.
+:::
+
+---
+
+## 🎮 Reinforcement Learning
+
+### Treinar Política com Stable-Baselines3
+
+```python
+from stable_baselines3 import PPO
+from stable_baselines3.common.env_util import make_vec_env
+
+env = make_vec_env('HumanoidWalk-v0', n_envs=4)
+
+model = PPO('MlpPolicy', env, verbose=1)
+model.learn(total_timesteps=1000000)
+
+model.save('humanoid_walk_policy')
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🔗 Integração de Sistemas →](./integracao-sistemas)**
+
+Multi-node, deployment e otimização.
+:::

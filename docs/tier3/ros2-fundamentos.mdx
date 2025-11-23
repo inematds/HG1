@@ -1,0 +1,165 @@
+---
+sidebar_position: 3
+title: 3. ROS2 Fundamentos
+description: Nodes, topics, services e arquitetura
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🤖 ROS2 Fundamentos
+
+:::tip Objetivo do Módulo
+Dominar conceitos core do ROS2: nodes, topics, services e como organizar um sistema robótico.
+:::
+
+---
+
+## 🏗️ Arquitetura ROS2
+
+### Conceitos Principais
+
+```
+[Node 1: Camera] --publish--> /camera/image --> [Node 2: Detector]
+                                                        |
+                                                   [Node 3: Controller]
+```
+
+| Conceito | Descrição | Analogia |
+|----------|-----------|----------|
+| **Node** | Processo executável | App no celular |
+| **Topic** | Canal de comunicação | Canal do YouTube |
+| **Publisher** | Quem envia dados | YouTuber fazendo upload |
+| **Subscriber** | Quem recebe dados | Inscrito assistindo |
+| **Service** | Requisição/Resposta | Chamar API REST |
+| **Action** | Tarefa de longa duração | Upload com barra de progresso |
+
+---
+
+## 📡 Topics (Publicação/Assinatura)
+
+### Publisher (Publicar Dados)
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class TalkerNode(Node):
+    def __init__(self):
+        super().__init__('talker')
+        self.publisher = self.create_publisher(String, '/chatter', 10)
+        self.timer = self.create_timer(1.0, self.timer_callback)
+        self.count = 0
+    
+    def timer_callback(self):
+        msg = String()
+        msg.data = f'Hello World {self.count}'
+        self.publisher.publish(msg)
+        self.get_logger().info(f'Publishing: {msg.data}')
+        self.count += 1
+
+def main():
+    rclpy.init()
+    node = TalkerNode()
+    rclpy.spin(node)
+```
+
+### Subscriber (Receber Dados)
+
+```python
+class ListenerNode(Node):
+    def __init__(self):
+        super().__init__('listener')
+        self.subscription = self.create_subscription(
+            String, '/chatter', self.listener_callback, 10
+        )
+    
+    def listener_callback(self, msg):
+        self.get_logger().info(f'Received: {msg.data}')
+```
+
+---
+
+## 🔧 Services (Requisição/Resposta)
+
+### Server
+
+```python
+from example_interfaces.srv import AddTwoInts
+
+class AddServer(Node):
+    def __init__(self):
+        super().__init__('add_server')
+        self.srv = self.create_service(
+            AddTwoInts, '/add_two_ints', self.add_callback
+        )
+    
+    def add_callback(self, request, response):
+        response.sum = request.a + request.b
+        self.get_logger().info(f'{request.a} + {request.b} = {response.sum}')
+        return response
+```
+
+### Client
+
+```python
+client = node.create_client(AddTwoInts, '/add_two_ints')
+request = AddTwoInts.Request()
+request.a = 5
+request.b = 3
+
+future = client.call_async(request)
+rclpy.spin_until_future_complete(node, future)
+result = future.result()
+print(f'Result: {result.sum}')  # 8
+```
+
+---
+
+## 🤖 Exemplo Prático: Controle de Robô
+
+```python
+from geometry_msgs.msg import Twist
+
+class RobotController(Node):
+    def __init__(self):
+        super().__init__('robot_controller')
+        
+        # Publisher de velocidade
+        self.vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        
+        # Subscriber de comando de voz
+        self.voice_sub = self.create_subscription(
+            String, '/voice_command', self.voice_callback, 10
+        )
+    
+    def voice_callback(self, msg):
+        cmd = msg.data.lower()
+        
+        twist = Twist()
+        if 'forward' in cmd or 'frente' in cmd:
+            twist.linear.x = 0.5
+        elif 'back' in cmd or 'trás' in cmd:
+            twist.linear.x = -0.5
+        elif 'left' in cmd or 'esquerda' in cmd:
+            twist.angular.z = 0.5
+        elif 'right' in cmd or 'direita' in cmd:
+            twist.angular.z = -0.5
+        elif 'stop' in cmd or 'parar' in cmd:
+            twist.linear.x = 0.0
+            twist.angular.z = 0.0
+        
+        self.vel_pub.publish(twist)
+        self.get_logger().info(f'Executing: {cmd}')
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🚀 ROS2 Avançado →](./ros2-avancado)**
+
+Actions, lifecycle nodes, parameters e TF2.
+:::

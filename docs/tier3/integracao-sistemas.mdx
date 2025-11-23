@@ -1,0 +1,40 @@
+---
+sidebar_position: 9
+title: 9. Integração de Sistemas
+description: Multi-node e deployment
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🔗 Integração de Sistemas
+
+:::tip Objetivo
+Integrar múltiplos nodes, fazer deployment e otimizar performance.
+:::
+
+---
+
+## 🚀 Launch Files
+
+```python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(package='my_robot', executable='camera_node'),
+        Node(package='my_robot', executable='detector_node'),
+        Node(package='my_robot', executable='controller_node'),
+    ])
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🏆 Projeto Final →](./projeto-final)**
+
+Robô autônomo completo end-to-end.
+:::

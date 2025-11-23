@@ -1,0 +1,96 @@
+---
+sidebar_position: 5
+title: 5. Visão Computacional
+description: OpenCV, detecção e tracking
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 👁️ Visão Computacional
+
+:::tip Objetivo
+OpenCV, detecção de objetos, tracking e integração com ROS2.
+:::
+
+---
+
+## 📷 Processar Câmera do Robô
+
+```python
+import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+
+class CameraProcessor(Node):
+    def __init__(self):
+        super().__init__('camera_processor')
+        self.bridge = CvBridge()
+        
+        self.sub = self.create_subscription(
+            Image, '/camera/image_raw', self.image_callback, 10
+        )
+        
+        self.pub = self.create_publisher(Image, '/detected_objects', 10)
+    
+    def image_callback(self, msg):
+        # ROS Image -> OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        
+        # Processar
+        detected = self.detect_objects(cv_image)
+        
+        # OpenCV -> ROS Image
+        detected_msg = self.bridge.cv2_to_imgmsg(detected, 'bgr8')
+        self.pub.publish(detected_msg)
+    
+    def detect_objects(self, image):
+        # Detectar objetos vermelhos
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower_red = (0, 100, 100)
+        upper_red = (10, 255, 255)
+        mask = cv2.inRange(hsv, lower_red, upper_red)
+        
+        # Encontrar contornos
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Desenhar bounding boxes
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        
+        return image
+```
+
+---
+
+## 🤖 YOLO para Detecção
+
+```python
+import torch
+
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+
+def detect_with_yolo(image):
+    results = model(image)
+    
+    for *box, conf, cls in results.xyxy[0]:
+        x1, y1, x2, y2 = map(int, box)
+        label = model.names[int(cls)]
+        
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(image, f'{label} {conf:.2f}', 
+                    (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+    
+    return image
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🗺️ Navegação Autônoma →](./navegacao-autonoma)**
+
+Nav2, SLAM e path planning.
+:::

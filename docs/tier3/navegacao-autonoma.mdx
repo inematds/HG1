@@ -1,0 +1,71 @@
+---
+sidebar_position: 6
+title: 6. Navegação Autônoma
+description: Nav2, SLAM e path planning
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🗺️ Navegação Autônoma
+
+:::tip Objetivo
+Nav2, SLAM, mapeamento e planejamento de trajetória.
+:::
+
+---
+
+## 🗺️ SLAM (Simultaneous Localization and Mapping)
+
+### SLAM com LIDAR
+
+```bash
+# Instalar SLAM Toolbox
+sudo apt install ros-humble-slam-toolbox
+
+# Lançar SLAM
+ros2 launch slam_toolbox online_async_launch.py
+```
+
+### Salvar Mapa
+
+```bash
+ros2 run nav2_map_server map_saver_cli -f my_map
+# Gera: my_map.pgm e my_map.yaml
+```
+
+---
+
+## 🧭 Nav2 (Navigation Stack)
+
+### Enviar Goal
+
+```python
+from nav2_simple_commander.robot_navigator import BasicNavigator
+from geometry_msgs.msg import PoseStamped
+
+navigator = BasicNavigator()
+
+goal = PoseStamped()
+goal.header.frame_id = 'map'
+goal.header.stamp = navigator.get_clock().now().to_msg()
+goal.pose.position.x = 3.0
+goal.pose.position.y = 1.0
+goal.pose.orientation.w = 1.0
+
+navigator.goToPose(goal)
+
+while not navigator.isTaskComplete():
+    feedback = navigator.getFeedback()
+    print(f'Distance remaining: {feedback.distance_remaining:.2f}m')
+```
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🦾 Manipulação →](./manipulacao)**
+
+MoveIt, cinemática inversa e planejamento de trajetória.
+:::
