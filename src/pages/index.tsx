@@ -77,7 +77,7 @@ export default function Home(): JSX.Element {
     2: {
       title: 'Tier 2: Operando Humanoides',
       color: '#9b59b6',
-      link: '#',
+      link: '/docs/tier2/introducao-operacao',
       slogan: '"Do controle à maestria"',
       benefits: [
         'Interfaces de controle',
@@ -89,7 +89,7 @@ export default function Home(): JSX.Element {
     3: {
       title: 'Tier 3: Programando Humanoides',
       color: '#10B981',
-      link: '#',
+      link: '/docs/tier3/introducao-programacao',
       slogan: '"Code o futuro"',
       benefits: [
         'Python para robótica',
