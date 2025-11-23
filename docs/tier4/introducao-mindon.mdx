@@ -1,0 +1,248 @@
+---
+sidebar_position: 1
+title: 1. Introdução ao MindOn
+description: Plataforma de IA autônoma para humanoides
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🧠 Introdução ao MindOn
+
+:::tip Objetivo
+Compreender o MindOn OS: a plataforma de IA que torna robôs humanoides verdadeiramente autônomos.
+:::
+
+---
+
+## 🎯 O Que é MindOn?
+
+**MindOn** é um sistema operacional de IA que transforma robôs humanoides de máquinas programáveis em agentes autônomos inteligentes.
+
+### Diferença Fundamental
+
+```
+ROBÓTICA TRADICIONAL (2024):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Humano: "Pegue o copo na mesa"
+    ↓
+Programador escreve código:
+    1. detect_table()
+    2. find_object("cup")
+    3. plan_trajectory()
+    4. execute_grasp()
+    ↓
+Robô: Executa passos programados
+
+
+MINDON (2025+):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Humano: "Pegue o copo na mesa"
+    ↓
+MindOn AI:
+    • Entende linguagem natural
+    • Observa ambiente (câmeras)
+    • Planeja ações automaticamente
+    • Executa + auto-corrige
+    ↓
+Robô: Age autonomamente
+
+ZERO CÓDIGO NECESSÁRIO! 🎉
+```
+
+---
+
+## 🏗️ Arquitetura MindOn
+
+### Stack Tecnológico
+
+```
+┌─────────────────────────────────────────────┐
+│  Layer 5: Interface                         │
+│  • Voice (multilingual)                     │
+│  • Text (chat interface)                    │
+│  • Gestures (pointing, showing)             │
+└────────────────┬────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────┐
+│  Layer 4: Reasoning (LLM)                   │
+│  • Llama 3.1 70B (cloud) or                 │
+│  • Llama 3.1 8B (on-device)                 │
+│  • Task decomposition                       │
+│  • Planning + re-planning                   │
+└────────────────┬────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────┐
+│  Layer 3: Perception (VLM)                  │
+│  • GPT-4V-like vision model                 │
+│  • Scene understanding                      │
+│  • Object detection + attributes            │
+│  • Spatial relationships                    │
+└────────────────┬────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────┐
+│  Layer 2: Skills Library                    │
+│  • Navigation (Nav2)                        │
+│  • Manipulation (MoveIt)                    │
+│  • Grasping policies (RL)                   │
+│  • 500+ learned behaviors                   │
+└────────────────┬────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────┐
+│  Layer 1: Robot Control                     │
+│  • ROS2 Humble                              │
+│  • Motor controllers                        │
+│  • Safety monitors                          │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## 🌟 Capacidades Principais
+
+### 1. Compreensão de Linguagem Natural
+
+```python
+# Exemplos de comandos que MindOn entende:
+
+"Traga minha mochila"
+→ Localiza mochila, navega, pega, retorna
+
+"Organize a sala de estar"
+→ Identifica objetos fora do lugar, categoriza, reposiciona
+
+"Prepare café"
+→ Navega cozinha, opera cafeteira, traz xícara
+
+"Encontre meu celular"
+→ Busca em cômodos, detecta visualmente, reporta localização
+
+"Me siga"
+→ Rastreia pessoa, mantém distância segura, evita obstáculos
+```
+
+### 2. Aprendizado Contínuo
+
+**MindOn aprende com experiência:**
+
+```
+Dia 1: "Onde está o copo vermelho?"
+       → Busca 5 minutos, encontra na cozinha
+
+Dia 30: "Onde está o copo vermelho?"
+        → Vai direto à cozinha (lembra localização comum)
+
+Dia 100: "Traga o copo"
+         → "Qual? Vermelho ou azul?"
+         → (aprendeu que existem múltiplos copos)
+```
+
+---
+
+## 📅 Roadmap de Lançamento
+
+### Timeline
+
+```
+2024 Q4 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ MindOn Alpha (Beta fechado)
+┃ • 50 early adopters
+┃ • Cloud-only (sem on-device)
+┃ • Comandos básicos
+┃ • Inglês apenas
+
+2025 Q2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ MindOn Beta (Público limitado)
+┃ • 500 usuários
+┃ • Hybrid (cloud + edge)
+┃ • Comandos avançados
+┃ • EN/CN/ES
+
+2025 Q4 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ MindOn 1.0 (Release)
+┃ • Todos G1 owners
+┃ • On-device LLM (8B)
+┃ • 10 idiomas
+┃ • App store de skills
+
+2026+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ MindOn 2.0+
+┃ • Emotionally aware
+┃ • Proactive assistance
+┃ • Multi-robot coordination
+```
+
+---
+
+## 💰 Modelos de Pricing
+
+### Opções
+
+<Tabs>
+<TabItem value="free" label="Free Tier">
+
+**MindOn Basic (Grátis)**
+
+```
+Incluído:
+✅ On-device LLM (8B)
+✅ Comandos básicos
+✅ 50 skills pré-instaladas
+✅ Offline operation
+
+Limitações:
+❌ Sem aprendizado contínuo
+❌ Sem cloud reasoning
+❌ Sem multi-robot
+```
+
+</TabItem>
+
+<TabItem value="pro" label="Pro">
+
+**MindOn Pro ($29/mês)**
+
+```
+Tudo do Free +
+✅ Cloud LLM (70B) hybrid
+✅ Aprendizado contínuo
+✅ 500+ skills
+✅ Multi-robot (até 3)
+✅ Voice cloning
+✅ Custom personas
+```
+
+</TabItem>
+
+<TabItem value="enterprise" label="Enterprise">
+
+**MindOn Enterprise (Custom)**
+
+```
+Tudo do Pro +
+✅ On-premise deployment
+✅ Custom LLM fine-tuning
+✅ Fleet management (10+)
+✅ SLA 99.9%
+✅ Dedicated support
+✅ API access
+
+Preço: $500-5k/mês (depende escala)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[⚙️ Instalação e Setup →](./instalacao-setup)**
+
+Como instalar MindOn OS no seu G1 e configurar conta.
+:::
+
+---
+
+**⏱️ Tempo:** 30 min | **📊 Nível:** Iniciante

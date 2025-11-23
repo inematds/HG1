@@ -95,7 +95,7 @@ export default function Home(): JSX.Element {
     4.0: {
       title: 'Tier 4: Plataforma MindOn',
       color: '#F59E0B',
-      link: '#',
+      link: '/docs/tier4/introducao-mindon',
       slogan: '"IA autônoma de verdade"',
       benefits: [
         'Autonomia completa sem controle',

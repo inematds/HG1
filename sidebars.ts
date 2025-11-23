@@ -91,11 +91,31 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // Tier 3: Programando Humanoides (Programming)
+  // Tier 4: MindOn Platform
+  tier4: [
+    {
+      type: 'category',
+      label: 'Tier 4: Plataforma MindOn',
+      items: [
+        'tier4/introducao-mindon',
+        'tier4/instalacao-setup',
+        'tier4/comandos-voz',
+        'tier4/skills-library',
+        'tier4/aprendizado-continuo',
+        'tier4/smart-home',
+        'tier4/multi-robot',
+        'tier4/custom-skills',
+        'tier4/privacy-seguranca',
+        'tier4/casos-uso',
+      ],
+    },
+  ],
+
+  // Tier 3.0: Programando Humanoides (Programming)
   tier3: [
     {
       type: 'category',
-      label: 'Tier 3: Programando Humanoides',
+      label: 'Tier 3.0: Programando Humanoides',
       items: [
         'tier3/introducao-programacao',
         'tier3/python-robotica',
