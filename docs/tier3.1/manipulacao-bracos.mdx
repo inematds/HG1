@@ -1,0 +1,720 @@
+---
+sidebar_position: 6
+title: 6. Manipulação com Braços do G1
+description: Arm kinematics, gripper control, pick and place e force control
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🦾 Manipulação com Braços do Unitree G1
+
+:::tip Objetivo do Módulo
+Dominar o controle dos braços do G1: forward/inverse kinematics, controle das mãos dexterous, implementar pick and place, e force control para manipulação delicada.
+:::
+
+---
+
+## 🦾 Anatomia dos Braços do G1
+
+### Hardware Specifications
+
+<Tabs>
+<TabItem value="standard" label="🔧 Standard Arms (3.5 DOF)">
+
+**Composição:**
+
+```
+Ombro (Shoulder):
+├─ Pitch: -3.0 a 3.0 rad (-172° a 172°)
+│  Torque máximo: 25 Nm
+│  Velocidade máxima: 8 rad/s
+│
+└─ Roll: -1.5 a 1.5 rad (-86° a 86°)
+   Torque máximo: 20 Nm
+   Velocidade máxima: 8 rad/s
+
+Cotovelo (Elbow):
+└─ Pitch: 0.0 a 2.6 rad (0° a 149°)
+   Torque máximo: 20 Nm
+   Velocidade máxima: 10 rad/s
+
+Pulso (Wrist):
+└─ Yaw: -3.0 a 3.0 rad (continuous rotation)
+   Torque máximo: 10 Nm
+   Velocidade máxima: 15 rad/s
+
+Gripper (Garra):
+└─ Parallel jaw, abertura: 0 - 0.08m (8cm)
+   Força de preensão: 50 N
+```
+
+**Workspace:**
+- Alcance máximo: 0.75m (braço estendido)
+- Workspace volume: ~0.8 m³
+- Payload: 2 kg (braço estendido), 5 kg (próximo ao corpo)
+
+</TabItem>
+<TabItem value="dexterous" label="✋ Dexterous Hands (10 DOF)">
+
+**Composição de cada mão:**
+
+```
+Polegar (4 DOF - oposição completa):
+├─ CMC Abduction: -0.5 a 0.5 rad
+├─ CMC Flexion: -0.3 a 1.0 rad
+├─ MCP: -0.2 a 1.2 rad
+└─ IP: -0.2 a 1.0 rad
+
+Indicador (3 DOF):
+├─ MCP: -0.2 a 1.5 rad
+├─ PIP: 0.0 a 1.8 rad
+└─ DIP: 0.0 a 1.5 rad (acoplado com PIP, ratio 2:3)
+
+Médio (3 DOF):
+├─ MCP: -0.2 a 1.5 rad
+├─ PIP: 0.0 a 1.8 rad
+└─ DIP: 0.0 a 1.5 rad
+
+Anelar + Mínimo (acoplados, 2 DOF efetivos):
+└─ Movem juntos para power grasp
+```
+
+**Capabilities:**
+- Precision grasp (pinça: polegar + indicador)
+- Power grasp (envolver objeto)
+- Gestures (apontar, ok, thumbs up, etc.)
+
+**Sensores:**
+- Tactile sensors nas pontas (10 N range)
+- Torque feedback em todas juntas
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📐 Forward Kinematics
+
+### Definição DH Parameters
+
+```python
+#!/usr/bin/env python3
+"""
+forward_kinematics.py - FK do braço G1
+"""
+
+import numpy as np
+from dataclasses import dataclass
+
+@dataclass
+class DHParameter:
+    """Denavit-Hartenberg parameters"""
+    a: float      # Link length
+    alpha: float  # Link twist
+    d: float      # Link offset
+    theta: float  # Joint angle
+
+class G1ArmFK:
+    def __init__(self, arm="left"):
+        """
+        Forward Kinematics do braço G1
+
+        DH Parameters (simplificado - 4 DOF: shoulder_pitch, shoulder_roll, elbow, wrist)
+        """
+        self.arm = arm
+
+        # Comprimentos dos links (aproximados)
+        self.L_shoulder = 0.15  # Ombro ao cotovelo [m]
+        self.L_upper_arm = 0.30  # Braço superior
+        self.L_forearm = 0.30    # Antebraço
+        self.L_hand = 0.10       # Mão
+
+    def compute_fk(self, joint_angles: dict) -> np.ndarray:
+        """
+        Calcula posição do end-effector
+
+        Args:
+            joint_angles: dict com {joint_name: angle_rad}
+
+        Returns:
+            4x4 transformation matrix (homogeneous)
+        """
+        # Extrair ângulos
+        shoulder_pitch = joint_angles.get(f"{self.arm}_shoulder_pitch", 0.0)
+        shoulder_roll = joint_angles.get(f"{self.arm}_shoulder_roll", 0.0)
+        elbow = joint_angles.get(f"{self.arm}_elbow", 0.0)
+        wrist_yaw = joint_angles.get(f"{self.arm}_wrist_yaw", 0.0)
+
+        # DH parameters
+        dh_params = [
+            # a, alpha, d, theta
+            DHParameter(0, np.pi/2, 0, shoulder_pitch),
+            DHParameter(0, np.pi/2, self.L_shoulder, shoulder_roll),
+            DHParameter(self.L_upper_arm, 0, 0, elbow),
+            DHParameter(self.L_forearm, 0, 0, wrist_yaw)
+        ]
+
+        # Compute transformation matrices
+        T = np.eye(4)
+
+        for dh in dh_params:
+            T_i = self._dh_matrix(dh)
+            T = T @ T_i
+
+        return T
+
+    def _dh_matrix(self, dh: DHParameter) -> np.ndarray:
+        """Compute DH transformation matrix"""
+        ct = np.cos(dh.theta)
+        st = np.sin(dh.theta)
+        ca = np.cos(dh.alpha)
+        sa = np.sin(dh.alpha)
+
+        return np.array([
+            [ct, -st*ca, st*sa, dh.a*ct],
+            [st, ct*ca, -ct*sa, dh.a*st],
+            [0, sa, ca, dh.d],
+            [0, 0, 0, 1]
+        ])
+
+    def get_end_effector_pose(self, joint_angles: dict) -> dict:
+        """
+        Retorna posição e orientação do end-effector
+
+        Returns:
+            dict com 'position' (x, y, z) e 'rotation' (3x3 matrix)
+        """
+        T = self.compute_fk(joint_angles)
+
+        position = T[:3, 3]
+        rotation = T[:3, :3]
+
+        return {
+            "position": position,
+            "rotation": rotation
+        }
+
+# Exemplo de uso:
+def main():
+    fk = G1ArmFK(arm="left")
+
+    # Configuração de exemplo
+    joint_angles = {
+        "left_shoulder_pitch": 0.5,  # 28.6°
+        "left_shoulder_roll": 0.3,   # 17.2°
+        "left_elbow": 1.0,            # 57.3°
+        "left_wrist_yaw": 0.0
+    }
+
+    result = fk.get_end_effector_pose(joint_angles)
+
+    print("End-effector position:")
+    print(f"  x: {result['position'][0]:.3f} m")
+    print(f"  y: {result['position'][1]:.3f} m")
+    print(f"  z: {result['position'][2]:.3f} m")
+
+    print("\nEnd-effector rotation:")
+    print(result['rotation'])
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## 🎯 Inverse Kinematics
+
+### Analytical IK (3 DOF)
+
+```python
+class G1ArmIK:
+    def __init__(self, arm="left"):
+        self.arm = arm
+        self.fk = G1ArmFK(arm)
+
+        # Link lengths
+        self.L1 = 0.30  # Upper arm
+        self.L2 = 0.30  # Forearm
+
+    def compute_ik(self, target_position: np.ndarray) -> dict:
+        """
+        Analytical IK para posição alvo (3D)
+
+        Args:
+            target_position: [x, y, z] em metros
+
+        Returns:
+            dict com joint angles ou None se não alcançável
+        """
+        x, y, z = target_position
+
+        # Distância do ombro ao alvo (3D)
+        r = np.sqrt(x**2 + y**2 + z**2)
+
+        # Check reachability
+        if r > (self.L1 + self.L2) or r < abs(self.L1 - self.L2):
+            print(f"❌ Alvo inalcançável: r={r:.3f}m, max={self.L1+self.L2:.3f}m")
+            return None
+
+        # Shoulder roll (lateral)
+        shoulder_roll = np.arctan2(y, np.sqrt(x**2 + z**2))
+
+        # Projeção no plano x-z
+        r_xz = np.sqrt(x**2 + z**2)
+
+        # Elbow angle (lei dos cossenos)
+        cos_elbow = (r_xz**2 - self.L1**2 - self.L2**2) / (2 * self.L1 * self.L2)
+        cos_elbow = np.clip(cos_elbow, -1.0, 1.0)
+        elbow = np.arccos(cos_elbow)
+
+        # Shoulder pitch
+        alpha = np.arctan2(z, x)
+        beta = np.arcsin((self.L2 * np.sin(elbow)) / r_xz)
+        shoulder_pitch = alpha - beta
+
+        # Wrist (manter paralelo ao chão)
+        wrist_yaw = 0.0
+
+        return {
+            f"{self.arm}_shoulder_pitch": shoulder_pitch,
+            f"{self.arm}_shoulder_roll": shoulder_roll,
+            f"{self.arm}_elbow": elbow,
+            f"{self.arm}_wrist_yaw": wrist_yaw
+        }
+
+    def move_to_position(self, robot, target_position: np.ndarray, duration=2.0):
+        """Move braço para posição alvo"""
+        # Compute IK
+        joint_angles = self.compute_ik(target_position)
+
+        if joint_angles is None:
+            return False
+
+        print(f"Moving {self.arm} arm to {target_position}")
+        print(f"Joint angles: {joint_angles}")
+
+        # Send commands
+        for joint_name, angle in joint_angles.items():
+            cmd = JointCommand()
+            cmd.joint_name = joint_name
+            cmd.control_mode = "POSITION"
+            cmd.target_position = angle
+            cmd.max_velocity = 1.0
+            cmd.kp = 100.0
+            cmd.kd = 5.0
+
+            robot.send_command(cmd)
+
+        # Wait for movement
+        time.sleep(duration)
+        return True
+
+# Exemplo:
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    ik = G1ArmIK(arm="left")
+
+    # Mover para posição na frente
+    target = np.array([0.4, 0.2, 0.3])  # 40cm frente, 20cm esquerda, 30cm acima
+    ik.move_to_position(robot, target, duration=2.0)
+
+    robot.disconnect()
+```
+
+---
+
+## 🤏 Gripper Control
+
+### Standard Gripper (Parallel Jaw)
+
+```python
+class GripperController:
+    def __init__(self, robot: G1Robot, arm="left"):
+        self.robot = robot
+        self.arm = arm
+        self.gripper_joint = f"{arm}_gripper"
+
+        # Limites
+        self.closed_position = 0.0    # Fechado
+        self.open_position = 0.08     # Aberto (8cm)
+        self.max_force = 50.0         # [N]
+
+    def open(self, duration=1.0):
+        """Abre garra completamente"""
+        self._set_position(self.open_position, duration)
+
+    def close(self, duration=1.0):
+        """Fecha garra completamente"""
+        self._set_position(self.closed_position, duration)
+
+    def set_width(self, width: float, duration=1.0):
+        """
+        Define abertura específica
+
+        Args:
+            width: Abertura em metros (0.0 - 0.08)
+        """
+        width = np.clip(width, self.closed_position, self.open_position)
+        self._set_position(width, duration)
+
+    def grasp(self, object_width: float = 0.05, force: float = 20.0):
+        """
+        Pega objeto com largura conhecida
+
+        Args:
+            object_width: Largura do objeto [m]
+            force: Força de preensão [N]
+        """
+        # Abrir mais que objeto
+        self.set_width(object_width + 0.02, duration=0.5)
+        time.sleep(0.6)
+
+        # Fechar com controle de força
+        self._grasp_with_force(force)
+
+    def _set_position(self, position: float, duration: float):
+        """Envia comando de posição"""
+        cmd = JointCommand()
+        cmd.joint_name = self.gripper_joint
+        cmd.control_mode = "POSITION"
+        cmd.target_position = position
+        cmd.max_velocity = 0.1  # Devagar para segurança
+
+        self.robot.send_command(cmd)
+        time.sleep(duration)
+
+    def _grasp_with_force(self, target_force: float):
+        """Fecha gripper até atingir força alvo"""
+        while True:
+            state = self.robot.get_state()
+            idx = state.joint_names.index(self.gripper_joint)
+            current_torque = state.joint_torques[idx]
+
+            # Converter torque para força (simplificado)
+            # F = τ / r, onde r = raio da garra (~0.04m)
+            current_force = abs(current_torque) / 0.04
+
+            if current_force >= target_force:
+                print(f"✅ Preensão alcançada: {current_force:.1f} N")
+                break
+
+            # Continuar fechando devagar
+            current_pos = state.joint_positions[idx]
+            self._set_position(current_pos - 0.001, duration=0.05)
+
+            if current_pos <= self.closed_position:
+                print("⚠️  Gripper completamente fechado")
+                break
+
+# Uso:
+def test_gripper():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    gripper = GripperController(robot, arm="left")
+
+    # Teste 1: Abrir/fechar
+    gripper.open()
+    time.sleep(1)
+    gripper.close()
+    time.sleep(1)
+
+    # Teste 2: Pegar objeto de 5cm com 20N
+    gripper.grasp(object_width=0.05, force=20.0)
+
+    robot.disconnect()
+```
+
+### Dexterous Hand Control
+
+```python
+class DexterousHandController:
+    def __init__(self, robot: G1Robot, arm="left"):
+        self.robot = robot
+        self.arm = arm
+
+        # Joint names
+        self.finger_joints = {
+            "thumb": [f"{arm}_thumb_cmc_abduction", f"{arm}_thumb_cmc_flexion",
+                      f"{arm}_thumb_mcp", f"{arm}_thumb_ip"],
+            "index": [f"{arm}_index_mcp", f"{arm}_index_pip", f"{arm}_index_dip"],
+            "middle": [f"{arm}_middle_mcp", f"{arm}_middle_pip", f"{arm}_middle_dip"],
+            # Ring e pinky acoplados
+        }
+
+    def precision_grasp(self, object_diameter: float = 0.03):
+        """
+        Pinça (polegar + indicador)
+
+        Args:
+            object_diameter: Diâmetro do objeto [m]
+        """
+        # Posicionar polegar
+        thumb_angles = [0.5, 0.8, 0.6, 0.4]  # ABD, FLEX, MCP, IP
+        self._set_finger("thumb", thumb_angles)
+
+        # Posicionar indicador
+        index_angles = [0.6, 1.0, 0.7]  # MCP, PIP, DIP
+        self._set_finger("index", index_angles)
+
+        # Outros dedos abertos
+        self._set_finger("middle", [0.0, 0.0, 0.0])
+
+        print(f"✅ Precision grasp para objeto {object_diameter*1000:.0f}mm")
+
+    def power_grasp(self):
+        """Power grasp (envolver objeto)"""
+        # Todos os dedos fechados
+        for finger in ["thumb", "index", "middle"]:
+            if finger == "thumb":
+                angles = [0.3, 1.0, 1.2, 1.0]  # Fechar polegar
+            else:
+                angles = [1.5, 1.8, 1.5]  # Fechar outros
+
+            self._set_finger(finger, angles)
+
+        print("✅ Power grasp ativado")
+
+    def point(self):
+        """Gesto: apontar"""
+        # Indicador estendido, outros fechados
+        self._set_finger("index", [0.0, 0.0, 0.0])  # Aberto
+        self._set_finger("thumb", [0.3, 0.8, 1.0, 0.8])
+        self._set_finger("middle", [1.5, 1.8, 1.5])  # Fechado
+
+        print("👉 Apontando")
+
+    def thumbs_up(self):
+        """Gesto: joinha"""
+        self._set_finger("thumb", [0.5, 0.0, 0.0, 0.0])  # Polegar para cima
+        self._set_finger("index", [1.5, 1.8, 1.5])  # Fechado
+        self._set_finger("middle", [1.5, 1.8, 1.5])
+
+        print("👍 Thumbs up!")
+
+    def _set_finger(self, finger_name: str, angles: list):
+        """Define ângulos de um dedo"""
+        joints = self.finger_joints[finger_name]
+
+        for joint, angle in zip(joints, angles):
+            cmd = JointCommand()
+            cmd.joint_name = joint
+            cmd.control_mode = "POSITION"
+            cmd.target_position = angle
+            cmd.max_velocity = 2.0
+            cmd.kp = 50.0
+            cmd.kd = 2.0
+
+            self.robot.send_command(cmd)
+
+# Uso:
+def demo_dexterous_hand():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    hand = DexterousHandController(robot, arm="right")
+
+    # Sequência de gestos
+    hand.thumbs_up()
+    time.sleep(2)
+
+    hand.point()
+    time.sleep(2)
+
+    hand.precision_grasp(object_diameter=0.025)
+    time.sleep(2)
+
+    hand.power_grasp()
+
+    robot.disconnect()
+```
+
+---
+
+## 📦 Pick and Place
+
+```python
+#!/usr/bin/env python3
+"""
+pick_and_place.py - Sistema completo de manipulação
+"""
+
+from enum import Enum
+
+class PickPlaceState(Enum):
+    IDLE = "idle"
+    APPROACHING = "approaching"
+    GRASPING = "grasping"
+    LIFTING = "lifting"
+    MOVING = "moving"
+    PLACING = "placing"
+    RELEASING = "releasing"
+
+class PickPlaceController:
+    def __init__(self, robot: G1Robot, arm="left"):
+        self.robot = robot
+        self.arm = arm
+
+        # Sub-controllers
+        self.ik = G1ArmIK(arm)
+        self.gripper = GripperController(robot, arm)
+
+        # Estado
+        self.state = PickPlaceState.IDLE
+
+    def pick_and_place(self, pick_pos: np.ndarray, place_pos: np.ndarray,
+                        object_width: float = 0.05):
+        """
+        Executa pick and place completo
+
+        Args:
+            pick_pos: [x, y, z] posição do objeto
+            place_pos: [x, y, z] onde colocar
+            object_width: Largura do objeto [m]
+        """
+        print(f"🎯 Pick and Place: {pick_pos} → {place_pos}")
+
+        # 1. Abrir gripper
+        self.state = PickPlaceState.IDLE
+        self.gripper.open()
+        time.sleep(1)
+
+        # 2. Aproximar (acima do objeto)
+        self.state = PickPlaceState.APPROACHING
+        approach_pos = pick_pos + np.array([0, 0, 0.15])  # 15cm acima
+        if not self.ik.move_to_position(self.robot, approach_pos, duration=2.0):
+            print("❌ Falha ao aproximar")
+            return False
+
+        # 3. Descer
+        if not self.ik.move_to_position(self.robot, pick_pos, duration=1.5):
+            print("❌ Falha ao descer")
+            return False
+
+        # 4. Pegar
+        self.state = PickPlaceState.GRASPING
+        self.gripper.grasp(object_width, force=15.0)
+        time.sleep(1)
+
+        # 5. Levantar
+        self.state = PickPlaceState.LIFTING
+        lift_pos = pick_pos + np.array([0, 0, 0.20])
+        self.ik.move_to_position(self.robot, lift_pos, duration=1.5)
+
+        # 6. Mover para lugar
+        self.state = PickPlaceState.MOVING
+        place_approach = place_pos + np.array([0, 0, 0.15])
+        self.ik.move_to_position(self.robot, place_approach, duration=3.0)
+
+        # 7. Descer
+        self.state = PickPlaceState.PLACING
+        self.ik.move_to_position(self.robot, place_pos, duration=1.5)
+
+        # 8. Soltar
+        self.state = PickPlaceState.RELEASING
+        self.gripper.open()
+        time.sleep(1)
+
+        # 9. Retrair
+        self.ik.move_to_position(self.robot, place_approach, duration=1.5)
+
+        self.state = PickPlaceState.IDLE
+        print("✅ Pick and Place concluído!")
+        return True
+
+# Uso:
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    pp_ctrl = PickPlaceController(robot, arm="right")
+
+    # Pegar objeto em (0.4, -0.2, 0.1) e colocar em (0.4, 0.2, 0.2)
+    pick_position = np.array([0.4, -0.2, 0.1])
+    place_position = np.array([0.4, 0.2, 0.2])
+
+    pp_ctrl.pick_and_place(pick_position, place_position, object_width=0.06)
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## 💪 Force Control
+
+```python
+class ForceController:
+    def __init__(self, robot: G1Robot, arm="left"):
+        self.robot = robot
+        self.arm = arm
+
+        # Parâmetros de impedância
+        self.K = np.diag([100, 100, 100])  # Rigidez [N/m]
+        self.D = np.diag([10, 10, 10])     # Damping [N/(m/s)]
+
+    def admittance_control(self, target_force: np.ndarray, duration=5.0):
+        """
+        Controle de admitância (robô "macio")
+
+        Args:
+            target_force: [Fx, Fy, Fz] força desejada [N]
+            duration: Tempo de controle [s]
+        """
+        start_time = time.time()
+
+        while (time.time() - start_time) < duration:
+            # Medir força atual (via torque das juntas)
+            state = self.robot.get_state()
+            current_force = self._estimate_end_effector_force(state)
+
+            # Erro de força
+            force_error = target_force - current_force
+
+            # Deslocamento desejado (admitância)
+            # Δx = (F_error) / K
+            position_delta = np.linalg.inv(self.K) @ force_error
+
+            # Atualizar posição alvo
+            # (requer FK/IK em loop)
+
+            time.sleep(0.01)  # 100 Hz
+
+    def _estimate_end_effector_force(self, state) -> np.ndarray:
+        """Estima força no end-effector via Jacobian transpose"""
+        # Simplificação: retornar zeros
+        # Em produção: F = J^T * τ
+        return np.zeros(3)
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Implementei Forward Kinematics (DH parameters)
+- [ ] Implementei Inverse Kinematics (analytical 3D)
+- [ ] Controlei gripper (abrir/fechar/força)
+- [ ] Testei dexterous hand (gestos, precision/power grasp)
+- [ ] Implementei Pick and Place completo
+- [ ] Entendi Force Control (admittance)
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🤝 Integração ROS2 com G1 →](./integracao-ros2-g1)**
+
+Crie bridge ROS2, tf2 transforms, MoveIt config e Nav2 config para o G1.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 80-100 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 75% prático, 25% teórico

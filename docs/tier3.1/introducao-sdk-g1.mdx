@@ -1,0 +1,1092 @@
+---
+sidebar_position: 1
+title: 1. Introdução ao SDK do G1
+description: Arquitetura, APIs e primeiros passos com o Unitree G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🤖 Introdução ao SDK do Unitree G1
+
+:::tip Objetivo do Módulo
+Compreender a arquitetura de software do Unitree G1, configurar o ambiente de desenvolvimento, dominar as APIs disponíveis (Python e C++), e criar seu primeiro programa de controle do robô.
+:::
+
+---
+
+## 🎯 Visão Geral do Unitree G1
+
+### Especificações Técnicas Completas
+
+| Categoria | Especificação | Detalhes |
+|-----------|---------------|----------|
+| **Dimensões** | Altura: 1.32m | Ajustável via postura (1.15m - 1.45m) |
+| | Peso: 55kg | Distribuição: 35kg pernas, 20kg torso+braços |
+| | Largura ombros: 48cm | Permite passagem em portas padrão |
+| **DOF (Graus de Liberdade)** | Standard: 23 DOF | 12 pernas + 7 braços + 4 torso |
+| | Dexterous Hands: +20 DOF | 10 DOF por mão (dedos articulados) |
+| | Total máximo: 43 DOF | Configuração completa |
+| **Computação Onboard** | Jetson Orin NX 16GB | 100 TOPS AI performance |
+| | CPU: 8-core ARM | Cortex-A78AE @ 2.0GHz |
+| | GPU: Ampere (1024 CUDA cores) | FP16 tensor cores |
+| | Storage: 256GB NVMe SSD | Expansível via USB 3.2 |
+| **Sensores** | Intel RealSense D435i (x2) | Stereo depth + RGB + IMU |
+| | IMU 6-axis (torso) | 1000 Hz sampling rate |
+| | Force/Torque (pés) | 4-axis, ±500N range |
+| | Joint encoders (todos) | Magnetic, 14-bit resolution |
+| **Atuadores** | Unitree brushless motors | Torque máximo: 45 Nm (quadril) |
+| | Reduction ratio: 6:1 - 9:1 | Depende da junta |
+| | Peak power: 3.5 kW total | Continuous: 1.2 kW |
+| **Bateria** | Capacity: 15000 mAh | Voltage: 48V (4S LiPo) |
+| | Runtime: ~2 horas | Carga completa: 1.5h |
+| | Hot-swap: Sim | Troca sem desligar |
+| **Conectividade** | WiFi 6 (802.11ax) | 2.4GHz + 5GHz dual-band |
+| | Ethernet: Gigabit (RJ45) | Porta na parte traseira |
+| | Bluetooth 5.2 | Para periféricos |
+| **Sistema Operacional** | Ubuntu 22.04 LTS | Kernel 5.15 RT-PREEMPT |
+| | ROS2 Humble | Pré-instalado e configurado |
+
+### Configurações Disponíveis
+
+<Tabs>
+<TabItem value="standard" label="🦾 Standard (23 DOF)">
+
+**Composição:**
+- 12 DOF pernas (6 por perna)
+  - 3 DOF quadril (pitch, roll, yaw)
+  - 1 DOF joelho
+  - 2 DOF tornozelo (pitch, roll)
+- 7 DOF braços (3.5 por braço)
+  - 2 DOF ombro (pitch, roll)
+  - 1 DOF cotovelo
+  - 1 DOF pulso (gripper simples)
+- 4 DOF torso
+  - 2 DOF cintura (pitch, yaw)
+  - 2 DOF pescoço (pitch, yaw)
+
+**Custo:** Base (~$16,000 USD)
+**Uso:** Pesquisa, locomoção, manipulação básica
+
+</TabItem>
+<TabItem value="dexterous" label="✋ Dexterous Hands (+20 DOF)">
+
+**Adicionais:**
+- 10 DOF por mão (20 total)
+  - Polegar: 4 DOF (oposição completa)
+  - Indicador: 3 DOF
+  - Médio: 3 DOF
+  - Anelar: 3 DOF (acoplado com mínimo)
+  - Mínimo: 3 DOF (acoplado com anelar)
+  - Pulso: 2 DOF (pitch, yaw)
+
+**Total sistema:** 43 DOF
+
+**Custo:** +$8,000 USD
+**Uso:** Manipulação fina, grasping complexo, interação social
+
+</TabItem>
+<TabItem value="custom" label="⚙️ Custom Configuration">
+
+**Opções modulares:**
+- Force/torque sensors (braços): +$2,000
+- LiDAR (Livox Mid-360): +$1,500
+- Stereo camera extra (frontal): +$400
+- Extended battery pack (2x): +$1,200
+
+**Integração de terceiros:**
+- Franka Emika gripper (compatível)
+- Robotic hands (Shadow, Allegro)
+- Custom end-effectors via adaptador
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🏗️ Arquitetura de Software do G1
+
+### Stack Completa
+
+```
+┌────────────────────────────────────────────────────────┐
+│  User Applications (Python/C++)                        │  ← Seu código aqui
+├────────────────────────────────────────────────────────┤
+│  Unitree SDK (unitree_sdk2_python / unitree_sdk2)     │  ← APIs oficiais
+├────────────────────────────────────────────────────────┤
+│  DDS Middleware (Cyclone DDS)                          │  ← Comunicação
+├────────────────────────────────────────────────────────┤
+│  Robot State Manager (RSM)                             │  ← Estimação de estados
+├────────────────────────────────────────────────────────┤
+│  Motion Controllers                                     │  ← Locomoção, balanço
+│  - Whole-Body Controller (WBC)                         │
+│  - Gait Generator                                       │
+│  - Balance Controller                                   │
+├────────────────────────────────────────────────────────┤
+│  Low-Level Control (LLC)                               │  ← Controle de motores
+│  - PID Controllers (23-43 joints)                      │
+│  - Torque/Position modes                               │
+│  - Safety limits                                        │
+├────────────────────────────────────────────────────────┤
+│  Hardware Abstraction Layer (HAL)                      │  ← Drivers
+│  - Motor drivers (CAN bus)                             │
+│  - Sensor drivers (I2C, SPI)                           │
+│  - Camera interface (USB 3.0)                          │
+└────────────────────────────────────────────────────────┘
+```
+
+### Unitree SDK vs ROS2: Quando Usar Cada Um?
+
+<Tabs>
+<TabItem value="unitree-sdk" label="🔷 Unitree SDK (Recomendado)">
+
+**Vantagens:**
+- ✅ **Performance:** Latência &lt; 1ms (DDS direto)
+- ✅ **Simplicidade:** APIs específicas do G1
+- ✅ **Documentação:** Exemplos oficiais Unitree
+- ✅ **Suporte:** Garantido pela Unitree
+- ✅ **Updates:** Novos recursos liberados primeiro aqui
+
+**Desvantagens:**
+- ❌ Ecossistema menor (vs ROS2)
+- ❌ Ferramentas de debug limitadas
+- ❌ Integração com Nav2/MoveIt requer bridge
+
+**Quando usar:**
+- Controle de baixo nível (motores, sensores)
+- Locomoção customizada
+- Performance crítica (&lt; 5ms latency)
+- Prototipagem rápida com G1
+
+**Exemplo típico:**
+```python
+from unitree_sdk2_python import G1Robot
+
+robot = G1Robot()
+robot.set_joint_position("left_knee", 0.5)  # Direto
+```
+
+</TabItem>
+<TabItem value="ros2" label="🔶 ROS2 Bridge">
+
+**Vantagens:**
+- ✅ **Ecossistema:** Nav2, MoveIt, Gazebo, etc.
+- ✅ **Ferramentas:** RViz, rqt, rosbag
+- ✅ **Comunidade:** Milhares de packages
+- ✅ **Padrão:** Interoperabilidade com outros robôs
+- ✅ **Debugging:** Tópicos visualizáveis em tempo real
+
+**Desvantagens:**
+- ❌ Latência maior (~5-10ms overhead)
+- ❌ Complexidade adicional (bridge)
+- ❌ Não é oficial Unitree (community-driven)
+
+**Quando usar:**
+- Navegação autônoma (Nav2)
+- Manipulação complexa (MoveIt2)
+- Integração com sistemas ROS existentes
+- Simulação (Gazebo/Isaac Sim)
+
+**Exemplo típico:**
+```python
+import rclpy
+from sensor_msgs.msg import JointState
+
+# Publica via ROS2, bridge converte para Unitree SDK
+pub.publish(JointState(...))
+```
+
+</TabItem>
+<TabItem value="hybrid" label="🔀 Híbrido (Best of Both)">
+
+**Arquitetura recomendada:**
+
+```python
+# Low-level control: Unitree SDK (performance)
+from unitree_sdk2_python import G1Robot
+robot = G1Robot()
+
+# High-level planning: ROS2 (ecosystem)
+import rclpy
+from nav2_simple_commander import BasicNavigator
+
+# Bridge manual quando necessário
+def ros_to_unitree(joint_state_msg):
+    for name, pos in zip(joint_state_msg.name, joint_state_msg.position):
+        robot.set_joint_position(name, pos)
+```
+
+**Benefícios:**
+- ⚡ Performance de Unitree SDK
+- 🛠️ Ferramentas de ROS2
+- 🎯 Melhor de ambos mundos
+
+**Trade-off:** Complexidade de manter dois sistemas
+
+</TabItem>
+</Tabs>
+
+**Recomendação deste curso:** Começar com **Unitree SDK puro**, migrar para híbrido se necessário.
+
+---
+
+## 📦 Instalação do Unitree SDK
+
+### Pré-Requisitos
+
+```bash
+# Sistema: Ubuntu 22.04
+# Python: 3.10+
+# Espaço em disco: 5GB
+
+# Verificar versão Python
+python3 --version  # Deve ser >= 3.10
+
+# Instalar dependências do sistema
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  cmake \
+  git \
+  python3-pip \
+  python3-dev \
+  libboost-all-dev \
+  libeigen3-dev \
+  libssl-dev
+```
+
+### Instalação do SDK Python
+
+<Tabs>
+<TabItem value="pip" label="🐍 Via pip (Recomendado)">
+
+```bash
+# Instalar unitree_sdk2_python
+pip3 install unitree_sdk2_python
+
+# Verificar instalação
+python3 -c "import unitree_sdk2_python; print(unitree_sdk2_python.__version__)"
+# Output esperado: 1.2.3 (ou superior)
+
+# Instalar pacotes auxiliares
+pip3 install numpy scipy matplotlib
+```
+
+**Vantagens:**
+- ✅ Instalação rápida (1 minuto)
+- ✅ Atualizações automáticas via pip
+- ✅ Gerenciamento de dependências
+
+**Limitações:**
+- ❌ Versão pode estar defasada (~1 mês)
+- ❌ Não permite modificar código-fonte
+
+</TabItem>
+<TabItem value="source" label="🔧 From Source (Avançado)">
+
+```bash
+# Clonar repositório oficial
+mkdir -p ~/unitree_sdk2
+cd ~/unitree_sdk2
+git clone https://github.com/unitreerobotics/unitree_sdk2.git
+
+# Build C++ core
+cd unitree_sdk2
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+
+# Build Python bindings
+cd ../python
+pip3 install -e .
+
+# Verificar
+python3 -c "import unitree_sdk2_python; print('OK')"
+```
+
+**Vantagens:**
+- ✅ Versão mais recente (bleeding edge)
+- ✅ Pode modificar código-fonte
+- ✅ Acesso a features experimentais
+
+**Desvantagens:**
+- ❌ Build demorado (~10 min)
+- ❌ Requer conhecimento de CMake
+- ❌ Atualizações manuais (git pull)
+
+</TabItem>
+<TabItem value="docker" label="🐳 Docker (Isolado)">
+
+```dockerfile
+# Dockerfile para G1 development
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt update && apt install -y \
+    python3-pip \
+    git \
+    build-essential \
+    cmake
+
+# Install Unitree SDK
+RUN pip3 install unitree_sdk2_python numpy scipy
+
+# Set working directory
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
+```
+
+```bash
+# Build image
+docker build -t unitree-g1-dev .
+
+# Run container
+docker run -it --net=host \
+  -v $(pwd):/workspace \
+  unitree-g1-dev
+```
+
+**Vantagens:**
+- ✅ Ambiente isolado (não afeta sistema)
+- ✅ Reproduzível (mesmo ambiente sempre)
+- ✅ Fácil compartilhar com equipe
+
+**Desvantagens:**
+- ❌ Overhead de performance (~5%)
+- ❌ Network configuration complexa (DDS)
+- ❌ USB devices requerem --privileged
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔌 Conectando ao G1
+
+### Métodos de Conexão
+
+<Tabs>
+<TabItem value="wifi" label="📡 WiFi (Padrão)">
+
+**Setup inicial:**
+
+```bash
+# 1. Ligar G1 e aguardar 30s (boot completo)
+# 2. Conectar ao WiFi "Unitree_G1_XXXX" (XXXX = serial)
+#    Senha padrão: unitree123
+
+# 3. Verificar conexão
+ping 192.168.123.10  # IP padrão do G1
+# Deve responder com latência < 5ms
+
+# 4. SSH para verificar sistema
+ssh unitree@192.168.123.10
+# Senha: unitree
+```
+
+**Configurar IP estático (seu PC):**
+
+```bash
+# Ubuntu: Editar conexão WiFi
+# Settings > WiFi > Unitree_G1_XXXX > IPv4
+# Method: Manual
+# Address: 192.168.123.100
+# Netmask: 255.255.255.0
+# Gateway: 192.168.123.1
+```
+
+**Vantagens:**
+- ✅ Mobilidade (sem cabos)
+- ✅ Setup rápido
+- ✅ Múltiplos clientes simultâneos
+
+**Desvantagens:**
+- ❌ Latência variável (2-10ms)
+- ❌ Possível interferência
+- ❌ Segurança (WiFi aberto por padrão)
+
+</TabItem>
+<TabItem value="ethernet" label="🔌 Ethernet (Performance)">
+
+**Setup:**
+
+```bash
+# 1. Conectar cabo Ethernet (porta traseira do G1)
+# 2. Configurar IP estático no PC
+
+# Ubuntu (via netplan):
+sudo nano /etc/netplan/01-ethernet.yaml
+```
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:  # Ou enp0s31f6 (verifique com 'ip a')
+      addresses:
+        - 192.168.123.100/24
+      routes:
+        - to: 192.168.123.0/24
+          via: 192.168.123.1
+      nameservers:
+        addresses: [8.8.8.8]
+```
+
+```bash
+sudo netplan apply
+
+# Verificar conexão
+ping 192.168.123.10
+```
+
+**Vantagens:**
+- ✅ Latência consistente (&lt; 1ms)
+- ✅ Largura de banda total (1 Gbps)
+- ✅ Mais estável que WiFi
+- ✅ Seguro (conexão direta)
+
+**Desvantagens:**
+- ❌ Cabo limita mobilidade
+- ❌ Risco de tropeçar no cabo
+- ❌ Requer porta Ethernet no PC
+
+**Recomendado para:** Desenvolvimento, debugging, treinamento RL
+
+</TabItem>
+<TabItem value="remote" label="🌐 Remote (Cloud)">
+
+**Setup com Tailscale VPN:**
+
+```bash
+# No G1 (via SSH):
+ssh unitree@192.168.123.10
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# No seu PC:
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# Agora você tem IP persistente (ex: 100.64.0.1)
+ping 100.64.0.1  # Funciona de qualquer lugar!
+```
+
+**Vantagens:**
+- ✅ Acesso de qualquer lugar (internet)
+- ✅ Seguro (WireGuard encrypted)
+- ✅ IP fixo (não muda)
+- ✅ Múltiplos G1s facilmente
+
+**Desvantagens:**
+- ❌ Latência alta (50-200ms)
+- ❌ Requer internet no G1
+- ❌ ❌ **NÃO USAR PARA CONTROLE EM TEMPO REAL**
+
+**Uso:** Monitoramento, coleta de logs, atualizações OTA
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚀 Primeira API Call: Hello G1
+
+### Exemplo Completo (Python)
+
+```python
+#!/usr/bin/env python3
+"""
+hello_g1.py - Primeiro programa com Unitree G1
+Conecta ao robô e lê estados básicos
+"""
+
+import time
+from unitree_sdk2_python import G1Robot, RobotState
+
+def main():
+    print("🤖 Conectando ao Unitree G1...")
+
+    # Inicializar robô
+    # network_interface: "wlan0" para WiFi, "eth0" para Ethernet
+    robot = G1Robot(network_interface="wlan0")
+
+    # Aguardar conexão (timeout 10s)
+    if not robot.wait_for_connection(timeout=10.0):
+        print("❌ Falha ao conectar. Verifique:")
+        print("  - G1 está ligado?")
+        print("  - Conectado na mesma rede?")
+        print("  - IP correto? (ping 192.168.123.10)")
+        return
+
+    print("✅ Conectado com sucesso!\n")
+
+    # Ler estado do robô
+    state = robot.get_state()
+
+    # Informações básicas
+    print("=" * 60)
+    print("INFORMAÇÕES DO ROBÔ")
+    print("=" * 60)
+    print(f"Modelo: {state.robot_model}")
+    print(f"Serial: {state.serial_number}")
+    print(f"Firmware: {state.firmware_version}")
+    print(f"Uptime: {state.uptime / 3600:.1f} horas")
+    print(f"Bateria: {state.battery_percentage}% ({state.battery_voltage:.1f}V)")
+    print(f"Temperatura CPU: {state.cpu_temperature}°C")
+    print(f"Modo atual: {state.control_mode}")
+    print()
+
+    # Estados das juntas
+    print("=" * 60)
+    print("ESTADOS DAS JUNTAS (primeiras 6)")
+    print("=" * 60)
+    print(f"{'Junta':<20} {'Posição (rad)':<15} {'Velocidade':<15} {'Torque (Nm)'}")
+    print("-" * 60)
+
+    for i, joint_name in enumerate(state.joint_names[:6]):
+        pos = state.joint_positions[i]
+        vel = state.joint_velocities[i]
+        tau = state.joint_torques[i]
+        print(f"{joint_name:<20} {pos:>13.3f}   {vel:>13.3f}   {tau:>13.2f}")
+
+    print()
+
+    # Orientação (IMU)
+    print("=" * 60)
+    print("ORIENTAÇÃO (IMU)")
+    print("=" * 60)
+    roll, pitch, yaw = state.imu_euler  # Roll, Pitch, Yaw em radianos
+    print(f"Roll:  {roll * 57.3:>6.1f}° (inclinação lateral)")
+    print(f"Pitch: {pitch * 57.3:>6.1f}° (inclinação frente/trás)")
+    print(f"Yaw:   {yaw * 57.3:>6.1f}° (rotação)")
+    print()
+
+    # Forças nos pés
+    print("=" * 60)
+    print("FORÇAS NOS PÉS")
+    print("=" * 60)
+    print(f"Pé esquerdo: {state.left_foot_force:>6.1f} N")
+    print(f"Pé direito:  {state.right_foot_force:>6.1f} N")
+    print(f"Total:       {state.left_foot_force + state.right_foot_force:>6.1f} N")
+    print(f"(Peso esperado: ~540 N para 55kg)")
+    print()
+
+    # Monitor contínuo (10 segundos)
+    print("=" * 60)
+    print("MONITORAMENTO EM TEMPO REAL (10s)")
+    print("=" * 60)
+    print("Pressione Ctrl+C para interromper")
+    print()
+
+    try:
+        for i in range(100):  # 100 iterações, 10 Hz
+            state = robot.get_state()
+
+            # Atualizar linha (sem criar nova)
+            print(f"\rBat: {state.battery_percentage:>3}% | "
+                  f"CPU: {state.cpu_temperature:>4.1f}°C | "
+                  f"IMU Pitch: {state.imu_euler[1] * 57.3:>5.1f}° | "
+                  f"Forças: L={state.left_foot_force:>5.1f}N R={state.right_foot_force:>5.1f}N",
+                  end='', flush=True)
+
+            time.sleep(0.1)  # 10 Hz
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Interrompido pelo usuário")
+
+    print("\n")
+    print("=" * 60)
+    print("✅ Teste concluído com sucesso!")
+    print("=" * 60)
+
+    # Desconectar
+    robot.disconnect()
+    print("🔌 Desconectado do G1")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Executar:**
+
+```bash
+python3 hello_g1.py
+```
+
+**Output esperado:**
+
+```
+🤖 Conectando ao Unitree G1...
+✅ Conectado com sucesso!
+
+============================================================
+INFORMAÇÕES DO ROBÔ
+============================================================
+Modelo: Unitree G1
+Serial: G1-2024-A0123
+Firmware: 1.2.3
+Uptime: 2.3 horas
+Bateria: 87% (49.2V)
+Temperatura CPU: 45.3°C
+Modo atual: IDLE
+
+============================================================
+ESTADOS DAS JUNTAS (primeiras 6)
+============================================================
+Junta                Posição (rad)   Velocidade      Torque (Nm)
+------------------------------------------------------------
+left_hip_pitch               0.123         0.001          0.50
+left_hip_roll                0.045        -0.002          0.30
+left_hip_yaw                -0.002         0.000          0.10
+left_knee                    0.567         0.003          2.40
+left_ankle_pitch             0.234        -0.001          1.20
+left_ankle_roll              0.012         0.000          0.50
+
+============================================================
+ORIENTAÇÃO (IMU)
+============================================================
+Roll:     1.2° (inclinação lateral)
+Pitch:    0.8° (inclinação frente/trás)
+Yaw:    45.3° (rotação)
+
+============================================================
+FORÇAS NOS PÉS
+============================================================
+Pé esquerdo:  265.3 N
+Pé direito:   271.8 N
+Total:        537.1 N
+(Peso esperado: ~540 N para 55kg)
+
+============================================================
+MONITORAMENTO EM TEMPO REAL (10s)
+============================================================
+Pressione Ctrl+C para interromper
+
+Bat:  87% | CPU: 45.3°C | IMU Pitch:   0.8° | Forças: L=265.1N R=271.9N
+
+============================================================
+✅ Teste concluído com sucesso!
+============================================================
+🔌 Desconectado do G1
+```
+
+---
+
+## 📚 Estrutura das APIs
+
+### Classes Principais
+
+```python
+from unitree_sdk2_python import (
+    G1Robot,          # Classe principal do robô
+    RobotState,       # Estado completo do robô
+    JointCommand,     # Comando para juntas
+    MotionCommand,    # Comando de movimento
+    SensorData,       # Dados de sensores
+    ControlMode       # Modos de controle
+)
+```
+
+### G1Robot API Reference
+
+```python
+class G1Robot:
+    def __init__(self, network_interface="wlan0"):
+        """
+        Inicializa conexão com G1
+
+        Args:
+            network_interface: "wlan0" (WiFi) ou "eth0" (Ethernet)
+        """
+        pass
+
+    def wait_for_connection(self, timeout=10.0) -> bool:
+        """Aguarda conexão (timeout em segundos)"""
+        pass
+
+    def get_state(self) -> RobotState:
+        """Retorna estado atual completo"""
+        pass
+
+    def set_joint_position(self, joint_name: str, position: float):
+        """Define posição de junta (modo POSITION)"""
+        pass
+
+    def set_joint_velocity(self, joint_name: str, velocity: float):
+        """Define velocidade de junta (modo VELOCITY)"""
+        pass
+
+    def set_joint_torque(self, joint_name: str, torque: float):
+        """Define torque de junta (modo TORQUE)"""
+        pass
+
+    def set_control_mode(self, mode: ControlMode):
+        """Altera modo de controle global"""
+        pass
+
+    def emergency_stop(self):
+        """PARA TUDO IMEDIATAMENTE"""
+        pass
+
+    def disconnect(self):
+        """Desconecta gracefully"""
+        pass
+```
+
+### RobotState Attributes
+
+```python
+class RobotState:
+    # Identificação
+    robot_model: str           # "Unitree G1"
+    serial_number: str         # "G1-2024-A0123"
+    firmware_version: str      # "1.2.3"
+
+    # Sistema
+    uptime: float              # Segundos desde boot
+    cpu_temperature: float     # Celsius
+    battery_percentage: float  # 0-100%
+    battery_voltage: float     # Volts (nominal 48V)
+    battery_current: float     # Amperes
+
+    # Juntas (arrays de tamanho 23 ou 43)
+    joint_names: list[str]         # ["left_hip_pitch", ...]
+    joint_positions: list[float]   # Radianos
+    joint_velocities: list[float]  # Rad/s
+    joint_torques: list[float]     # Newton-metros
+    joint_temperatures: list[float] # Celsius
+
+    # IMU (Inertial Measurement Unit)
+    imu_quaternion: tuple[float, float, float, float]  # (w, x, y, z)
+    imu_euler: tuple[float, float, float]              # (roll, pitch, yaw) rad
+    imu_angular_velocity: tuple[float, float, float]   # (wx, wy, wz) rad/s
+    imu_linear_acceleration: tuple[float, float, float] # (ax, ay, az) m/s²
+
+    # Forças nos pés
+    left_foot_force: float     # Newtons (total vertical)
+    right_foot_force: float    # Newtons (total vertical)
+    left_foot_torque: tuple[float, float, float]  # (tx, ty, tz) Nm
+    right_foot_torque: tuple[float, float, float] # (tx, ty, tz) Nm
+
+    # Modo de controle
+    control_mode: str          # "IDLE", "POSITION", "VELOCITY", "TORQUE"
+
+    # Timestamp
+    timestamp: float           # Unix epoch (segundos)
+```
+
+---
+
+## 🎮 Modos de Controle
+
+<Tabs>
+<TabItem value="idle" label="⏸️ IDLE">
+
+**Descrição:** Motores desligados, juntas livres (gravity compensation ativa)
+
+**Quando usar:**
+- Após ligar o robô
+- Para mover juntas manualmente
+- Emergency stop recovery
+- Trocar bateria
+
+**Exemplo:**
+
+```python
+robot.set_control_mode(ControlMode.IDLE)
+# Agora você pode mover os braços manualmente
+print("Robô em modo IDLE - juntas livres")
+```
+
+**⚠️ Atenção:** G1 pode cair se não estiver apoiado!
+
+</TabItem>
+<TabItem value="position" label="📍 POSITION">
+
+**Descrição:** Controle de posição das juntas (PID interno)
+
+**Quando usar:**
+- Movimentos lentos e precisos
+- Poses estáticas
+- Manipulação de objetos
+- Iniciantes (modo mais seguro)
+
+**Exemplo:**
+
+```python
+robot.set_control_mode(ControlMode.POSITION)
+
+# Dobrar joelho esquerdo para 90 graus
+robot.set_joint_position("left_knee", 1.57)  # 1.57 rad = 90°
+
+# Mover braço para posição home
+robot.set_joint_position("left_shoulder_pitch", 0.0)
+robot.set_joint_position("left_elbow", 0.0)
+```
+
+**Limites:**
+- Velocidade máxima: 2 rad/s (configurável)
+- Aceleração: 5 rad/s² (configurável)
+- Erro máximo permitido: 0.1 rad
+
+</TabItem>
+<TabItem value="velocity" label="🚄 VELOCITY">
+
+**Descrição:** Controle de velocidade das juntas
+
+**Quando usar:**
+- Movimentos contínuos
+- Jogging manual
+- Tracking de trajetórias dinâmicas
+
+**Exemplo:**
+
+```python
+robot.set_control_mode(ControlMode.VELOCITY)
+
+# Rotacionar quadril continuamente
+robot.set_joint_velocity("left_hip_yaw", 0.5)  # 0.5 rad/s
+
+# Parar após 2 segundos
+time.sleep(2.0)
+robot.set_joint_velocity("left_hip_yaw", 0.0)
+```
+
+**Limites:**
+- Velocidade máxima: 5 rad/s (safety limit)
+- Aceleração: automática (suavizada)
+
+</TabItem>
+<TabItem value="torque" label="⚡ TORQUE">
+
+**Descrição:** Controle direto de torque (força)
+
+**Quando usar:**
+- Controle de impedância
+- Force feedback
+- Algoritmos de controle customizados
+- Aprendizado por reforço
+
+**Exemplo:**
+
+```python
+robot.set_control_mode(ControlMode.TORQUE)
+
+# Aplicar torque no joelho (gravity compensation)
+robot.set_joint_torque("left_knee", 5.0)  # 5 Nm
+
+# CUIDADO: Sem PID interno!
+# Você é responsável por estabilidade
+```
+
+**⚠️ PERIGOSO:** Pode causar movimentos bruscos ou queda se mal configurado!
+
+**Limites:**
+- Torque máximo: Depende da junta (5-45 Nm)
+- Sem proteção automática (você implementa)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔍 Joint Names Reference
+
+### Pernas (12 DOF)
+
+```python
+# Perna esquerda (6 DOF)
+LEFT_LEG_JOINTS = [
+    "left_hip_pitch",      # Quadril frente/trás: -0.8 a 1.6 rad
+    "left_hip_roll",       # Quadril lateral: -0.5 a 0.5 rad
+    "left_hip_yaw",        # Quadril rotação: -0.3 a 0.3 rad
+    "left_knee",           # Joelho: 0.0 a 2.3 rad (não dobra reverso)
+    "left_ankle_pitch",    # Tornozelo frente/trás: -0.7 a 0.7 rad
+    "left_ankle_roll"      # Tornozelo lateral: -0.3 a 0.3 rad
+]
+
+# Perna direita (6 DOF) - simétrica
+RIGHT_LEG_JOINTS = [
+    "right_hip_pitch",
+    "right_hip_roll",
+    "right_hip_yaw",
+    "right_knee",
+    "right_ankle_pitch",
+    "right_ankle_roll"
+]
+```
+
+### Braços (7 DOF)
+
+```python
+# Braço esquerdo (3.5 DOF - gripper conta como 0.5)
+LEFT_ARM_JOINTS = [
+    "left_shoulder_pitch",  # Ombro frente/trás: -3.0 a 3.0 rad
+    "left_shoulder_roll",   # Ombro lateral: -1.5 a 1.5 rad
+    "left_elbow",           # Cotovelo: 0.0 a 2.6 rad
+    "left_wrist_yaw"        # Pulso rotação: -3.0 a 3.0 rad (continuous)
+]
+
+# Braço direito (3.5 DOF)
+RIGHT_ARM_JOINTS = [
+    "right_shoulder_pitch",
+    "right_shoulder_roll",
+    "right_elbow",
+    "right_wrist_yaw"
+]
+```
+
+### Torso (4 DOF)
+
+```python
+TORSO_JOINTS = [
+    "waist_pitch",    # Cintura frente/trás: -0.4 a 0.4 rad
+    "waist_yaw",      # Cintura rotação: -0.8 a 0.8 rad
+    "neck_pitch",     # Pescoço frente/trás: -0.6 a 0.6 rad
+    "neck_yaw"        # Pescoço rotação: -1.2 a 1.2 rad
+]
+```
+
+### Dexterous Hands (20 DOF adicionais)
+
+```python
+# Mão esquerda (10 DOF)
+LEFT_HAND_JOINTS = [
+    # Polegar (4 DOF - oposição completa)
+    "left_thumb_cmc_abduction",    # Base: abd/add
+    "left_thumb_cmc_flexion",      # Base: flex/ext
+    "left_thumb_mcp",              # Média
+    "left_thumb_ip",               # Ponta
+
+    # Indicador (3 DOF)
+    "left_index_mcp",
+    "left_index_pip",
+    "left_index_dip",
+
+    # Médio (3 DOF)
+    "left_middle_mcp",
+    "left_middle_pip",
+    "left_middle_dip"
+
+    # Ring e pinky são acoplados (omitido por brevidade)
+]
+
+# Mão direita (10 DOF) - simétrica
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+### Problema 1: Connection timeout
+
+**Erro:**
+```
+❌ Falha ao conectar. Timeout após 10s
+```
+
+**Checklist:**
+1. G1 está ligado? (LED verde na parte traseira)
+2. Conectado na mesma rede? (WiFi Unitree_G1_XXXX ou Ethernet)
+3. Ping funciona? `ping 192.168.123.10`
+4. Firewall bloqueando? `sudo ufw status`
+5. DDS configurado? Verificar `RMW_IMPLEMENTATION`
+
+**Solução:**
+
+```bash
+# Verificar conectividade
+ping -c 5 192.168.123.10
+
+# Se ping falha: problema de rede
+# Se ping funciona mas SDK falha: problema DDS
+
+# Configurar Cyclone DDS
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>auto</NetworkInterfaceAddress></General></Domain></CycloneDDS>'
+```
+
+---
+
+### Problema 2: Permission denied (network interface)
+
+**Erro:**
+```
+PermissionError: [Errno 13] Permission denied: 'wlan0'
+```
+
+**Solução:**
+
+```bash
+# Adicionar usuário ao grupo netdev
+sudo usermod -a -G netdev $USER
+
+# Logout e login novamente, ou:
+newgrp netdev
+
+# Rodar com sudo (não recomendado para produção)
+sudo python3 hello_g1.py
+```
+
+---
+
+### Problema 3: Joint limits exceeded
+
+**Erro:**
+```
+RuntimeError: Joint 'left_knee' position 3.0 exceeds limit [0.0, 2.3]
+```
+
+**Solução:**
+
+```python
+# Sempre verificar limites antes de comandar
+def safe_set_joint(robot, joint_name, target_pos):
+    limits = robot.get_joint_limits(joint_name)
+
+    # Clamp para limites
+    safe_pos = max(limits.min, min(limits.max, target_pos))
+
+    if safe_pos != target_pos:
+        print(f"⚠️  {joint_name}: {target_pos:.2f} clamped to {safe_pos:.2f}")
+
+    robot.set_joint_position(joint_name, safe_pos)
+
+# Uso:
+safe_set_joint(robot, "left_knee", 3.0)  # Será clamped para 2.3
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Unitree SDK instalado (`python3 -c "import unitree_sdk2_python"` funciona)
+- [ ] G1 conectado via WiFi ou Ethernet (ping bem-sucedido)
+- [ ] hello_g1.py executado com sucesso
+- [ ] Entendi os 4 modos de controle (IDLE, POSITION, VELOCITY, TORQUE)
+- [ ] Conheço todos os joint names (23 ou 43 DOF)
+- [ ] Testei ler estados em tempo real (bateria, IMU, forças)
+- [ ] Compreendi diferença entre Unitree SDK e ROS2
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[📡 Comunicação DDS com G1 →](./comunicacao-dds)**
+
+Aprofunde-se no Cyclone DDS: topics, QoS, network debugging e otimização de latência.
+:::
+
+**Recursos adicionais:**
+- [Unitree SDK Docs](https://support.unitree.com/home/en/developer/SDK)
+- [Cyclone DDS Guide](https://github.com/eclipse-cyclonedds/cyclonedds)
+- [G1 Hardware Manual (PDF)](https://www.unitree.com/download/g1_manual.pdf)
+
+---
+
+**⏱️ Tempo estimado:** 50-70 min
+**🧠 Nível:** Intermediário
+**💻 Hands-on:** 80% prático, 20% teórico

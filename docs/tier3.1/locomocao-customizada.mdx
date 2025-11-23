@@ -1,0 +1,705 @@
+---
+sidebar_position: 5
+title: 5. Locomoção Customizada
+description: Gait patterns, walking controllers e terrain adaptation
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🚶 Locomoção Customizada no G1
+
+:::tip Objetivo do Módulo
+Implementar controladores de locomoção customizados: gait patterns (walk, trot), walking controllers, adaptação a terrenos irregulares, e subida de escadas específicos para o Unitree G1.
+:::
+
+---
+
+## 🎯 Gaits do G1: Padrões de Marcha
+
+### Gaits Pré-Programados
+
+O G1 vem com 3 gaits principais implementados no firmware:
+
+<Tabs>
+<TabItem value="walk" label="🚶 Walk (Caminhada)">
+
+**Características:**
+- Velocidade: 0.0 - 1.5 m/s
+- Estabilidade: Alta (sempre 1+ pé no chão)
+- Gait cycle: ~1.2s por passo
+- Duty factor: 60% (60% do tempo com pé no chão)
+
+**Quando usar:**
+- Terreno plano ou irregular
+- Carregando objetos
+- Precisão > velocidade
+- Indoor navigation
+
+**Comando:**
+
+```python
+from unitree_sdk2_python import G1Robot, MotionCommand
+import time
+
+robot = G1Robot()
+robot.wait_for_connection()
+robot.set_control_mode("MOTION")
+
+cmd = MotionCommand()
+cmd.gait_type = "walk"
+cmd.vx = 0.5  # 0.5 m/s para frente
+cmd.vy = 0.0
+cmd.vyaw = 0.0
+cmd.body_height = 0.4  # Altura do torso [m]
+cmd.step_height = 0.08  # Altura do passo [m]
+
+# Publicar continuamente (mínimo 10 Hz)
+while True:
+    cmd.timestamp = int(time.time() * 1e9)
+    robot.send_motion_command(cmd)
+    time.sleep(0.1)
+```
+
+</TabItem>
+<TabItem value="trot" label="🏃 Trot (Trote)">
+
+**Características:**
+- Velocidade: 0.5 - 2.5 m/s
+- Estabilidade: Média (fase de voo)
+- Gait cycle: ~0.6s por passo
+- Duty factor: 40%
+
+**Quando usar:**
+- Terreno plano
+- Velocidade > estabilidade
+- Outdoor, grandes distâncias
+- Resposta rápida
+
+**Comando:**
+
+```python
+cmd = MotionCommand()
+cmd.gait_type = "trot"
+cmd.vx = 1.5  # 1.5 m/s (rápido)
+cmd.vy = 0.0
+cmd.vyaw = 0.0
+cmd.body_height = 0.45  # Mais alto para clearance
+cmd.step_height = 0.12  # Passos mais altos
+
+# Loop de publicação (mesmo esquema)
+```
+
+</TabItem>
+<TabItem value="stand" label="🧍 Stand (Parado)">
+
+**Características:**
+- Velocidade: 0 m/s
+- Estabilidade: Máxima
+- Balance controller ativo
+- Pode ajustar postura (height, pitch, roll)
+
+**Quando usar:**
+- Observação (usar câmera)
+- Manipulação (braços livres)
+- Ajustar postura
+- Preparação para movimento
+
+**Comando:**
+
+```python
+cmd = MotionCommand()
+cmd.gait_type = "stand"
+cmd.vx = 0.0
+cmd.vy = 0.0
+cmd.vyaw = 0.0
+cmd.body_height = 0.5  # Pode variar 0.3 - 0.5m
+cmd.body_pitch = 0.1   # Inclinar para frente [rad]
+cmd.body_roll = 0.0
+
+# Ajustar postura dinamicamente
+for height in np.linspace(0.3, 0.5, 20):
+    cmd.body_height = height
+    robot.send_motion_command(cmd)
+    time.sleep(0.1)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔨 Walking Controller Customizado
+
+### Arquitetura do Controller
+
+```
+┌─────────────────────────────────────┐
+│  High-Level Planner                 │  ← Objetivo: ir para (x, y, θ)
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  Footstep Planner                   │  ← Onde colocar pés
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  Swing Leg Controller               │  ← Trajetória do pé no ar
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  Stance Leg Controller              │  ← Perna de suporte
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  Balance Controller (ZMP)           │  ← Evitar queda
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  Joint Position Commands            │  ← Comandos para motores
+└─────────────────────────────────────┘
+```
+
+### Implementação Simplificada
+
+```python
+#!/usr/bin/env python3
+"""
+custom_walk_controller.py - Walking controller do zero
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import numpy as np
+import time
+from dataclasses import dataclass
+
+@dataclass
+class GaitParams:
+    """Parâmetros do gait"""
+    step_length: float = 0.2   # [m] comprimento do passo
+    step_width: float = 0.3    # [m] largura entre pés
+    step_height: float = 0.08  # [m] altura do pé ao subir
+    step_duration: float = 0.6 # [s] duração de um passo
+    body_height: float = 0.4   # [m] altura do torso
+
+class SimpleWalkController:
+    def __init__(self, robot: G1Robot, params: GaitParams):
+        self.robot = robot
+        self.params = params
+
+        # Estado do gait
+        self.phase = 0.0  # 0.0 - 1.0 (uma perna)
+        self.support_leg = "right"  # "left" ou "right"
+
+        # Inverse kinematics (simplificado)
+        self.leg_length = 0.7  # [m] comprimento total da perna
+
+    def step(self, vx: float, vy: float, vyaw: float):
+        """
+        Um passo do controller (chamar a 100 Hz)
+
+        Args:
+            vx: Velocidade frente/trás [m/s]
+            vy: Velocidade lateral [m/s]
+            vyaw: Velocidade angular [rad/s]
+        """
+        dt = 0.01  # 100 Hz
+
+        # Incrementar fase
+        self.phase += dt / self.params.step_duration
+
+        # Trocar perna de suporte quando completar fase
+        if self.phase >= 1.0:
+            self.phase = 0.0
+            self.support_leg = "left" if self.support_leg == "right" else "right"
+
+        # Calcular posições dos pés
+        if self.support_leg == "right":
+            # Direito no chão, esquerdo balanço
+            right_foot_pos = np.array([0, -self.params.step_width/2, 0])
+            left_foot_pos = self._swing_foot_trajectory(self.phase, vx, vy)
+        else:
+            # Esquerdo no chão, direito balanço
+            left_foot_pos = np.array([0, self.params.step_width/2, 0])
+            right_foot_pos = self._swing_foot_trajectory(self.phase, vx, vy)
+
+        # Inverse kinematics (simplificado - na prática use pinocchio)
+        left_joints = self._ik_leg(left_foot_pos, leg="left")
+        right_joints = self._ik_leg(right_foot_pos, leg="right")
+
+        # Enviar comandos
+        self._send_leg_commands(left_joints, "left")
+        self._send_leg_commands(right_joints, "right")
+
+    def _swing_foot_trajectory(self, phase: float, vx: float, vy: float) -> np.ndarray:
+        """
+        Calcula trajetória do pé durante swing phase
+
+        Returns:
+            [x, y, z] posição do pé
+        """
+        # Trajetória em arco (ciclóide)
+        x = self.params.step_length * (phase - 0.5) + vx * self.params.step_duration * phase
+        y = 0.0 + vy * self.params.step_duration * phase
+        z = self.params.step_height * np.sin(np.pi * phase)  # Arco
+
+        return np.array([x, y, z])
+
+    def _ik_leg(self, foot_pos: np.ndarray, leg: str) -> dict:
+        """
+        Inverse kinematics simplificado (analytical 2D)
+
+        Args:
+            foot_pos: [x, y, z] posição do pé
+            leg: "left" ou "right"
+
+        Returns:
+            dict com joint positions
+        """
+        x, y, z = foot_pos
+
+        # Simplificação: 2D (ignorar y por enquanto)
+        # Perna como 2 links (coxa + canela)
+        L1 = 0.35  # Coxa [m]
+        L2 = 0.35  # Canela [m]
+
+        # Distância do quadril ao pé (2D)
+        r = np.sqrt(x**2 + (self.params.body_height - z)**2)
+
+        # Lei dos cossenos para joelho
+        cos_knee = (r**2 - L1**2 - L2**2) / (2 * L1 * L2)
+        cos_knee = np.clip(cos_knee, -1.0, 1.0)
+        knee = np.pi - np.arccos(cos_knee)  # Ângulo do joelho
+
+        # Ângulo do quadril
+        alpha = np.arctan2(x, self.params.body_height - z)
+        beta = np.arcsin(L2 * np.sin(knee) / r)
+        hip_pitch = alpha - beta
+
+        # Simplificação: outros DOFs = 0
+        joints = {
+            f"{leg}_hip_pitch": hip_pitch,
+            f"{leg}_hip_roll": 0.0,
+            f"{leg}_hip_yaw": 0.0,
+            f"{leg}_knee": knee,
+            f"{leg}_ankle_pitch": -hip_pitch - knee,  # Manter pé paralelo ao chão
+            f"{leg}_ankle_roll": 0.0
+        }
+
+        return joints
+
+    def _send_leg_commands(self, joints: dict, leg: str):
+        """Envia comandos para juntas da perna"""
+        for joint_name, position in joints.items():
+            cmd = JointCommand()
+            cmd.joint_name = joint_name
+            cmd.control_mode = "POSITION"
+            cmd.target_position = position
+            cmd.max_velocity = 2.0
+            cmd.kp = 100.0
+            cmd.kd = 5.0
+
+            self.robot.send_command(cmd)
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection()
+    robot.set_control_mode("POSITION")
+
+    params = GaitParams(
+        step_length=0.15,
+        step_width=0.3,
+        step_height=0.06,
+        step_duration=0.8,
+        body_height=0.4
+    )
+
+    controller = SimpleWalkController(robot, params)
+
+    print("🚶 Walking controller iniciado")
+    print("Comandos: vx=0.3 m/s para frente")
+
+    try:
+        while True:
+            controller.step(vx=0.3, vy=0.0, vyaw=0.0)
+            time.sleep(0.01)  # 100 Hz
+
+    except KeyboardInterrupt:
+        print("\nParando...")
+        robot.set_control_mode("IDLE")
+        robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+**⚠️ Nota:** Este é um exemplo simplificado. Para produção, use bibliotecas de IK (Pinocchio, IKFast) e balanço (ZMP, MPC).
+
+---
+
+## 🏔️ Terrain Adaptation
+
+### Detecção de Terreno
+
+<Tabs>
+<TabItem value="imu" label="🧭 IMU-based">
+
+```python
+def estimate_terrain_slope(imu_data):
+    """
+    Estima inclinação do terreno baseado no IMU
+
+    Returns:
+        (slope_x, slope_y) em radianos
+    """
+    roll, pitch, yaw = imu_data.euler
+
+    # Assumindo que robô está parado e alinhado com terreno
+    # Pitch = inclinação do terreno (subida/descida)
+    # Roll = inclinação lateral
+
+    return pitch, roll
+
+# Ajustar gait baseado em slope
+def adapt_gait_to_slope(params: GaitParams, slope_x: float, slope_y: float):
+    """Adapta parâmetros do gait para inclinação"""
+    # Subida: passos menores, mais altos
+    if slope_x > 0.1:  # Subindo (> ~6°)
+        params.step_length *= 0.7
+        params.step_height *= 1.3
+        params.step_duration *= 1.2  # Mais devagar
+        print("🏔️  Subida detectada - adaptando gait")
+
+    # Descida: passos menores, mais lentos
+    elif slope_x < -0.1:  # Descendo
+        params.step_length *= 0.6
+        params.step_height *= 0.9
+        params.step_duration *= 1.5  # Muito mais devagar
+        print("⛰️  Descida detectada - adaptando gait")
+
+    return params
+```
+
+</TabItem>
+<TabItem value="force" label="👣 Force-based">
+
+```python
+def detect_terrain_contact(state):
+    """
+    Detecta características do terreno pelos sensores de força
+
+    Returns:
+        dict com informações
+    """
+    left_force = state.left_foot_force
+    right_force = state.right_foot_force
+
+    # Variação de força indica terreno irregular
+    force_history = []  # Histórico das últimas 100 leituras
+
+    force_history.append((left_force, right_force))
+    if len(force_history) > 100:
+        force_history.pop(0)
+
+    # Calcular variância
+    left_variance = np.var([f[0] for f in force_history])
+    right_variance = np.var([f[1] for f in force_history])
+
+    terrain_type = "flat"
+
+    if left_variance > 500 or right_variance > 500:  # Alta variância
+        terrain_type = "rough"
+        print("🪨 Terreno irregular detectado")
+    elif abs(left_force - right_force) > 100:  # Assimetria
+        terrain_type = "sloped"
+        print("📐 Terreno inclinado detectado")
+
+    return {
+        "type": terrain_type,
+        "left_variance": left_variance,
+        "right_variance": right_variance
+    }
+```
+
+</TabItem>
+</Tabs>
+
+### Adaptive Gait Controller
+
+```python
+class AdaptiveWalkController(SimpleWalkController):
+    def __init__(self, robot: G1Robot, params: GaitParams):
+        super().__init__(robot, params)
+
+        # Histórico de forças
+        self.force_history = []
+
+    def step(self, vx: float, vy: float, vyaw: float):
+        """Step com adaptação automática"""
+        state = self.robot.get_state()
+
+        # Detectar terreno
+        terrain = detect_terrain_contact(state)
+        slope_x, slope_y = estimate_terrain_slope(state)
+
+        # Adaptar parâmetros
+        if terrain["type"] == "rough":
+            self.params.step_height = 0.12  # Passos mais altos
+            self.params.step_duration = 1.0  # Mais devagar
+        elif terrain["type"] == "sloped":
+            self.params = adapt_gait_to_slope(self.params, slope_x, slope_y)
+        else:  # flat
+            # Parâmetros normais
+            self.params.step_height = 0.08
+            self.params.step_duration = 0.6
+
+        # Executar passo normal
+        super().step(vx, vy, vyaw)
+```
+
+---
+
+## 🪜 Stair Climbing
+
+### Algoritmo de Subida de Escadas
+
+```python
+#!/usr/bin/env python3
+"""
+stair_climbing.py - Subida de escadas
+"""
+
+from dataclasses import dataclass
+
+@dataclass
+class StairParams:
+    step_height: float = 0.18  # [m] altura típica de degrau
+    step_depth: float = 0.28   # [m] profundidade
+    num_steps: int = 5
+
+class StairClimbingController:
+    def __init__(self, robot: G1Robot, stair_params: StairParams):
+        self.robot = robot
+        self.stair = stair_params
+
+        # Estado
+        self.current_step = 0
+        self.phase = "approach"  # approach, climb, finish
+
+    def climb(self):
+        """Executa subida completa"""
+        print(f"🪜 Subindo escada ({self.stair.num_steps} degraus)")
+
+        while self.current_step < self.stair.num_steps:
+            if self.phase == "approach":
+                self._approach_step()
+            elif self.phase == "climb":
+                self._climb_step()
+
+        print("✅ Escada concluída!")
+
+    def _approach_step(self):
+        """Aproxima do próximo degrau"""
+        print(f"Aproximando degrau {self.current_step + 1}")
+
+        # Caminhar até degrau (usar depth camera para distância)
+        # Por enquanto, assumir distância fixa
+        distance_to_step = 0.3  # [m]
+
+        # Caminhar até lá
+        cmd = MotionCommand()
+        cmd.gait_type = "walk"
+        cmd.vx = 0.2
+        cmd.body_height = 0.35  # Mais baixo para estabilidade
+
+        duration = distance_to_step / 0.2  # tempo = distância / velocidade
+        start_time = time.time()
+
+        while (time.time() - start_time) < duration:
+            robot.send_motion_command(cmd)
+            time.sleep(0.1)
+
+        # Parar
+        cmd.vx = 0.0
+        robot.send_motion_command(cmd)
+
+        self.phase = "climb"
+
+    def _climb_step(self):
+        """Sobe um degrau"""
+        print(f"Subindo degrau {self.current_step + 1}")
+
+        # 1. Levantar pé esquerdo alto
+        self._lift_foot("left", height=self.stair.step_height + 0.05)
+
+        # 2. Mover pé para cima do degrau
+        self._place_foot("left", forward=self.stair.step_depth,
+                         up=self.stair.step_height)
+
+        # 3. Transferir peso para pé esquerdo
+        self._shift_weight_to("left")
+
+        # 4. Trazer pé direito
+        self._lift_foot("right", height=self.stair.step_height + 0.05)
+        self._place_foot("right", forward=self.stair.step_depth,
+                         up=self.stair.step_height)
+
+        # 5. Transferir peso para centro
+        self._shift_weight_to("center")
+
+        self.current_step += 1
+
+        if self.current_step < self.stair.num_steps:
+            self.phase = "approach"
+
+    def _lift_foot(self, foot: str, height: float):
+        """Levanta pé (IK wrapper)"""
+        # Simplificação - usar IK para posicionar pé
+        print(f"  Levantando {foot} para {height*100:.0f} cm")
+        time.sleep(0.5)  # Placeholder
+
+    def _place_foot(self, foot: str, forward: float, up: float):
+        """Coloca pé em posição"""
+        print(f"  Colocando {foot} em (forward={forward:.2f}m, up={up:.2f}m)")
+        time.sleep(0.5)
+
+    def _shift_weight_to(self, target: str):
+        """Transfere peso (ajusta CoM)"""
+        print(f"  Transferindo peso para {target}")
+        time.sleep(0.3)
+
+# Uso:
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    stair_params = StairParams(
+        step_height=0.18,
+        step_depth=0.28,
+        num_steps=5
+    )
+
+    controller = StairClimbingController(robot, stair_params)
+    controller.climb()
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+**⚠️ Nota:** Stair climbing é complexo! Produção requer:
+- Depth camera para detectar degraus
+- IK preciso (Pinocchio)
+- Balance controller robusto
+- Recovery behaviors (se falhar)
+
+---
+
+## 📊 Exemplo Completo: Terrain-Aware Navigation
+
+```python
+#!/usr/bin/env python3
+"""
+terrain_aware_navigation.py - Navegação com adaptação ao terreno
+"""
+
+from enum import Enum
+
+class TerrainType(Enum):
+    FLAT = "flat"
+    ROUGH = "rough"
+    SLOPED = "sloped"
+    STAIRS = "stairs"
+
+class TerrainAwareNavigator:
+    def __init__(self, robot: G1Robot):
+        self.robot = robot
+
+        # Controllers especializados
+        self.walk_ctrl = AdaptiveWalkController(robot, GaitParams())
+        self.stair_ctrl = StairClimbingController(robot, StairParams())
+
+        # Estado
+        self.current_terrain = TerrainType.FLAT
+
+    def navigate_to(self, target_x: float, target_y: float):
+        """Navega para (x, y) adaptando ao terreno"""
+        print(f"🎯 Navegando para ({target_x:.2f}, {target_y:.2f})")
+
+        while not self._reached_goal(target_x, target_y):
+            # Atualizar percepção de terreno
+            self.current_terrain = self._classify_terrain()
+
+            # Escolher controller apropriado
+            if self.current_terrain == TerrainType.STAIRS:
+                print("🪜 Escada detectada - usando stair controller")
+                self.stair_ctrl.climb()
+            else:
+                # Usar walking controller adaptativo
+                vx, vy = self._compute_velocity_command(target_x, target_y)
+                self.walk_ctrl.step(vx, vy, vyaw=0.0)
+
+            time.sleep(0.01)
+
+        print("✅ Objetivo alcançado!")
+
+    def _classify_terrain(self) -> TerrainType:
+        """Classifica terreno atual (placeholder - usar visão)"""
+        state = self.robot.get_state()
+
+        # Simplificação: baseado em IMU e forças
+        pitch = state.imu_euler[1]
+
+        if abs(pitch) > 0.2:  # > 11°
+            return TerrainType.SLOPED
+
+        # Na prática: usar depth camera para detectar escadas
+        # if detect_stairs_with_camera():
+        #     return TerrainType.STAIRS
+
+        return TerrainType.FLAT
+
+    def _compute_velocity_command(self, target_x: float, target_y: float):
+        """Calcula comando de velocidade para objetivo"""
+        # Simplificação: assumir robô em (0, 0)
+        dx = target_x - 0.0
+        dy = target_y - 0.0
+
+        # Velocidade proporcional à distância
+        vx = np.clip(0.5 * dx, -0.5, 0.5)
+        vy = np.clip(0.5 * dy, -0.3, 0.3)
+
+        return vx, vy
+
+    def _reached_goal(self, target_x: float, target_y: float, threshold=0.1):
+        """Verifica se alcançou objetivo"""
+        # Placeholder - na prática usar odometria
+        return False  # Loop infinito por enquanto
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Entendi os 3 gaits do G1 (walk, trot, stand)
+- [ ] Enviei MotionCommand para controlar gait
+- [ ] Implementei Simple Walking Controller
+- [ ] Criei adaptação a terreno (slope, rough)
+- [ ] Implementei Stair Climbing Controller (conceitual)
+- [ ] Testei Terrain-Aware Navigator
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🦾 Manipulação com Braços do G1 →](./manipulacao-bracos)**
+
+Aprenda controle dos braços: kinematics, gripper control, pick and place, e force control.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 80-100 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 80% prático, 20% teórico

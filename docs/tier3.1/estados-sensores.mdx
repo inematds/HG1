@@ -1,0 +1,785 @@
+---
+sidebar_position: 4
+title: 4. Leitura de Estados e Sensores
+description: IMU, força/torque, encoders e sensor fusion
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📊 Leitura de Estados e Sensores do G1
+
+:::tip Objetivo do Módulo
+Dominar a leitura e processamento de todos os sensores do G1: IMU (orientação, aceleração), sensores de força/torque nos pés, encoders das juntas, e implementar sensor fusion para estimação de estado robusta.
+:::
+
+---
+
+## 🧭 IMU (Inertial Measurement Unit)
+
+### Hardware: IMU do G1
+
+**Modelo:** 6-axis IMU (acelerômetro + giroscópio)
+- **Localização:** Centro do torso
+- **Sampling rate:** 1000 Hz (1 kHz)
+- **Acelerômetro:** ±16g range, resolução 0.001g
+- **Giroscópio:** ±2000 °/s range, resolução 0.1 °/s
+
+### Dados Disponíveis
+
+<Tabs>
+<TabItem value="orientation" label="🧭 Orientação">
+
+**Representações:**
+
+```python
+from unitree_sdk2_python import G1Robot
+import numpy as np
+
+robot = G1Robot()
+robot.wait_for_connection()
+state = robot.get_state()
+
+# 1. Quaternion (w, x, y, z)
+quat = state.imu_quaternion
+print(f"Quaternion: w={quat[0]:.3f}, x={quat[1]:.3f}, y={quat[2]:.3f}, z={quat[3]:.3f}")
+
+# 2. Euler angles (roll, pitch, yaw) - radianos
+roll, pitch, yaw = state.imu_euler
+print(f"Roll:  {roll * 57.3:.1f}°")   # Inclinação lateral
+print(f"Pitch: {pitch * 57.3:.1f}°")  # Inclinação frente/trás
+print(f"Yaw:   {yaw * 57.3:.1f}°")    # Rotação (heading)
+
+# 3. Rotation matrix (3x3) - converter de quaternion
+def quat_to_matrix(q):
+    w, x, y, z = q
+    return np.array([
+        [1 - 2*(y**2 + z**2), 2*(x*y - w*z), 2*(x*z + w*y)],
+        [2*(x*y + w*z), 1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
+        [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x**2 + y**2)]
+    ])
+
+R = quat_to_matrix(quat)
+print(f"Rotation matrix:\n{R}")
+```
+
+**Eixos de referência:**
+
+```
+Body frame (robô):
+    Z
+    |
+    |__ Y
+   /
+  X
+
+X: Frente (direção de movimento)
+Y: Esquerda
+Z: Cima (vertical)
+
+Roll:  Rotação em torno de X (inclinação lateral)
+Pitch: Rotação em torno de Y (inclinação frente/trás)
+Yaw:   Rotação em torno de Z (rotação horizontal)
+```
+
+</TabItem>
+<TabItem value="angular-vel" label="🔄 Velocidade Angular">
+
+**Dados brutos (rad/s):**
+
+```python
+# Velocidade angular em body frame
+wx, wy, wz = state.imu_angular_velocity
+
+print(f"Velocidade angular:")
+print(f"  Roll rate:  {wx * 57.3:.1f} °/s")
+print(f"  Pitch rate: {wy * 57.3:.1f} °/s")
+print(f"  Yaw rate:   {wz * 57.3:.1f} °/s")
+
+# Magnitude total
+w_mag = np.sqrt(wx**2 + wy**2 + wz**2)
+print(f"  Magnitude:  {w_mag * 57.3:.1f} °/s")
+```
+
+**Detecção de quedas:**
+
+```python
+def is_falling(imu_data) -> bool:
+    """Detecta se robô está caindo"""
+    roll, pitch, yaw = imu_data.euler
+    wx, wy, wz = imu_data.angular_velocity
+
+    # Critério 1: Inclinação > 30°
+    if abs(roll) > 0.52 or abs(pitch) > 0.52:  # 30° = 0.52 rad
+        return True
+
+    # Critério 2: Velocidade angular alta (rápida rotação)
+    w_mag = np.sqrt(wx**2 + wy**2 + wz**2)
+    if w_mag > 3.0:  # > 170°/s
+        return True
+
+    return False
+```
+
+</TabItem>
+<TabItem value="accel" label="📈 Aceleração Linear">
+
+**Dados brutos (m/s²):**
+
+```python
+ax, ay, az = state.imu_linear_acceleration
+
+print(f"Aceleração:")
+print(f"  X: {ax:.2f} m/s² (frente/trás)")
+print(f"  Y: {ay:.2f} m/s² (lateral)")
+print(f"  Z: {az:.2f} m/s² (vertical)")
+
+# Magnitude (inclui gravidade)
+a_mag = np.sqrt(ax**2 + ay**2 + az**2)
+print(f"  Magnitude: {a_mag:.2f} m/s²")
+```
+
+**⚠️ Atenção:** Acelerômetro mede **aceleração específica** (inclui gravidade)
+
+```python
+# Quando robô está parado e vertical:
+# ax = 0, ay = 0, az = 9.81 m/s² (gravidade)
+
+# Remover gravidade (usando orientação):
+def remove_gravity(accel, quaternion):
+    """Remove componente gravitacional"""
+    # Gravidade em world frame
+    g_world = np.array([0, 0, -9.81])
+
+    # Converter para body frame
+    R = quat_to_matrix(quaternion)
+    g_body = R.T @ g_world
+
+    # Aceleração sem gravidade
+    accel_nograv = accel - g_body
+    return accel_nograv
+
+accel_clean = remove_gravity(
+    np.array([ax, ay, az]),
+    state.imu_quaternion
+)
+print(f"Aceleração (sem gravidade): {accel_clean}")
+```
+
+**Detecção de impactos:**
+
+```python
+def detect_impact(accel, threshold=20.0):
+    """Detecta impactos (quedas, colisões)"""
+    a_mag = np.linalg.norm(accel)
+
+    if a_mag > threshold:
+        print(f"⚠️  IMPACTO DETECTADO! {a_mag:.1f} m/s²")
+        return True
+    return False
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 👣 Sensores de Força/Torque nos Pés
+
+### Hardware
+
+**Tipo:** 4-axis force/torque sensors
+- **Localização:** Um em cada pé (entre tornozelo e sola)
+- **Range:** ±500 N (vertical), ±100 N (horizontal)
+- **Resolução:** 0.1 N
+- **Sampling rate:** 100 Hz
+
+### Dados Disponíveis
+
+```python
+state = robot.get_state()
+
+# Forças verticais (peso)
+left_fz = state.left_foot_force    # [N]
+right_fz = state.right_foot_force  # [N]
+
+print(f"Pé esquerdo: {left_fz:.1f} N")
+print(f"Pé direito:  {right_fz:.1f} N")
+print(f"Total:       {left_fz + right_fz:.1f} N")
+print(f"(Peso G1:    ~540 N = 55 kg * 9.81)")
+
+# Torques (momentos em torno de X, Y, Z)
+left_tx, left_ty, left_tz = state.left_foot_torque   # [Nm]
+right_tx, right_ty, right_tz = state.right_foot_torque
+
+print(f"\nTorques pé esquerdo:")
+print(f"  Tx (roll):  {left_tx:.2f} Nm")
+print(f"  Ty (pitch): {left_ty:.2f} Nm")
+print(f"  Tz (yaw):   {left_tz:.2f} Nm")
+```
+
+### Aplicações Práticas
+
+<Tabs>
+<TabItem value="contact" label="👟 Detecção de Contato">
+
+```python
+def get_foot_contact_state(state) -> dict:
+    """
+    Detecta se pés estão em contato com solo
+
+    Returns:
+        dict com 'left' e 'right' (bool)
+    """
+    threshold = 50.0  # [N] mínimo para considerar contato
+
+    left_contact = state.left_foot_force > threshold
+    right_contact = state.right_foot_force > threshold
+
+    return {
+        "left": left_contact,
+        "right": right_contact,
+        "both": left_contact and right_contact,
+        "none": not (left_contact or right_contact)
+    }
+
+# Uso em gait controller:
+contact = get_foot_contact_state(state)
+if contact["both"]:
+    print("Fase de duplo suporte")
+elif contact["left"]:
+    print("Suporte esquerdo (perna direita balanço)")
+elif contact["right"]:
+    print("Suporte direito (perna esquerda balanço)")
+else:
+    print("⚠️  SEM CONTATO - robô no ar ou caindo!")
+```
+
+</TabItem>
+<TabItem value="cop" label="📍 Center of Pressure (CoP)">
+
+```python
+def compute_cop(foot_force, foot_torque, foot_width=0.1, foot_length=0.2):
+    """
+    Calcula Center of Pressure (ponto de aplicação da força)
+
+    Args:
+        foot_force: Força vertical [N]
+        foot_torque: (Tx, Ty, Tz) [Nm]
+        foot_width: Largura do pé [m]
+        foot_length: Comprimento do pé [m]
+
+    Returns:
+        (cop_x, cop_y) em coordenadas do pé [m]
+    """
+    if foot_force < 10.0:  # Sem contato
+        return None, None
+
+    tx, ty, tz = foot_torque
+
+    # CoP = (Ty / Fz, -Tx / Fz)
+    cop_x = ty / foot_force   # Frente/trás
+    cop_y = -tx / foot_force  # Lateral
+
+    # Limitar ao tamanho do pé
+    cop_x = np.clip(cop_x, -foot_length/2, foot_length/2)
+    cop_y = np.clip(cop_y, -foot_width/2, foot_width/2)
+
+    return cop_x, cop_y
+
+# Uso:
+left_cop_x, left_cop_y = compute_cop(
+    state.left_foot_force,
+    state.left_foot_torque
+)
+
+if left_cop_x is not None:
+    print(f"CoP esquerdo: ({left_cop_x*100:.1f} cm, {left_cop_y*100:.1f} cm)")
+```
+
+**Aplicação:** Verificar estabilidade (CoP deve estar dentro do pé)
+
+</TabItem>
+<TabItem value="zmp" label="⚖️ Zero Moment Point (ZMP)">
+
+```python
+def compute_zmp(state):
+    """
+    Calcula ZMP global (indicador de estabilidade)
+
+    ZMP dentro do polígono de suporte = robô estável
+    """
+    # Forças nos pés
+    fl = state.left_foot_force
+    fr = state.right_foot_force
+    f_total = fl + fr
+
+    if f_total < 50.0:
+        return None, None
+
+    # Posições dos pés (assumir largura entre pés = 0.3m)
+    left_foot_pos = np.array([-0.15, 0.0])  # [x, y] em world
+    right_foot_pos = np.array([0.15, 0.0])
+
+    # ZMP = média ponderada das posições
+    zmp = (fl * left_foot_pos + fr * right_foot_pos) / f_total
+
+    return zmp[0], zmp[1]
+
+# Uso:
+zmp_x, zmp_y = compute_zmp(state)
+if zmp_x is not None:
+    print(f"ZMP: ({zmp_x:.3f}, {zmp_y:.3f}) m")
+
+    # Verificar estabilidade (deve estar entre os pés)
+    if -0.15 < zmp_x < 0.15:
+        print("✅ Estável")
+    else:
+        print("⚠️  ZMP fora do polígono - instável!")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔧 Encoders das Juntas
+
+### Especificações
+
+**Tipo:** Magnetic encoders (14-bit)
+- **Resolução:** 14 bits = 16384 counts/rev
+- **Precisão angular:** 360° / 16384 = 0.022° ≈ 0.00038 rad
+- **Noise:** &lt; 0.001 rad (após filtragem)
+- **Sampling rate:** 1000 Hz
+
+### Dados Disponíveis
+
+```python
+state = robot.get_state()
+
+# Posições, velocidades, torques de todas as juntas
+for i, name in enumerate(state.joint_names):
+    pos = state.joint_positions[i]      # [rad]
+    vel = state.joint_velocities[i]     # [rad/s]
+    tau = state.joint_torques[i]        # [Nm]
+    temp = state.joint_temperatures[i]  # [°C]
+
+    print(f"{name:20} | "
+          f"Pos: {pos:>7.3f} rad | "
+          f"Vel: {vel:>6.2f} rad/s | "
+          f"Tau: {tau:>6.2f} Nm | "
+          f"Temp: {temp:>4.1f}°C")
+```
+
+### Filtragem de Ruído
+
+<Tabs>
+<TabItem value="lowpass" label="🔽 Low-Pass Filter">
+
+```python
+from scipy import signal
+
+class LowPassFilter:
+    def __init__(self, cutoff_freq=10.0, sample_rate=100.0):
+        """
+        Filtro passa-baixa (remove ruído de alta frequência)
+
+        Args:
+            cutoff_freq: Frequência de corte [Hz]
+            sample_rate: Taxa de amostragem [Hz]
+        """
+        nyquist = sample_rate / 2.0
+        normal_cutoff = cutoff_freq / nyquist
+
+        # Butterworth filter (2nd order)
+        self.b, self.a = signal.butter(2, normal_cutoff, btype='low')
+
+        # Estado do filtro (para filtragem online)
+        self.zi = signal.lfilter_zi(self.b, self.a)
+
+    def filter(self, value):
+        """Filtra um valor (chamada a cada sample)"""
+        filtered, self.zi = signal.lfilter(
+            self.b, self.a, [value], zi=self.zi
+        )
+        return filtered[0]
+
+# Uso:
+pos_filter = LowPassFilter(cutoff_freq=20.0, sample_rate=100.0)
+
+while True:
+    state = robot.get_state()
+    pos_raw = state.joint_positions[0]
+    pos_filtered = pos_filter.filter(pos_raw)
+
+    print(f"Raw: {pos_raw:.4f}, Filtered: {pos_filtered:.4f}")
+    time.sleep(0.01)
+```
+
+</TabItem>
+<TabItem value="kalman" label="📊 Kalman Filter">
+
+```python
+import numpy as np
+
+class KalmanFilter1D:
+    def __init__(self, process_variance=1e-5, measurement_variance=1e-2):
+        """
+        Kalman filter para estimar posição e velocidade
+
+        Args:
+            process_variance: Confiança no modelo (menor = mais confiança)
+            measurement_variance: Ruído do sensor (menor = mais confiança)
+        """
+        # Estado: [posição, velocidade]
+        self.x = np.array([0.0, 0.0])
+
+        # Covariância
+        self.P = np.eye(2)
+
+        # Ruídos
+        self.Q = np.array([[process_variance, 0],
+                           [0, process_variance]])
+        self.R = measurement_variance
+
+        # Última atualização
+        self.last_time = time.time()
+
+    def predict(self):
+        """Passo de predição (modelo de movimento)"""
+        dt = time.time() - self.last_time
+        self.last_time = time.time()
+
+        # Matriz de transição de estado (modelo de velocidade constante)
+        F = np.array([[1, dt],
+                      [0, 1]])
+
+        # Predizer estado
+        self.x = F @ self.x
+
+        # Predizer covariância
+        self.P = F @ self.P @ F.T + self.Q
+
+    def update(self, measurement):
+        """Passo de atualização (medição do encoder)"""
+        # Matriz de observação (medimos apenas posição)
+        H = np.array([[1, 0]])
+
+        # Inovação
+        y = measurement - H @ self.x
+
+        # Covariância da inovação
+        S = H @ self.P @ H.T + self.R
+
+        # Ganho de Kalman
+        K = self.P @ H.T / S
+
+        # Atualizar estado
+        self.x = self.x + K * y
+
+        # Atualizar covariância
+        self.P = (np.eye(2) - K @ H) @ self.P
+
+        return self.x[0], self.x[1]  # posição, velocidade
+
+# Uso:
+kf = KalmanFilter1D()
+
+while True:
+    state = robot.get_state()
+    pos_measured = state.joint_positions[0]
+
+    kf.predict()
+    pos_est, vel_est = kf.update(pos_measured)
+
+    print(f"Measured: {pos_measured:.4f}, "
+          f"Estimated: {pos_est:.4f}, "
+          f"Velocity: {vel_est:.4f}")
+
+    time.sleep(0.01)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔀 Sensor Fusion
+
+### Complementary Filter (IMU + Encoders)
+
+**Objetivo:** Combinar IMU (rápida, ruidosa) com encoders (lenta, precisa) para estimar orientação do torso.
+
+```python
+class ComplementaryFilter:
+    def __init__(self, alpha=0.98):
+        """
+        Filtro complementar para orientação
+
+        Args:
+            alpha: Peso do giroscópio (0.98 = 98% gyro, 2% accel)
+        """
+        self.alpha = alpha
+        self.roll = 0.0
+        self.pitch = 0.0
+        self.last_time = time.time()
+
+    def update(self, accel, gyro, dt=None):
+        """
+        Atualiza estimativa de orientação
+
+        Args:
+            accel: (ax, ay, az) [m/s²]
+            gyro: (wx, wy, wz) [rad/s]
+            dt: Time step [s] (opcional, calcula automaticamente)
+        """
+        if dt is None:
+            dt = time.time() - self.last_time
+            self.last_time = time.time()
+
+        ax, ay, az = accel
+        wx, wy, wz = gyro
+
+        # Estimativa do acelerômetro (baseada em gravidade)
+        roll_accel = np.arctan2(ay, az)
+        pitch_accel = np.arctan2(-ax, np.sqrt(ay**2 + az**2))
+
+        # Integração do giroscópio
+        self.roll += wx * dt
+        self.pitch += wy * dt
+
+        # Fusão complementar
+        self.roll = self.alpha * self.roll + (1 - self.alpha) * roll_accel
+        self.pitch = self.alpha * self.pitch + (1 - self.alpha) * pitch_accel
+
+        return self.roll, self.pitch
+
+# Uso:
+cf = ComplementaryFilter(alpha=0.98)
+
+while True:
+    state = robot.get_state()
+
+    accel = state.imu_linear_acceleration
+    gyro = state.imu_angular_velocity
+
+    roll, pitch = cf.update(accel, gyro)
+
+    print(f"Roll: {roll*57.3:>6.2f}°, Pitch: {pitch*57.3:>6.2f}°")
+    time.sleep(0.01)
+```
+
+---
+
+## 📦 Exemplo Completo: State Estimator
+
+```python
+#!/usr/bin/env python3
+"""
+state_estimator.py - Estimador de estado completo do G1
+Combina todos os sensores para estimativa robusta
+"""
+
+from unitree_sdk2_python import G1Robot
+import numpy as np
+from dataclasses import dataclass
+import time
+
+@dataclass
+class RobotStateEstimate:
+    """Estado estimado do robô"""
+    # Orientação
+    roll: float = 0.0
+    pitch: float = 0.0
+    yaw: float = 0.0
+
+    # Velocidade angular
+    roll_rate: float = 0.0
+    pitch_rate: float = 0.0
+    yaw_rate: float = 0.0
+
+    # Aceleração (sem gravidade)
+    accel_x: float = 0.0
+    accel_y: float = 0.0
+    accel_z: float = 0.0
+
+    # Contato com solo
+    left_foot_contact: bool = False
+    right_foot_contact: bool = False
+
+    # CoP / ZMP
+    cop_left_x: float = 0.0
+    cop_left_y: float = 0.0
+    cop_right_x: float = 0.0
+    cop_right_y: float = 0.0
+    zmp_x: float = 0.0
+    zmp_y: float = 0.0
+
+    # Juntas (exemplo: primeiras 6)
+    joint_positions: np.ndarray = None
+    joint_velocities: np.ndarray = None
+
+class StateEstimator:
+    def __init__(self, robot: G1Robot):
+        self.robot = robot
+
+        # Filtros
+        self.comp_filter = ComplementaryFilter(alpha=0.98)
+
+        # Estado estimado
+        self.estimate = RobotStateEstimate()
+
+    def update(self):
+        """Atualiza estimativa (chamar a 100+ Hz)"""
+        state = self.robot.get_state()
+
+        # 1. Orientação (complementary filter)
+        accel = np.array(state.imu_linear_acceleration)
+        gyro = np.array(state.imu_angular_velocity)
+
+        roll, pitch = self.comp_filter.update(accel, gyro)
+        self.estimate.roll = roll
+        self.estimate.pitch = pitch
+        self.estimate.yaw = state.imu_euler[2]  # Usar diretamente do IMU
+
+        # 2. Velocidades angulares
+        self.estimate.roll_rate = gyro[0]
+        self.estimate.pitch_rate = gyro[1]
+        self.estimate.yaw_rate = gyro[2]
+
+        # 3. Aceleração sem gravidade
+        R = self._euler_to_rotation_matrix(roll, pitch, self.estimate.yaw)
+        g_world = np.array([0, 0, -9.81])
+        g_body = R.T @ g_world
+        accel_nograv = accel - g_body
+
+        self.estimate.accel_x = accel_nograv[0]
+        self.estimate.accel_y = accel_nograv[1]
+        self.estimate.accel_z = accel_nograv[2]
+
+        # 4. Contato com solo
+        self.estimate.left_foot_contact = state.left_foot_force > 50.0
+        self.estimate.right_foot_contact = state.right_foot_force > 50.0
+
+        # 5. CoP / ZMP
+        if self.estimate.left_foot_contact:
+            self.estimate.cop_left_x, self.estimate.cop_left_y = compute_cop(
+                state.left_foot_force, state.left_foot_torque
+            )
+
+        if self.estimate.right_foot_contact:
+            self.estimate.cop_right_x, self.estimate.cop_right_y = compute_cop(
+                state.right_foot_force, state.right_foot_torque
+            )
+
+        self.estimate.zmp_x, self.estimate.zmp_y = compute_zmp(state)
+
+        # 6. Juntas (primeiras 6 como exemplo)
+        self.estimate.joint_positions = np.array(state.joint_positions[:6])
+        self.estimate.joint_velocities = np.array(state.joint_velocities[:6])
+
+        return self.estimate
+
+    def _euler_to_rotation_matrix(self, roll, pitch, yaw):
+        """Converte Euler para matriz de rotação"""
+        cr, sr = np.cos(roll), np.sin(roll)
+        cp, sp = np.cos(pitch), np.sin(pitch)
+        cy, sy = np.cos(yaw), np.sin(yaw)
+
+        return np.array([
+            [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+            [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+            [-sp, cp*sr, cp*cr]
+        ])
+
+    def print_state(self):
+        """Imprime estado estimado"""
+        est = self.estimate
+
+        print("\n" + "="*60)
+        print("STATE ESTIMATE")
+        print("="*60)
+
+        print("\n🧭 ORIENTAÇÃO")
+        print(f"  Roll:  {est.roll*57.3:>7.2f}° ({est.roll_rate*57.3:>6.1f}°/s)")
+        print(f"  Pitch: {est.pitch*57.3:>7.2f}° ({est.pitch_rate*57.3:>6.1f}°/s)")
+        print(f"  Yaw:   {est.yaw*57.3:>7.2f}° ({est.yaw_rate*57.3:>6.1f}°/s)")
+
+        print("\n📈 ACELERAÇÃO (sem gravidade)")
+        print(f"  X: {est.accel_x:>6.2f} m/s²")
+        print(f"  Y: {est.accel_y:>6.2f} m/s²")
+        print(f"  Z: {est.accel_z:>6.2f} m/s²")
+
+        print("\n👣 CONTATO COM SOLO")
+        left_str = "✅ SIM" if est.left_foot_contact else "❌ NÃO"
+        right_str = "✅ SIM" if est.right_foot_contact else "❌ NÃO"
+        print(f"  Esquerdo: {left_str}")
+        print(f"  Direito:  {right_str}")
+
+        if est.left_foot_contact:
+            print(f"\n📍 CoP ESQUERDO")
+            print(f"  X: {est.cop_left_x*100:>5.1f} cm")
+            print(f"  Y: {est.cop_left_y*100:>5.1f} cm")
+
+        if est.right_foot_contact:
+            print(f"\n📍 CoP DIREITO")
+            print(f"  X: {est.cop_right_x*100:>5.1f} cm")
+            print(f"  Y: {est.cop_right_y*100:>5.1f} cm")
+
+        if est.zmp_x is not None:
+            print(f"\n⚖️  ZMP GLOBAL")
+            print(f"  X: {est.zmp_x:.3f} m")
+            print(f"  Y: {est.zmp_y:.3f} m")
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+
+    estimator = StateEstimator(robot)
+
+    print("🚀 State Estimator iniciado")
+    print("Pressione Ctrl+C para sair\n")
+
+    try:
+        while True:
+            estimator.update()
+            estimator.print_state()
+            time.sleep(0.1)  # 10 Hz display
+
+    except KeyboardInterrupt:
+        print("\n\nEncerrando...")
+        robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Lei dados do IMU (quaternion, euler, gyro, accel)
+- [ ] Implementei detecção de quedas
+- [ ] Lei sensores de força/torque nos pés
+- [ ] Calculei Center of Pressure (CoP)
+- [ ] Calculei Zero Moment Point (ZMP)
+- [ ] Implementei filtros (low-pass, Kalman)
+- [ ] Implementei Complementary Filter para orientação
+- [ ] Criei State Estimator completo
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🚶 Locomoção Customizada →](./locomocao-customizada)**
+
+Implemente gait patterns, walking controllers, terrain adaptation e stair climbing no G1.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 60-80 min
+**🧠 Nível:** Intermediário-Avançado
+**💻 Hands-on:** 75% prático, 25% teórico

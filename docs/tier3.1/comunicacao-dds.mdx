@@ -1,0 +1,1142 @@
+---
+sidebar_position: 2
+title: 2. Comunicação DDS com G1
+description: Cyclone DDS, topics, QoS e network debugging
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📡 Comunicação DDS com Unitree G1
+
+:::tip Objetivo do Módulo
+Dominar o Cyclone DDS usado pelo G1, entender os topics publicados/subscritos, configurar QoS para performance ótima, e debugar problemas de rede em tempo real.
+:::
+
+---
+
+## 🌐 O Que é DDS?
+
+### Data Distribution Service Explained
+
+**DDS (Data Distribution Service)** é um middleware de comunicação publish-subscribe usado para sistemas distribuídos em tempo real. Pense nele como "MQTT para robótica crítica".
+
+**Por que Unitree escolheu DDS?**
+- ⚡ **Latência:** &lt; 1ms entre publisher e subscriber (mesma rede)
+- 🔄 **Descoberta automática:** Nodes se encontram sem servidor central
+- 📦 **Type-safe:** Dados estruturados com IDL (Interface Definition Language)
+- 🛡️ **QoS configurável:** Confiabilidade vs performance trade-off
+- 🌐 **Multicast:** Um publisher → múltiplos subscribers eficientemente
+
+**Comparação com alternativas:**
+
+| Feature | DDS (Cyclone) | ROS2 (usa DDS) | gRPC | WebSockets |
+|---------|---------------|----------------|------|------------|
+| **Latência** | &lt; 1ms | 1-5ms | 5-20ms | 10-50ms |
+| **Descoberta** | Automática | Automática | Manual (IP:port) | Manual |
+| **Multicast** | ✅ Sim | ✅ Sim | ❌ Não | ❌ Não |
+| **Realtime** | ✅ Hard RT | 🟡 Soft RT | ❌ Não | ❌ Não |
+| **Overhead** | Baixo (~100 bytes) | Médio (~200 bytes) | Alto (~1KB) | Médio |
+
+---
+
+## 🏗️ Arquitetura DDS do G1
+
+### Componentes
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Seu Aplicativo Python/C++                          │
+├─────────────────────────────────────────────────────┤
+│  unitree_sdk2_python (wrapper)                      │
+├─────────────────────────────────────────────────────┤
+│  Cyclone DDS (implementação do padrão DDS)          │
+│  - Publishers (envia dados)                         │
+│  - Subscribers (recebe dados)                       │
+│  - Topics (canais de comunicação)                   │
+├─────────────────────────────────────────────────────┤
+│  Network Stack (UDP multicast)                      │
+│  - Interface: wlan0 ou eth0                         │
+│  - Porta: 7400-7450 (DDS padrão)                    │
+└─────────────────────────────────────────────────────┘
+```
+
+### Fluxo de Dados
+
+```
+G1 Robot                           Your PC
+┌──────────────┐                   ┌──────────────┐
+│              │  Topic: /state    │              │
+│  Publisher   ├──────────────────>│  Subscriber  │
+│  (100 Hz)    │   UDP Multicast   │  (callback)  │
+│              │                   │              │
+└──────────────┘                   └──────────────┘
+
+┌──────────────┐                   ┌──────────────┐
+│              │  Topic: /cmd      │              │
+│  Subscriber  │<──────────────────┤  Publisher   │
+│  (executa)   │   UDP Unicast     │  (envia cmd) │
+│              │                   │              │
+└──────────────┘                   └──────────────┘
+```
+
+**Descoberta automática:**
+1. Ambos os lados enviam mensagens SPDP (Simple Participant Discovery Protocol)
+2. Quando descobrem, trocam mensagens SEDP (Simple Endpoint Discovery Protocol)
+3. Estabelecem conexão direta para cada topic matchado
+4. Dados começam a fluir sem intervenção manual
+
+---
+
+## 📋 Topics do Unitree G1
+
+### Topics Publicados pelo G1 (você subscreve)
+
+<Tabs>
+<TabItem value="state" label="📊 /robot_state">
+
+**Descrição:** Estado completo do robô (juntas, IMU, forças, bateria)
+
+**Frequência:** 100 Hz (10ms)
+
+**Tipo de dados:** `unitree_go.msg.dds_.RobotState_`
+
+**Estrutura:**
+
+```python
+# Definição IDL (simplificada)
+struct RobotState {
+    # Header
+    int64 timestamp;        # Unix epoch nanoseconds
+    uint32 sequence_id;     # Incrementa a cada mensagem
+
+    # Sistema
+    float battery_voltage;
+    float battery_percentage;
+    float cpu_temperature;
+    string control_mode;
+
+    # Juntas (arrays de tamanho dof)
+    sequence<float> joint_positions;      # [rad]
+    sequence<float> joint_velocities;     # [rad/s]
+    sequence<float> joint_torques;        # [Nm]
+    sequence<float> joint_temperatures;   # [°C]
+
+    # IMU
+    Quaternion imu_quaternion;
+    Vector3 imu_angular_velocity;
+    Vector3 imu_linear_acceleration;
+
+    # Forças
+    float left_foot_force_z;
+    float right_foot_force_z;
+    Vector3 left_foot_torque;
+    Vector3 right_foot_torque;
+};
+```
+
+**Exemplo de subscrição:**
+
+```python
+from unitree_sdk2_python import Subscriber, RobotState
+
+def state_callback(msg: RobotState):
+    """Callback executado a cada mensagem (100 Hz)"""
+    print(f"Bateria: {msg.battery_percentage:.1f}%")
+    print(f"IMU Pitch: {msg.imu_euler[1] * 57.3:.1f}°")
+
+# Criar subscriber
+sub = Subscriber(topic="/robot_state", msg_type=RobotState, callback=state_callback)
+sub.spin()  # Bloqueia, processa callbacks
+```
+
+**QoS padrão:** RELIABLE, KEEP_LAST (depth=1)
+
+</TabItem>
+<TabItem value="camera" label="📷 /camera/color/image_raw">
+
+**Descrição:** Stream RGB da RealSense D435i
+
+**Frequência:** 30 Hz (pode configurar até 60 Hz)
+
+**Tipo de dados:** `sensor_msgs.msg.Image`
+
+**Resolução:** 1920x1080 (padrão) ou 640x480 (low-res)
+
+**Estrutura:**
+
+```python
+struct Image {
+    Header header;
+    uint32 height;        # 1080
+    uint32 width;         # 1920
+    string encoding;      # "rgb8"
+    uint8 is_bigendian;
+    uint32 step;          # Row length in bytes
+    sequence<uint8> data; # Pixel data (height * step bytes)
+};
+```
+
+**Exemplo de subscrição:**
+
+```python
+from unitree_sdk2_python import Subscriber
+import numpy as np
+import cv2
+
+def camera_callback(msg):
+    """Converte DDS Image para OpenCV Mat"""
+    # Reshape flat array para matriz HxWx3
+    img_np = np.frombuffer(msg.data, dtype=np.uint8).reshape(
+        (msg.height, msg.width, 3)
+    )
+
+    # Converter RGB para BGR (OpenCV usa BGR)
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+
+    # Processar imagem
+    cv2.imshow("G1 Camera", img_bgr)
+    cv2.waitKey(1)
+
+sub = Subscriber("/camera/color/image_raw", callback=camera_callback)
+```
+
+**⚠️ Performance:** Stream de vídeo consome ~50 Mbps em 1080p. Use Ethernet ou reduza resolução para WiFi.
+
+</TabItem>
+<TabItem value="depth" label="🗺️ /camera/depth/image_rect_raw">
+
+**Descrição:** Mapa de profundidade (stereo depth)
+
+**Frequência:** 30 Hz
+
+**Tipo de dados:** `sensor_msgs.msg.Image`
+
+**Resolução:** 1280x720
+
+**Encoding:** `16UC1` (16-bit unsigned, 1 canal)
+
+**Estrutura:**
+
+```python
+# Cada pixel é distância em mm (0-10000)
+# 0 = sem informação (muito perto/longe/oclusão)
+```
+
+**Exemplo de subscrição:**
+
+```python
+def depth_callback(msg):
+    # Converter para numpy array
+    depth_np = np.frombuffer(msg.data, dtype=np.uint16).reshape(
+        (msg.height, msg.width)
+    )
+
+    # Converter mm para metros
+    depth_m = depth_np.astype(np.float32) / 1000.0
+
+    # Filtrar valores inválidos
+    depth_m[depth_m == 0] = np.nan
+
+    # Visualizar (normalizado para 0-255)
+    depth_vis = cv2.normalize(depth_m, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+    cv2.imshow("Depth", depth_vis)
+
+sub = Subscriber("/camera/depth/image_rect_raw", callback=depth_callback)
+```
+
+</TabItem>
+<TabItem value="diagnostics" label="🩺 /diagnostics">
+
+**Descrição:** Status de saúde do sistema
+
+**Frequência:** 1 Hz (slow)
+
+**Tipo de dados:** `diagnostic_msgs.msg.DiagnosticArray`
+
+**Conteúdo:**
+
+```python
+struct DiagnosticArray {
+    Header header;
+    sequence<DiagnosticStatus> status;
+};
+
+struct DiagnosticStatus {
+    byte level;        # OK=0, WARN=1, ERROR=2, STALE=3
+    string name;       # "Motor:left_knee", "Battery", etc.
+    string message;    # Descrição legível
+    string hardware_id;
+    sequence<KeyValue> values;  # Métricas adicionais
+};
+```
+
+**Exemplo de subscrição:**
+
+```python
+def diagnostics_callback(msg):
+    for status in msg.status:
+        level_str = ["OK", "WARN", "ERROR", "STALE"][status.level]
+        print(f"[{level_str}] {status.name}: {status.message}")
+
+        # Se erro, investigar valores
+        if status.level >= 2:
+            for kv in status.values:
+                print(f"  {kv.key}: {kv.value}")
+
+sub = Subscriber("/diagnostics", callback=diagnostics_callback)
+```
+
+**Uso:** Monitoramento de saúde, alertas proativos, logging
+
+</TabItem>
+</Tabs>
+
+---
+
+### Topics que o G1 Subscreve (você publica)
+
+<Tabs>
+<TabItem value="joint_cmd" label="🎮 /joint_command">
+
+**Descrição:** Comandos para juntas individuais
+
+**Tipo de dados:** `unitree_go.msg.dds_.JointCommand_`
+
+**Estrutura:**
+
+```python
+struct JointCommand {
+    int64 timestamp;
+    string joint_name;      # "left_knee", etc.
+
+    # Modo POSITION
+    float target_position;  # [rad]
+    float max_velocity;     # [rad/s] limite
+    float kp;               # Ganho proporcional (opcional)
+
+    # Modo VELOCITY
+    float target_velocity;  # [rad/s]
+
+    # Modo TORQUE
+    float target_torque;    # [Nm]
+    float kd;               # Ganho derivativo (optional)
+
+    # Geral
+    string control_mode;    # "POSITION", "VELOCITY", "TORQUE"
+};
+```
+
+**Exemplo de publicação:**
+
+```python
+from unitree_sdk2_python import Publisher, JointCommand
+import time
+
+# Criar publisher
+pub = Publisher(topic="/joint_command")
+
+# Criar mensagem
+cmd = JointCommand()
+cmd.timestamp = int(time.time() * 1e9)  # Nanoseconds
+cmd.joint_name = "left_knee"
+cmd.control_mode = "POSITION"
+cmd.target_position = 1.57  # 90 graus
+cmd.max_velocity = 1.0      # Máximo 1 rad/s
+
+# Publicar
+pub.publish(cmd)
+```
+
+**QoS:** RELIABLE, KEEP_LAST (depth=10) - garante entrega
+
+</TabItem>
+<TabItem value="motion_cmd" label="🚶 /motion_command">
+
+**Descrição:** Comandos de locomoção de alto nível
+
+**Tipo de dados:** `unitree_go.msg.dds_.MotionCommand_`
+
+**Estrutura:**
+
+```python
+struct MotionCommand {
+    int64 timestamp;
+
+    # Velocidade desejada (body frame)
+    float vx;      # [m/s] frente/trás (-1.5 a 1.5)
+    float vy;      # [m/s] lateral (-0.8 a 0.8)
+    float vyaw;    # [rad/s] rotação (-1.0 a 1.0)
+
+    # Postura
+    float body_height;  # [m] altura do torso (0.3 a 0.5)
+    float body_pitch;   # [rad] inclinação (-0.3 a 0.3)
+    float body_roll;    # [rad] inclinação lateral (-0.2 a 0.2)
+
+    # Gait
+    string gait_type;   # "walk", "trot", "stand"
+    float step_height;  # [m] altura do passo (0.05 a 0.15)
+};
+```
+
+**Exemplo de publicação:**
+
+```python
+from unitree_sdk2_python import Publisher, MotionCommand
+
+pub = Publisher(topic="/motion_command")
+
+# Comando: andar para frente
+cmd = MotionCommand()
+cmd.timestamp = int(time.time() * 1e9)
+cmd.vx = 0.5        # 0.5 m/s para frente
+cmd.vy = 0.0
+cmd.vyaw = 0.0
+cmd.gait_type = "walk"
+cmd.body_height = 0.4
+cmd.step_height = 0.08
+
+# Publicar continuamente (10 Hz mínimo)
+rate = 10  # Hz
+while True:
+    cmd.timestamp = int(time.time() * 1e9)
+    pub.publish(cmd)
+    time.sleep(1.0 / rate)
+```
+
+**⚠️ Importante:** Deve publicar continuamente! Se parar &gt; 500ms, G1 entra em IDLE.
+
+</TabItem>
+<TabItem value="emergency" label="🛑 /emergency_stop">
+
+**Descrição:** Parada de emergência
+
+**Tipo de dados:** `std_msgs.msg.Bool`
+
+**Estrutura:**
+
+```python
+struct Bool {
+    bool data;  # true = STOP, false = RELEASE
+};
+```
+
+**Exemplo:**
+
+```python
+from unitree_sdk2_python import Publisher
+from std_msgs.msg import Bool
+
+pub = Publisher(topic="/emergency_stop")
+
+# Ativar emergency stop
+msg = Bool()
+msg.data = True
+pub.publish(msg)
+
+# Robô para imediatamente e entra em modo IDLE
+# Para liberar:
+msg.data = False
+pub.publish(msg)
+```
+
+**Latência típica:** &lt; 2ms (alta prioridade)
+
+</TabItem>
+</Tabs>
+
+---
+
+## ⚙️ Configuração do Cyclone DDS
+
+### Arquivo de Configuração XML
+
+O Cyclone DDS é configurado via arquivo XML. Localização padrão: `/etc/cyclonedds/config.xml`
+
+**Configuração básica (performance):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <Domain id="0">
+        <General>
+            <!-- Interface de rede (auto-detect ou específica) -->
+            <NetworkInterfaceAddress>auto</NetworkInterfaceAddress>
+
+            <!-- Permitir multicast (descoberta automática) -->
+            <AllowMulticast>true</AllowMulticast>
+
+            <!-- Fragmentação para mensagens grandes (imagens) -->
+            <FragmentSize>4096</FragmentSize>
+        </General>
+
+        <Internal>
+            <!-- Thread scheduling (realtime) -->
+            <Watermarks>
+                <WhcHigh>500kB</WhcHigh>
+            </Watermarks>
+        </Internal>
+
+        <Discovery>
+            <!-- Descoberta de participantes -->
+            <ParticipantIndex>auto</ParticipantIndex>
+
+            <!-- Intervalo de heartbeats -->
+            <SPDPInterval>1s</SPDPInterval>
+        </Discovery>
+
+        <Tracing>
+            <!-- Logging (desabilitar em produção) -->
+            <Verbosity>warning</Verbosity>
+            <OutputFile>/tmp/cyclonedds.log</OutputFile>
+        </Tracing>
+    </Domain>
+</CycloneDDS>
+```
+
+**Aplicar configuração:**
+
+<Tabs>
+<TabItem value="env" label="🔧 Via variável de ambiente">
+
+```bash
+# Temporário (apenas sessão atual)
+export CYCLONEDDS_URI="file:///etc/cyclonedds/config.xml"
+
+# Permanente (adicionar ao ~/.bashrc)
+echo 'export CYCLONEDDS_URI="file:///etc/cyclonedds/config.xml"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+</TabItem>
+<TabItem value="code" label="💻 Via código Python">
+
+```python
+import os
+os.environ['CYCLONEDDS_URI'] = 'file:///etc/cyclonedds/config.xml'
+
+# Agora importar unitree_sdk2_python
+from unitree_sdk2_python import G1Robot
+```
+
+</TabItem>
+<TabItem value="inline" label="📝 Inline XML">
+
+```python
+import os
+
+config_xml = """
+<CycloneDDS>
+    <Domain id="0">
+        <General>
+            <NetworkInterfaceAddress>wlan0</NetworkInterfaceAddress>
+        </General>
+    </Domain>
+</CycloneDDS>
+"""
+
+os.environ['CYCLONEDDS_URI'] = f'data:,{config_xml}'
+
+from unitree_sdk2_python import G1Robot
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Otimizações de Performance
+
+<Tabs>
+<TabItem value="low-latency" label="⚡ Baixa Latência">
+
+**Cenário:** Controle em tempo real (&lt; 1ms)
+
+```xml
+<CycloneDDS>
+    <Domain id="0">
+        <General>
+            <NetworkInterfaceAddress>eth0</NetworkInterfaceAddress>
+            <AllowMulticast>true</AllowMulticast>
+            <FragmentSize>1472</FragmentSize> <!-- MTU ethernet - headers -->
+        </General>
+
+        <Internal>
+            <!-- Processar pacotes imediatamente -->
+            <DeliveryQueueMaxSamples>1</DeliveryQueueMaxSamples>
+
+            <!-- Prioridade máxima para threads -->
+            <SchedulingClass>Realtime</SchedulingClass>
+            <SchedulingPriority>80</SchedulingPriority>
+        </Internal>
+
+        <Discovery>
+            <SPDPInterval>100ms</SPDPInterval> <!-- Descoberta rápida -->
+        </Discovery>
+    </Domain>
+</CycloneDDS>
+```
+
+**Requer:** Kernel RT-PREEMPT, permissões CAP_SYS_NICE
+
+```bash
+# Instalar kernel realtime
+sudo apt install linux-lowlatency
+
+# Permitir scheduling RT
+sudo setcap cap_sys_nice+ep $(which python3)
+```
+
+</TabItem>
+<TabItem value="bandwidth" label="📊 Alta Largura de Banda">
+
+**Cenário:** Stream de vídeo, logs massivos
+
+```xml
+<CycloneDDS>
+    <Domain id="0">
+        <General>
+            <NetworkInterfaceAddress>eth0</NetworkInterfaceAddress>
+            <AllowMulticast>false</AllowMulticast> <!-- Unicast apenas -->
+            <FragmentSize>8192</FragmentSize> <!-- Fragmentos maiores -->
+        </General>
+
+        <Internal>
+            <!-- Buffers grandes -->
+            <Watermarks>
+                <WhcHigh>10MB</WhcHigh>
+            </Watermarks>
+
+            <!-- Batch de mensagens -->
+            <MaxMessageSize>10MB</MaxMessageSize>
+        </Internal>
+
+        <Channels>
+            <Channel name="video">
+                <Transport>udp</Transport>
+                <DiffServField>46</DiffServField> <!-- EF - Expedited Forwarding -->
+            </Channel>
+        </Channels>
+    </Domain>
+</CycloneDDS>
+```
+
+</TabItem>
+<TabItem value="reliability" label="🛡️ Confiabilidade Máxima">
+
+**Cenário:** Comandos críticos (não pode perder)
+
+```xml
+<CycloneDDS>
+    <Domain id="0">
+        <General>
+            <AllowMulticast>true</AllowMulticast>
+            <FragmentSize>4096</FragmentSize>
+        </General>
+
+        <Internal>
+            <!-- Retries agressivos -->
+            <NackDelay>10ms</NackDelay>
+            <RetransmitPeriod>100ms</RetransmitPeriod>
+
+            <!-- History profundo -->
+            <Watermarks>
+                <WhcHigh>1MB</WhcHigh>
+            </Watermarks>
+        </Internal>
+
+        <Reliability>
+            <!-- Manter histórico longo -->
+            <MaxHistoryDepth>100</MaxHistoryDepth>
+        </Reliability>
+    </Domain>
+</CycloneDDS>
+```
+
+**QoS no código:**
+
+```python
+from unitree_sdk2_python import Publisher, QoSProfile
+
+qos = QoSProfile(
+    reliability="RELIABLE",
+    history="KEEP_ALL",  # Não descartar mensagens
+    durability="TRANSIENT_LOCAL"  # Persistir durante sessão
+)
+
+pub = Publisher("/joint_command", qos=qos)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔍 Network Debugging
+
+### Ferramentas de Diagnóstico
+
+<Tabs>
+<TabItem value="ddsperf" label="📊 ddsperf (benchmark)">
+
+**Instalação:**
+
+```bash
+sudo apt install cyclonedds-tools
+```
+
+**Medir latência:**
+
+```bash
+# Terminal 1: Subscriber (no seu PC)
+ddsperf sub
+
+# Terminal 2: Publisher (no G1 ou outro PC)
+ddsperf pub -D 10  # 10 segundos
+
+# Output:
+# Latency (us): min=120, median=150, 99%=300, max=1200
+```
+
+**Medir throughput:**
+
+```bash
+# Publisher com payloads grandes
+ddsperf pub -s 1MB -D 10
+
+# Output:
+# Throughput: 850 Mbps (average)
+```
+
+</TabItem>
+<TabItem value="wireshark" label="🦈 Wireshark">
+
+**Filtros úteis:**
+
+```
+# Ver apenas tráfego DDS
+udp.port >= 7400 && udp.port <= 7450
+
+# Ver topic específico
+ddsi.topic == "robot_state"
+
+# Ver apenas descoberta
+ddsi.submessage_id == 0x09  # SPDP
+```
+
+**Identificar problemas:**
+- ❌ **Pacotes duplicados:** QoS mal configurado
+- ❌ **Fragmentação excessiva:** FragmentSize muito pequeno
+- ❌ **Retransmissões:** Perda de pacotes (WiFi ruim)
+
+</TabItem>
+<TabItem value="cyclonedds-cli" label="🔧 cyclonedds CLI">
+
+**Listar participantes:**
+
+```bash
+cyclonedds ls
+```
+
+**Output:**
+
+```
+Participants:
+  - ID: 0x1a2b3c4d (192.168.123.10) [Unitree G1]
+    Topics: /robot_state, /camera/color/image_raw, /diagnostics
+  - ID: 0x5e6f7a8b (192.168.123.100) [Your PC]
+    Topics: /joint_command, /motion_command
+```
+
+**Inspecionar topic:**
+
+```bash
+cyclonedds topic /robot_state
+```
+
+**Output:**
+
+```
+Topic: /robot_state
+Type: unitree_go::msg::dds_::RobotState_
+QoS:
+  Reliability: RELIABLE
+  History: KEEP_LAST (depth=1)
+  Durability: VOLATILE
+Publishers: 1 (G1)
+Subscribers: 2 (your_app, logger)
+```
+
+**Monitorar mensagens:**
+
+```bash
+cyclonedds sub /robot_state
+```
+
+**Output (stream contínuo):**
+
+```
+[1234567890.123] RobotState:
+  battery_percentage: 87.5
+  joint_positions: [0.12, 0.04, -0.01, ...]
+  ...
+```
+
+</TabItem>
+<TabItem value="custom-tool" label="🛠️ Custom Monitoring">
+
+**Script Python para debug:**
+
+```python
+#!/usr/bin/env python3
+"""
+dds_monitor.py - Monitora saúde da comunicação DDS
+"""
+
+from unitree_sdk2_python import Subscriber, RobotState
+import time
+from collections import deque
+
+class DDSMonitor:
+    def __init__(self):
+        self.msg_times = deque(maxlen=100)
+        self.last_seq = -1
+        self.lost_msgs = 0
+
+    def callback(self, msg: RobotState):
+        now = time.time()
+        self.msg_times.append(now)
+
+        # Detectar mensagens perdidas
+        if self.last_seq != -1:
+            expected_seq = (self.last_seq + 1) % (2**32)
+            if msg.sequence_id != expected_seq:
+                lost = (msg.sequence_id - expected_seq) % (2**32)
+                self.lost_msgs += lost
+                print(f"⚠️  {lost} mensagens perdidas!")
+
+        self.last_seq = msg.sequence_id
+
+        # Calcular frequência e jitter
+        if len(self.msg_times) >= 2:
+            intervals = [self.msg_times[i] - self.msg_times[i-1]
+                        for i in range(1, len(self.msg_times))]
+            freq = 1.0 / (sum(intervals) / len(intervals))
+            jitter = max(intervals) - min(intervals)
+
+            print(f"\rFreq: {freq:>6.1f} Hz | "
+                  f"Jitter: {jitter*1000:>5.1f} ms | "
+                  f"Lost: {self.lost_msgs:>4}",
+                  end='', flush=True)
+
+    def run(self):
+        sub = Subscriber("/robot_state", callback=self.callback)
+        print("🔍 Monitorando /robot_state...")
+        sub.spin()
+
+if __name__ == "__main__":
+    monitor = DDSMonitor()
+    monitor.run()
+```
+
+**Executar:**
+
+```bash
+python3 dds_monitor.py
+```
+
+**Output:**
+
+```
+🔍 Monitorando /robot_state...
+Freq:  100.2 Hz | Jitter:   2.3 ms | Lost:    0
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚨 Troubleshooting Comum
+
+### Problema 1: Participantes não se descobrem
+
+**Sintoma:**
+
+```bash
+cyclonedds ls
+# Output: (vazio)
+```
+
+**Checklist:**
+
+1. **Mesma rede?**
+   ```bash
+   ping 192.168.123.10
+   # Deve responder
+   ```
+
+2. **Firewall bloqueando?**
+   ```bash
+   # Abrir portas DDS (7400-7450)
+   sudo ufw allow 7400:7450/udp
+   ```
+
+3. **Interface correta?**
+   ```bash
+   # Verificar qual interface está ativa
+   ip route get 192.168.123.10
+   # Output: ... dev wlan0 ...
+
+   # Forçar interface no XML
+   <NetworkInterfaceAddress>wlan0</NetworkInterfaceAddress>
+   ```
+
+4. **Multicast habilitado?**
+   ```bash
+   # Testar multicast
+   iperf3 -c 239.255.0.1 -u -T 32 -t 5 -b 10M
+
+   # Se falhar, desabilitar multicast
+   <AllowMulticast>false</AllowMulticast>
+   ```
+
+---
+
+### Problema 2: Latência alta (&gt; 10ms)
+
+**Diagnóstico:**
+
+```bash
+ddsperf pub -D 5 & ddsperf sub
+```
+
+**Se latência &gt; 10ms:**
+
+1. **WiFi congestionado?**
+   ```bash
+   # Verificar sinal
+   iwconfig wlan0
+   # Link Quality: 60/70 (bom), 30/70 (ruim)
+
+   # Trocar para Ethernet ou canal WiFi menos congestionado
+   ```
+
+2. **CPU sobrecarregado?**
+   ```bash
+   top
+   # Se python3 > 80% CPU, otimizar código (menos callbacks)
+   ```
+
+3. **QoS mal configurado?**
+   ```python
+   # Usar BEST_EFFORT para latência mínima (aceitável perder msgs)
+   qos = QoSProfile(reliability="BEST_EFFORT")
+   ```
+
+---
+
+### Problema 3: Mensagens perdidas
+
+**Sintoma:** `dds_monitor.py` mostra `Lost: 150`
+
+**Soluções:**
+
+1. **WiFi instável → Ethernet**
+
+2. **Buffer overflow:**
+   ```xml
+   <Watermarks>
+       <WhcHigh>10MB</WhcHigh> <!-- Aumentar buffer -->
+   </Watermarks>
+   ```
+
+3. **QoS RELIABLE:**
+   ```python
+   qos = QoSProfile(reliability="RELIABLE")
+   pub = Publisher("/joint_command", qos=qos)
+   ```
+
+---
+
+## 📈 Exemplo Completo: Telemetria em Tempo Real
+
+```python
+#!/usr/bin/env python3
+"""
+telemetry.py - Sistema completo de telemetria DDS
+Subscreve múltiplos topics e consolida dados
+"""
+
+from unitree_sdk2_python import Subscriber, RobotState
+from dataclasses import dataclass, field
+from typing import Dict
+import time
+import threading
+
+@dataclass
+class TelemetryData:
+    """Dados consolidados de todos os topics"""
+    timestamp: float = 0.0
+    battery_voltage: float = 0.0
+    battery_percentage: float = 0.0
+    cpu_temperature: float = 0.0
+    imu_pitch: float = 0.0
+    imu_roll: float = 0.0
+    left_foot_force: float = 0.0
+    right_foot_force: float = 0.0
+    joint_positions: Dict[str, float] = field(default_factory=dict)
+
+class TelemetrySystem:
+    def __init__(self):
+        self.data = TelemetryData()
+        self.lock = threading.Lock()
+
+        # Subscribers
+        self.state_sub = Subscriber("/robot_state", callback=self.state_callback)
+
+        # Estatísticas
+        self.msg_count = 0
+        self.start_time = time.time()
+
+    def state_callback(self, msg: RobotState):
+        """Processa mensagens de estado"""
+        with self.lock:
+            self.data.timestamp = time.time()
+            self.data.battery_voltage = msg.battery_voltage
+            self.data.battery_percentage = msg.battery_percentage
+            self.data.cpu_temperature = msg.cpu_temperature
+            self.data.imu_pitch = msg.imu_euler[1]
+            self.data.imu_roll = msg.imu_euler[0]
+            self.data.left_foot_force = msg.left_foot_force
+            self.data.right_foot_force = msg.right_foot_force
+
+            # Atualizar posições das juntas
+            for name, pos in zip(msg.joint_names, msg.joint_positions):
+                self.data.joint_positions[name] = pos
+
+            self.msg_count += 1
+
+    def get_data(self) -> TelemetryData:
+        """Retorna cópia thread-safe dos dados"""
+        with self.lock:
+            return self.data
+
+    def get_statistics(self) -> Dict:
+        """Retorna estatísticas de comunicação"""
+        elapsed = time.time() - self.start_time
+        freq = self.msg_count / elapsed if elapsed > 0 else 0
+
+        return {
+            "messages_received": self.msg_count,
+            "uptime_seconds": elapsed,
+            "average_frequency_hz": freq
+        }
+
+    def print_dashboard(self):
+        """Imprime dashboard de telemetria"""
+        while True:
+            data = self.get_data()
+            stats = self.get_statistics()
+
+            # Clear screen (ANSI escape code)
+            print("\033[2J\033[H")
+
+            print("=" * 70)
+            print(" " * 20 + "UNITREE G1 TELEMETRY")
+            print("=" * 70)
+            print()
+
+            print(f"⏱️  Uptime: {stats['uptime_seconds']:.1f}s | "
+                  f"Freq: {stats['average_frequency_hz']:.1f} Hz | "
+                  f"Msgs: {stats['messages_received']}")
+            print()
+
+            print("🔋 BATERIA")
+            print(f"  Voltage:    {data.battery_voltage:>6.2f} V")
+            print(f"  Percentage: {data.battery_percentage:>6.1f} %")
+            print()
+
+            print("🌡️  TEMPERATURA")
+            print(f"  CPU:        {data.cpu_temperature:>6.1f} °C")
+            print()
+
+            print("🧭 ORIENTAÇÃO")
+            print(f"  Pitch:      {data.imu_pitch * 57.3:>6.1f} °")
+            print(f"  Roll:       {data.imu_roll * 57.3:>6.1f} °")
+            print()
+
+            print("👣 FORÇAS NOS PÉS")
+            print(f"  Esquerdo:   {data.left_foot_force:>6.1f} N")
+            print(f"  Direito:    {data.right_foot_force:>6.1f} N")
+            print(f"  Total:      {data.left_foot_force + data.right_foot_force:>6.1f} N")
+            print()
+
+            print("🦿 JUNTAS (primeiras 6)")
+            for i, (name, pos) in enumerate(list(data.joint_positions.items())[:6]):
+                print(f"  {name:<20} {pos:>7.3f} rad  ({pos*57.3:>6.1f}°)")
+
+            print()
+            print("=" * 70)
+
+            time.sleep(0.1)  # 10 Hz
+
+    def run(self):
+        """Inicia sistema de telemetria"""
+        # Thread para dashboard
+        dashboard_thread = threading.Thread(target=self.print_dashboard, daemon=True)
+        dashboard_thread.start()
+
+        # Thread principal processa callbacks
+        print("🚀 Sistema de telemetria iniciado...")
+        self.state_sub.spin()
+
+if __name__ == "__main__":
+    telemetry = TelemetrySystem()
+    try:
+        telemetry.run()
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Telemetria interrompida")
+```
+
+**Executar:**
+
+```bash
+python3 telemetry.py
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Entendi o que é DDS e por que é usado no G1
+- [ ] Conheço todos os topics principais (/robot_state, /joint_command, etc.)
+- [ ] Configurei Cyclone DDS via XML
+- [ ] Testei ddsperf (latência &lt; 5ms)
+- [ ] Criei subscriber para /robot_state
+- [ ] Criei publisher para /joint_command
+- [ ] Executei telemetry.py com sucesso
+- [ ] Debuguei comunicação com cyclonedds CLI ou Wireshark
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[⚡ Controle de Baixo Nível →](./controle-baixo-nivel)**
+
+Aprenda controle direto de motores: torque mode, position mode, PID tuning e safety limits.
+:::
+
+**Recursos adicionais:**
+- [Cyclone DDS Docs](https://github.com/eclipse-cyclonedds/cyclonedds)
+- [DDS Specification](https://www.omg.org/spec/DDS/)
+- [Unitree DDS Topics Reference](https://support.unitree.com/home/en/developer/topics)
+
+---
+
+**⏱️ Tempo estimado:** 60-80 min
+**🧠 Nível:** Intermediário-Avançado
+**💻 Hands-on:** 70% prático, 30% teórico

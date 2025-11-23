@@ -119,7 +119,7 @@ export default function Home(): JSX.Element {
     '3.1': {
       title: 'Tier 3.1: Programando Unitree G1',
       color: '#059669',
-      link: '#',
+      link: '/docs/tier3.1/introducao-sdk-g1',
       slogan: '"Desenvolva para o G1"',
       benefits: [
         'SDK e API do G1',

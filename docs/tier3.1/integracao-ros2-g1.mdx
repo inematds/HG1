@@ -1,0 +1,710 @@
+---
+sidebar_position: 7
+title: 7. Integração ROS2 com G1
+description: ROS2 bridge, tf2, MoveIt e Nav2 para o G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🤝 Integração ROS2 com Unitree G1
+
+:::tip Objetivo do Módulo
+Criar bridge completo entre Unitree SDK e ROS2, configurar transformações (tf2), setup MoveIt2 para manipulação, e Nav2 para navegação autônoma do G1.
+:::
+
+---
+
+## 🌉 Unitree SDK ↔️ ROS2 Bridge
+
+### Por Que Fazer Bridge?
+
+**Vantagens do ROS2:**
+- 🛠️ Ferramentas: RViz, rqt, rosbag
+- 📦 Ecossistema: Nav2, MoveIt2, milhares de packages
+- 🎓 Comunidade: Mais desenvolvedores conhecem ROS2
+- 🔄 Interoperabilidade: Fácil integrar com outros robôs/sensores
+
+**Arquitetura:**
+
+```
+Unitree G1                      ROS2 Bridge                    ROS2 Nodes
+┌──────────────┐               ┌──────────────┐               ┌──────────────┐
+│              │  DDS Topics   │              │  ROS2 Topics  │              │
+│  Unitree SDK │<─────────────>│  Bridge Node │<─────────────>│  Nav2/MoveIt │
+│  (nativo)    │               │  (tradução)  │               │  etc.        │
+│              │               │              │               │              │
+└──────────────┘               └──────────────┘               └──────────────┘
+```
+
+---
+
+## 🔧 Implementando o Bridge
+
+### Estrutura do Package
+
+```bash
+# Criar workspace ROS2
+mkdir -p ~/g1_ros2_ws/src
+cd ~/g1_ros2_ws/src
+
+# Criar package
+ros2 pkg create --build-type ament_python g1_ros2_bridge \
+  --dependencies rclpy std_msgs sensor_msgs geometry_msgs nav_msgs
+
+cd g1_ros2_bridge
+```
+
+### Bridge Node Principal
+
+```python
+#!/usr/bin/env python3
+"""
+g1_bridge.py - Bridge entre Unitree SDK e ROS2
+"""
+
+import rclpy
+from rclpy.node import Node
+from unitree_sdk2_python import G1Robot, RobotState as UnitreeState
+
+# ROS2 messages
+from sensor_msgs.msg import JointState, Imu, Image
+from geometry_msgs.msg import WrenchStamped, PoseStamped
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Header
+
+import numpy as np
+from cv_bridge import CvBridge
+import cv2
+
+class G1BridgeNode(Node):
+    def __init__(self):
+        super().__init__('g1_bridge')
+
+        # Conectar ao G1
+        self.robot = G1Robot()
+        if not self.robot.wait_for_connection(timeout=10.0):
+            self.get_logger().error('Falha ao conectar ao G1!')
+            raise RuntimeError('G1 connection failed')
+
+        self.get_logger().info('✅ Conectado ao Unitree G1')
+
+        # Publishers ROS2
+        self.joint_state_pub = self.create_publisher(
+            JointState, '/joint_states', 10
+        )
+        self.imu_pub = self.create_publisher(
+            Imu, '/imu/data', 10
+        )
+        self.odom_pub = self.create_publisher(
+            Odometry, '/odom', 10
+        )
+        self.left_foot_wrench_pub = self.create_publisher(
+            WrenchStamped, '/left_foot/wrench', 10
+        )
+        self.right_foot_wrench_pub = self.create_publisher(
+            WrenchStamped, '/right_foot/wrench', 10
+        )
+
+        # Subscribers ROS2 (para comandos)
+        self.joint_cmd_sub = self.create_subscription(
+            JointState, '/joint_commands', self.joint_cmd_callback, 10
+        )
+
+        # Timer para publicação (100 Hz)
+        self.create_timer(0.01, self.publish_robot_state)
+
+        # CV Bridge para imagens
+        self.bridge = CvBridge()
+
+        self.get_logger().info('🚀 G1 Bridge ativo')
+
+    def publish_robot_state(self):
+        """Publica estado do G1 para ROS2"""
+        state = self.robot.get_state()
+
+        # 1. Joint States
+        self._publish_joint_states(state)
+
+        # 2. IMU
+        self._publish_imu(state)
+
+        # 3. Odometry (estimativa)
+        self._publish_odometry(state)
+
+        # 4. Foot wrenches
+        self._publish_foot_wrenches(state)
+
+    def _publish_joint_states(self, state: UnitreeState):
+        """Publica estados das juntas"""
+        msg = JointState()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_link'
+
+        msg.name = list(state.joint_names)
+        msg.position = list(state.joint_positions)
+        msg.velocity = list(state.joint_velocities)
+        msg.effort = list(state.joint_torques)
+
+        self.joint_state_pub.publish(msg)
+
+    def _publish_imu(self, state: UnitreeState):
+        """Publica dados do IMU"""
+        msg = Imu()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'imu_link'
+
+        # Orientação (quaternion)
+        msg.orientation.w = state.imu_quaternion[0]
+        msg.orientation.x = state.imu_quaternion[1]
+        msg.orientation.y = state.imu_quaternion[2]
+        msg.orientation.z = state.imu_quaternion[3]
+
+        # Velocidade angular
+        msg.angular_velocity.x = state.imu_angular_velocity[0]
+        msg.angular_velocity.y = state.imu_angular_velocity[1]
+        msg.angular_velocity.z = state.imu_angular_velocity[2]
+
+        # Aceleração linear
+        msg.linear_acceleration.x = state.imu_linear_acceleration[0]
+        msg.linear_acceleration.y = state.imu_linear_acceleration[1]
+        msg.linear_acceleration.z = state.imu_linear_acceleration[2]
+
+        self.imu_pub.publish(msg)
+
+    def _publish_odometry(self, state: UnitreeState):
+        """Publica odometria (estimativa simplificada)"""
+        msg = Odometry()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'odom'
+        msg.child_frame_id = 'base_link'
+
+        # Posição (placeholder - requer integração de velocidade)
+        msg.pose.pose.position.x = 0.0
+        msg.pose.pose.position.y = 0.0
+        msg.pose.pose.position.z = 0.4  # Altura do corpo
+
+        # Orientação (do IMU)
+        msg.pose.pose.orientation.w = state.imu_quaternion[0]
+        msg.pose.pose.orientation.x = state.imu_quaternion[1]
+        msg.pose.pose.orientation.y = state.imu_quaternion[2]
+        msg.pose.pose.orientation.z = state.imu_quaternion[3]
+
+        # Velocidade (placeholder)
+        msg.twist.twist.linear.x = 0.0
+        msg.twist.twist.linear.y = 0.0
+        msg.twist.twist.angular.z = state.imu_angular_velocity[2]
+
+        self.odom_pub.publish(msg)
+
+    def _publish_foot_wrenches(self, state: UnitreeState):
+        """Publica forças nos pés"""
+        # Pé esquerdo
+        left_msg = WrenchStamped()
+        left_msg.header = Header()
+        left_msg.header.stamp = self.get_clock().now().to_msg()
+        left_msg.header.frame_id = 'left_foot_link'
+
+        left_msg.wrench.force.z = state.left_foot_force
+        left_msg.wrench.torque.x = state.left_foot_torque[0]
+        left_msg.wrench.torque.y = state.left_foot_torque[1]
+        left_msg.wrench.torque.z = state.left_foot_torque[2]
+
+        self.left_foot_wrench_pub.publish(left_msg)
+
+        # Pé direito
+        right_msg = WrenchStamped()
+        right_msg.header = Header()
+        right_msg.header.stamp = self.get_clock().now().to_msg()
+        right_msg.header.frame_id = 'right_foot_link'
+
+        right_msg.wrench.force.z = state.right_foot_force
+        right_msg.wrench.torque.x = state.right_foot_torque[0]
+        right_msg.wrench.torque.y = state.right_foot_torque[1]
+        right_msg.wrench.torque.z = state.right_foot_torque[2]
+
+        self.right_foot_wrench_pub.publish(right_msg)
+
+    def joint_cmd_callback(self, msg: JointState):
+        """Recebe comandos de juntas via ROS2"""
+        from unitree_sdk2_python import JointCommand
+
+        for name, position in zip(msg.name, msg.position):
+            cmd = JointCommand()
+            cmd.joint_name = name
+            cmd.control_mode = "POSITION"
+            cmd.target_position = position
+            cmd.max_velocity = 2.0
+
+            self.robot.send_command(cmd)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = G1BridgeNode()
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.robot.disconnect()
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+**Compilar e rodar:**
+
+```bash
+cd ~/g1_ros2_ws
+colcon build --packages-select g1_ros2_bridge
+source install/setup.bash
+
+ros2 run g1_ros2_bridge g1_bridge
+```
+
+**Verificar topics:**
+
+```bash
+ros2 topic list
+# Output:
+# /joint_states
+# /imu/data
+# /odom
+# /left_foot/wrench
+# /right_foot/wrench
+```
+
+---
+
+## 🗺️ TF2 Transforms
+
+### URDF do G1
+
+```xml
+<!-- g1.urdf - Descrição cinemática do G1 -->
+<?xml version="1.0"?>
+<robot name="unitree_g1">
+  <!-- Base Link -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.3 0.2 0.4"/>
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="20.0"/>
+      <inertia ixx="0.5" iyy="0.5" izz="0.5"
+               ixy="0.0" ixz="0.0" iyz="0.0"/>
+    </inertial>
+  </link>
+
+  <!-- IMU Link -->
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0.0 0.0 0.1" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left Leg -->
+  <link name="left_hip_link"/>
+  <joint name="left_hip_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_hip_link"/>
+    <origin xyz="0.0 0.15 -0.1" rpy="0 0 0"/>
+  </joint>
+
+  <link name="left_thigh_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.05" length="0.35"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_hip_pitch" type="revolute">
+    <parent link="left_hip_link"/>
+    <child link="left_thigh_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.8" upper="1.6" effort="45" velocity="5"/>
+  </joint>
+
+  <link name="left_calf_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.04" length="0.35"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_knee" type="revolute">
+    <parent link="left_thigh_link"/>
+    <child link="left_calf_link"/>
+    <origin xyz="0 0 -0.35" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="2.3" effort="45" velocity="5"/>
+  </joint>
+
+  <link name="left_foot_link">
+    <visual>
+      <geometry>
+        <box size="0.2 0.1 0.05"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_ankle_pitch" type="revolute">
+    <parent link="left_calf_link"/>
+    <child link="left_foot_link"/>
+    <origin xyz="0 0 -0.35" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.7" upper="0.7" effort="30" velocity="5"/>
+  </joint>
+
+  <!-- Right Leg (simétrico) -->
+  <!-- ... (similar ao left) -->
+
+  <!-- Left Arm -->
+  <link name="left_shoulder_link"/>
+  <joint name="left_shoulder_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_shoulder_link"/>
+    <origin xyz="0.0 0.24 0.3" rpy="0 0 0"/>
+  </joint>
+
+  <link name="left_upper_arm_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.04" length="0.30"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_shoulder_pitch" type="revolute">
+    <parent link="left_shoulder_link"/>
+    <child link="left_upper_arm_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.0" upper="3.0" effort="25" velocity="8"/>
+  </joint>
+
+  <link name="left_forearm_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.30"/>
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_elbow" type="revolute">
+    <parent link="left_upper_arm_link"/>
+    <child link="left_forearm_link"/>
+    <origin xyz="0 0 -0.30" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="2.6" effort="20" velocity="10"/>
+  </joint>
+
+  <!-- Right Arm (simétrico) -->
+  <!-- ... -->
+
+</robot>
+```
+
+**Salvar:** `~/g1_ros2_ws/src/g1_description/urdf/g1.urdf`
+
+### Robot State Publisher
+
+```python
+#!/usr/bin/env python3
+"""
+g1_state_publisher.py - Publica TF transforms do G1
+"""
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+import numpy as np
+
+class G1StatePublisher(Node):
+    def __init__(self):
+        super().__init__('g1_state_publisher')
+
+        # TF broadcaster
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+        # Subscriber para joint states
+        self.joint_sub = self.create_subscription(
+            JointState, '/joint_states', self.joint_callback, 10
+        )
+
+        # Timer para publicar odom -> base_link
+        self.create_timer(0.01, self.publish_odom_transform)
+
+        self.get_logger().info('G1 State Publisher ativo')
+
+    def publish_odom_transform(self):
+        """Publica transform odom -> base_link"""
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'odom'
+        t.child_frame_id = 'base_link'
+
+        # Posição (placeholder - integrar odometria real)
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.4
+
+        # Orientação (do IMU - simplificado aqui)
+        t.transform.rotation.w = 1.0
+        t.transform.rotation.x = 0.0
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = 0.0
+
+        self.tf_broadcaster.sendTransform(t)
+
+    def joint_callback(self, msg: JointState):
+        """Processa joint states e publica transforms"""
+        # robot_state_publisher já faz isso automaticamente
+        # Este callback é placeholder para lógica adicional
+        pass
+
+def main():
+    rclpy.init()
+    node = G1StatePublisher()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+```
+
+**Launch file:**
+
+```xml
+<!-- g1_state_publisher.launch.py -->
+<launch>
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" name="robot_state_publisher">
+    <param name="robot_description" command="cat $(find g1_description)/urdf/g1.urdf"/>
+  </node>
+
+  <node pkg="g1_ros2_bridge" exec="g1_state_publisher" name="g1_state_publisher"/>
+
+  <node pkg="g1_ros2_bridge" exec="g1_bridge" name="g1_bridge"/>
+</launch>
+```
+
+---
+
+## 🦾 MoveIt2 Configuration
+
+### Setup MoveIt2
+
+```bash
+# Instalar MoveIt2
+sudo apt install ros-humble-moveit
+
+# Gerar configuração
+cd ~/g1_ros2_ws/src
+ros2 run moveit_setup_assistant moveit_setup_assistant
+
+# Na GUI:
+# 1. Load URDF: Selecionar g1.urdf
+# 2. Self-Collisions: Generate Collision Matrix
+# 3. Planning Groups:
+#    - Adicionar "left_arm": left_shoulder_pitch, left_shoulder_roll,
+#                            left_elbow, left_wrist_yaw
+#    - Adicionar "right_arm": (simétrico)
+#    - Adicionar "legs": todas juntas das pernas
+# 4. Robot Poses:
+#    - "home": Todas juntas = 0
+#    - "arms_up": Braços para cima
+# 5. End Effectors:
+#    - "left_gripper" (parent: left_forearm_link)
+#    - "right_gripper" (parent: right_forearm_link)
+# 6. Generate Package: g1_moveit_config
+```
+
+### Usando MoveIt2
+
+```python
+#!/usr/bin/env python3
+"""
+moveit_pick_place.py - Pick and place com MoveIt2
+"""
+
+import rclpy
+from rclpy.node import Node
+from moveit_py import MoveGroupInterface
+from geometry_msgs.msg import Pose, PoseStamped
+import numpy as np
+
+class MoveItPickPlace(Node):
+    def __init__(self):
+        super().__init__('moveit_pick_place')
+
+        # MoveGroup para braço esquerdo
+        self.move_group = MoveGroupInterface(
+            node=self,
+            group_name="left_arm",
+            robot_description="robot_description"
+        )
+
+        self.move_group.set_planning_time(5.0)
+        self.move_group.set_max_velocity_scaling_factor(0.5)
+        self.move_group.set_max_acceleration_scaling_factor(0.5)
+
+        self.get_logger().info('MoveIt Pick Place ready')
+
+    def move_to_pose(self, target_pose: Pose):
+        """Move end-effector para pose alvo"""
+        self.move_group.set_pose_target(target_pose)
+
+        # Planejar
+        plan = self.move_group.plan()
+
+        if not plan:
+            self.get_logger().error('Planning failed!')
+            return False
+
+        # Executar
+        success = self.move_group.execute(plan)
+
+        if success:
+            self.get_logger().info('✅ Movement executed')
+        else:
+            self.get_logger().error('❌ Execution failed')
+
+        return success
+
+    def pick_object(self, object_pose: Pose):
+        """Pick object usando MoveIt"""
+        # 1. Approach (acima do objeto)
+        approach_pose = Pose()
+        approach_pose.position.x = object_pose.position.x
+        approach_pose.position.y = object_pose.position.y
+        approach_pose.position.z = object_pose.position.z + 0.15
+        approach_pose.orientation.w = 1.0
+
+        self.get_logger().info('Approaching object...')
+        if not self.move_to_pose(approach_pose):
+            return False
+
+        # 2. Descer
+        self.get_logger().info('Lowering...')
+        if not self.move_to_pose(object_pose):
+            return False
+
+        # 3. Gripper close (via action ou service)
+        # self.close_gripper()
+
+        # 4. Levantar
+        self.get_logger().info('Lifting...')
+        if not self.move_to_pose(approach_pose):
+            return False
+
+        return True
+
+def main():
+    rclpy.init()
+    node = MoveItPickPlace()
+
+    # Exemplo: pegar objeto em (0.4, 0.2, 0.3)
+    object_pose = Pose()
+    object_pose.position.x = 0.4
+    object_pose.position.y = 0.2
+    object_pose.position.z = 0.3
+    object_pose.orientation.w = 1.0
+
+    node.pick_object(object_pose)
+
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## 🗺️ Nav2 Configuration
+
+### Setup Nav2 para G1
+
+```yaml
+# g1_nav2_params.yaml
+bt_navigator:
+  ros__parameters:
+    use_sim_time: False
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+
+controller_server:
+  ros__parameters:
+    use_sim_time: False
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.001
+
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+      max_vel_x: 0.8  # G1 max speed
+      max_vel_y: 0.3
+      max_vel_theta: 1.0
+      min_speed_xy: 0.0
+      max_speed_xy: 0.8
+      min_speed_theta: 0.0
+      acc_lim_x: 1.0
+      acc_lim_y: 0.5
+      acc_lim_theta: 2.0
+      decel_lim_x: -1.0
+      decel_lim_y: -0.5
+      decel_lim_theta: -2.0
+
+planner_server:
+  ros__parameters:
+    use_sim_time: False
+    GridBased:
+      plugin: "nav2_navfn_planner/NavfnPlanner"
+```
+
+**Launch Nav2:**
+
+```bash
+ros2 launch nav2_bringup navigation_launch.py \
+  params_file:=g1_nav2_params.yaml
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Implementei G1 Bridge (Unitree SDK → ROS2)
+- [ ] Testei publicação de /joint_states, /imu/data, /odom
+- [ ] Criei URDF do G1
+- [ ] Configurei robot_state_publisher (TF2)
+- [ ] Setup MoveIt2 para braços
+- [ ] Testei planejamento de trajetória com MoveIt2
+- [ ] Configurei Nav2 para navegação
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[👁️ Visão e Percepção no G1 →](./visao-percepcao-g1)**
+
+Integre câmeras RealSense, depth processing, SLAM e object detection.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 70-90 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 70% prático, 30% teórico

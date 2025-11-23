@@ -1,0 +1,1042 @@
+---
+sidebar_position: 3
+title: 3. Controle de Baixo Nível
+description: Direct motor control, torque/position modes e PID tuning
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# ⚡ Controle de Baixo Nível do G1
+
+:::tip Objetivo do Módulo
+Dominar controle direto dos motores do G1: modos de operação (torque, posição, velocidade), limites de segurança, PID tuning e implementar controladores customizados para casos avançados.
+:::
+
+---
+
+## 🎯 Modos de Controle: Visão Profunda
+
+### Hierarquia de Controle
+
+```
+Alto Nível (Abstraído)
+┌─────────────────────────────┐
+│  MotionCommand (walk, etc)  │  ← Módulo 5
+└─────────────────────────────┘
+              ↓
+Médio Nível (Coordenado)
+┌─────────────────────────────┐
+│  Whole-Body Controller      │  ← Módulo 9
+└─────────────────────────────┘
+              ↓
+Baixo Nível (Individual) ← ESTE MÓDULO
+┌─────────────────────────────┐
+│  JointCommand (per-joint)   │
+│  - Position mode (PID)      │
+│  - Velocity mode (PI)       │
+│  - Torque mode (direto)     │
+└─────────────────────────────┘
+              ↓
+Hardware
+┌─────────────────────────────┐
+│  Motor Driver (CAN bus)     │
+└─────────────────────────────┘
+```
+
+---
+
+## 🔧 Position Mode (Modo de Posição)
+
+### Como Funciona Internamente
+
+```
+Setpoint (target_position) → PID Controller → Torque → Motor
+         ↑                         ↑
+         └─── Encoder feedback ────┘
+```
+
+**Equação do PID:**
+
+```
+τ = Kp * (θ_target - θ_atual) + Kd * (0 - ω_atual) + Ki * ∫e dt
+```
+
+Onde:
+- `τ` = torque aplicado (Nm)
+- `Kp` = ganho proporcional (rigidez)
+- `Kd` = ganho derivativo (damping)
+- `Ki` = ganho integral (elimina steady-state error)
+- `θ` = posição (rad)
+- `ω` = velocidade (rad/s)
+- `e` = erro
+
+### Exemplo Básico
+
+<Tabs>
+<TabItem value="simple" label="🟢 Simples">
+
+```python
+#!/usr/bin/env python3
+"""
+position_control_simple.py - Controle de posição básico
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import time
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+
+    # Entrar em modo POSITION
+    robot.set_control_mode("POSITION")
+    time.sleep(0.5)  # Aguardar transição
+
+    # Criar comando
+    cmd = JointCommand()
+    cmd.joint_name = "left_knee"
+    cmd.control_mode = "POSITION"
+    cmd.target_position = 1.0  # ~57 graus
+    cmd.max_velocity = 1.0     # Limite de velocidade (rad/s)
+
+    # Enviar comando
+    robot.send_command(cmd)
+
+    # Aguardar movimento
+    print("Movendo joelho para 1.0 rad...")
+    time.sleep(2.0)
+
+    # Verificar posição final
+    state = robot.get_state()
+    idx = state.joint_names.index("left_knee")
+    actual_pos = state.joint_positions[idx]
+
+    print(f"Posição alvo:  {cmd.target_position:.3f} rad")
+    print(f"Posição atual: {actual_pos:.3f} rad")
+    print(f"Erro:          {abs(cmd.target_position - actual_pos):.3f} rad")
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+**Output esperado:**
+
+```
+Movendo joelho para 1.0 rad...
+Posição alvo:  1.000 rad
+Posição atual: 0.998 rad
+Erro:          0.002 rad
+```
+
+</TabItem>
+<TabItem value="advanced" label="🔵 Avançado">
+
+```python
+#!/usr/bin/env python3
+"""
+position_control_advanced.py - Com PID tuning e trajectory
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+
+class PositionController:
+    def __init__(self, robot: G1Robot, joint_name: str):
+        self.robot = robot
+        self.joint_name = joint_name
+
+        # Ganhos PID (padrões do G1 para joelho)
+        self.kp = 100.0   # Rigidez [Nm/rad]
+        self.kd = 5.0     # Damping [Nm/(rad/s)]
+        self.ki = 0.1     # Integral [Nm/(rad*s)]
+
+        # Limites
+        self.max_velocity = 2.0     # [rad/s]
+        self.max_acceleration = 5.0 # [rad/s²]
+        self.max_torque = 45.0      # [Nm] - depende da junta
+
+        # Estado interno
+        self.integral_error = 0.0
+        self.last_error = 0.0
+        self.last_time = time.time()
+
+    def set_gains(self, kp: float, kd: float, ki: float = 0.0):
+        """Configurar ganhos PID customizados"""
+        self.kp = kp
+        self.kd = kd
+        self.ki = ki
+        print(f"PID gains updated: Kp={kp}, Kd={kd}, Ki={ki}")
+
+    def move_to(self, target_position: float, timeout: float = 5.0):
+        """Move para posição alvo com feedback"""
+        cmd = JointCommand()
+        cmd.joint_name = self.joint_name
+        cmd.control_mode = "POSITION"
+        cmd.target_position = target_position
+        cmd.max_velocity = self.max_velocity
+        cmd.kp = self.kp  # Override ganhos padrão
+        cmd.kd = self.kd
+        cmd.ki = self.ki
+
+        # Enviar comando
+        self.robot.send_command(cmd)
+
+        # Aguardar convergência
+        start_time = time.time()
+        converged = False
+
+        while (time.time() - start_time) < timeout:
+            state = self.robot.get_state()
+            idx = state.joint_names.index(self.joint_name)
+            current_pos = state.joint_positions[idx]
+            error = abs(target_position - current_pos)
+
+            # Convergência: erro < 0.01 rad (~0.6°)
+            if error < 0.01:
+                converged = True
+                break
+
+            time.sleep(0.01)  # 100 Hz
+
+        if converged:
+            print(f"✅ Convergiu em {time.time() - start_time:.2f}s")
+        else:
+            print(f"⚠️  Timeout! Erro final: {error:.3f} rad")
+
+        return converged
+
+    def follow_trajectory(self, waypoints: list, duration: float):
+        """Segue trajetória suave entre waypoints"""
+        # Gerar trajetória interpolada (cubic spline)
+        t = np.linspace(0, duration, len(waypoints))
+        positions = np.array(waypoints)
+
+        # Interpolar com 100 Hz
+        t_interp = np.linspace(0, duration, int(duration * 100))
+        pos_interp = np.interp(t_interp, t, positions)
+
+        # Logs para plotting
+        time_log = []
+        pos_log = []
+        target_log = []
+
+        start_time = time.time()
+
+        for i, target_pos in enumerate(pos_interp):
+            cmd = JointCommand()
+            cmd.joint_name = self.joint_name
+            cmd.control_mode = "POSITION"
+            cmd.target_position = target_pos
+            cmd.max_velocity = self.max_velocity
+            cmd.kp = self.kp
+            cmd.kd = self.kd
+
+            self.robot.send_command(cmd)
+
+            # Log estado atual
+            state = self.robot.get_state()
+            idx = state.joint_names.index(self.joint_name)
+            current_pos = state.joint_positions[idx]
+
+            time_log.append(time.time() - start_time)
+            pos_log.append(current_pos)
+            target_log.append(target_pos)
+
+            # 100 Hz
+            time.sleep(0.01)
+
+        # Plot resultados
+        plt.figure(figsize=(10, 6))
+        plt.plot(time_log, target_log, 'r--', label='Target', linewidth=2)
+        plt.plot(time_log, pos_log, 'b-', label='Actual', linewidth=1)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Position (rad)')
+        plt.title(f'Position Control: {self.joint_name}')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f'/tmp/{self.joint_name}_trajectory.png')
+        plt.close()
+
+        print(f"📊 Plot salvo: /tmp/{self.joint_name}_trajectory.png")
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+    robot.set_control_mode("POSITION")
+
+    # Criar controller para joelho
+    knee_ctrl = PositionController(robot, "left_knee")
+
+    # Exemplo 1: Movimento simples
+    print("\n=== Teste 1: Movimento simples ===")
+    knee_ctrl.move_to(1.5, timeout=3.0)
+
+    time.sleep(1.0)
+
+    # Exemplo 2: Custom PID (mais rápido, menos suave)
+    print("\n=== Teste 2: PID customizado (agressivo) ===")
+    knee_ctrl.set_gains(kp=150.0, kd=8.0, ki=0.5)
+    knee_ctrl.move_to(0.5, timeout=2.0)
+
+    time.sleep(1.0)
+
+    # Exemplo 3: Trajetória suave
+    print("\n=== Teste 3: Trajetória ===")
+    knee_ctrl.set_gains(kp=100.0, kd=5.0, ki=0.1)  # Padrão
+    waypoints = [0.5, 1.0, 1.5, 1.0, 0.5]  # Vai e volta
+    knee_ctrl.follow_trajectory(waypoints, duration=5.0)
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚄 Velocity Mode (Modo de Velocidade)
+
+### Quando Usar
+
+**Bom para:**
+- ✅ Jogging manual (teleoperação)
+- ✅ Movimentos contínuos (rotação infinita)
+- ✅ Tracking de velocidade (treadmill walking)
+
+**Ruim para:**
+- ❌ Posições precisas (sem feedback de posição)
+- ❌ Movimentos explosivos (aceleração limitada)
+
+### Exemplo Prático
+
+```python
+#!/usr/bin/env python3
+"""
+velocity_control.py - Controle de velocidade com rampa
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import time
+import numpy as np
+
+class VelocityController:
+    def __init__(self, robot: G1Robot, joint_name: str):
+        self.robot = robot
+        self.joint_name = joint_name
+        self.max_acceleration = 5.0  # [rad/s²]
+        self.current_velocity = 0.0
+
+    def set_velocity(self, target_velocity: float, ramp_time: float = 0.5):
+        """
+        Define velocidade com rampa (evita solavancos)
+
+        Args:
+            target_velocity: Velocidade alvo [rad/s]
+            ramp_time: Tempo de rampa [s]
+        """
+        # Gerar rampa linear
+        steps = int(ramp_time * 100)  # 100 Hz
+        velocities = np.linspace(self.current_velocity, target_velocity, steps)
+
+        for vel in velocities:
+            cmd = JointCommand()
+            cmd.joint_name = self.joint_name
+            cmd.control_mode = "VELOCITY"
+            cmd.target_velocity = vel
+
+            self.robot.send_command(cmd)
+            time.sleep(0.01)
+
+        self.current_velocity = target_velocity
+
+    def stop(self, ramp_time: float = 0.3):
+        """Para suavemente"""
+        self.set_velocity(0.0, ramp_time)
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+    robot.set_control_mode("VELOCITY")
+
+    ctrl = VelocityController(robot, "left_hip_yaw")
+
+    # Rotacionar para direita
+    print("Rotacionando para direita (1 rad/s)...")
+    ctrl.set_velocity(1.0, ramp_time=0.5)
+    time.sleep(2.0)
+
+    # Parar
+    print("Parando...")
+    ctrl.stop()
+    time.sleep(1.0)
+
+    # Rotacionar para esquerda
+    print("Rotacionando para esquerda (-1 rad/s)...")
+    ctrl.set_velocity(-1.0, ramp_time=0.5)
+    time.sleep(2.0)
+
+    # Parar
+    ctrl.stop()
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## ⚡ Torque Mode (Modo de Torque)
+
+### ⚠️ PERIGO: Leia Antes de Usar
+
+**Torque mode é direto:** você especifica quanto torque (força rotacional) aplicar. **Não há PID interno, não há limites automáticos.**
+
+**Pode causar:**
+- 💥 Movimentos bruscos (overshoot)
+- 🤕 Danos aos motores (sobrecarga)
+- 📉 Queda do robô (perda de equilíbrio)
+
+**Use apenas se:**
+- ✅ Você entende controle de sistemas
+- ✅ Implementou seus próprios safety limits
+- ✅ Está fazendo impedance control ou RL
+- ✅ Testou em simulação primeiro
+
+### Gravity Compensation
+
+Antes de fazer qualquer coisa em torque mode, você precisa compensar a gravidade. Caso contrário, as juntas caem.
+
+```python
+#!/usr/bin/env python3
+"""
+gravity_compensation.py - Compensação de gravidade
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import numpy as np
+import time
+
+class GravityCompensator:
+    def __init__(self, robot: G1Robot):
+        self.robot = robot
+
+        # Parâmetros do modelo (valores aproximados para G1)
+        # Em produção, use URDF + pinocchio para cálculo exato
+        self.joint_gravity_torques = {
+            # Pernas (mais massa = mais torque)
+            "left_hip_pitch": 12.0,   # [Nm] @ 0 rad
+            "left_hip_roll": 8.0,
+            "left_hip_yaw": 2.0,
+            "left_knee": 15.0,        # Maior torque (suporta coxa+perna)
+            "left_ankle_pitch": 5.0,
+            "left_ankle_roll": 3.0,
+            # Espelhar para direita
+            "right_hip_pitch": 12.0,
+            "right_hip_roll": 8.0,
+            "right_hip_yaw": 2.0,
+            "right_knee": 15.0,
+            "right_ankle_pitch": 5.0,
+            "right_ankle_roll": 3.0,
+            # Braços (menos massa)
+            "left_shoulder_pitch": 6.0,
+            "left_shoulder_roll": 4.0,
+            "left_elbow": 3.0,
+            "left_wrist_yaw": 0.5,
+            "right_shoulder_pitch": 6.0,
+            "right_shoulder_roll": 4.0,
+            "right_elbow": 3.0,
+            "right_wrist_yaw": 0.5,
+            # Torso
+            "waist_pitch": 10.0,
+            "waist_yaw": 5.0,
+            "neck_pitch": 2.0,
+            "neck_yaw": 1.0
+        }
+
+    def compute_gravity_torque(self, joint_name: str, position: float) -> float:
+        """
+        Calcula torque de gravidade para junta
+
+        Simplificação: τ_g = τ_0 * sin(θ)
+        Realidade: Depende de todas as juntas (acoplamento)
+
+        Args:
+            joint_name: Nome da junta
+            position: Posição atual [rad]
+
+        Returns:
+            Torque necessário para compensar gravidade [Nm]
+        """
+        tau_0 = self.joint_gravity_torques.get(joint_name, 0.0)
+        return tau_0 * np.sin(position)
+
+    def apply_compensation(self):
+        """Aplica compensação em loop"""
+        state = self.robot.get_state()
+
+        for joint_name, position in zip(state.joint_names, state.joint_positions):
+            tau_g = self.compute_gravity_torque(joint_name, position)
+
+            cmd = JointCommand()
+            cmd.joint_name = joint_name
+            cmd.control_mode = "TORQUE"
+            cmd.target_torque = tau_g
+
+            self.robot.send_command(cmd)
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+
+    print("⚠️  Entrando em modo TORQUE com gravity compensation")
+    print("    O robô deve ficar parado (juntas não caem)")
+    print("    Pressione Ctrl+C para sair\n")
+
+    robot.set_control_mode("TORQUE")
+    time.sleep(0.5)
+
+    compensator = GravityCompensator(robot)
+
+    try:
+        while True:
+            compensator.apply_compensation()
+            time.sleep(0.01)  # 100 Hz
+
+    except KeyboardInterrupt:
+        print("\n\nSaindo...")
+        robot.set_control_mode("IDLE")  # Desligar motores
+        robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+### Impedance Control (Controle de Impedância)
+
+**Objetivo:** Fazer junta se comportar como mola + damper (soft compliance)
+
+```python
+#!/usr/bin/env python3
+"""
+impedance_control.py - Controle de impedância
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import time
+
+class ImpedanceController:
+    def __init__(self, robot: G1Robot, joint_name: str):
+        self.robot = robot
+        self.joint_name = joint_name
+
+        # Parâmetros de impedância
+        self.kp = 50.0   # Rigidez [Nm/rad] (menor = mais "mole")
+        self.kd = 2.0    # Damping [Nm/(rad/s)]
+
+        # Posição de equilíbrio
+        self.q_desired = 0.0
+
+        # Gravity compensation
+        self.tau_g = 10.0  # Simplificado (veja GravityCompensator)
+
+    def set_impedance(self, kp: float, kd: float):
+        """Configurar rigidez e damping"""
+        self.kp = kp
+        self.kd = kd
+
+    def set_equilibrium(self, q_desired: float):
+        """Definir posição de equilíbrio"""
+        self.q_desired = q_desired
+
+    def step(self):
+        """Um passo de controle (chamar em loop)"""
+        # Ler estado atual
+        state = self.robot.get_state()
+        idx = state.joint_names.index(self.joint_name)
+        q = state.joint_positions[idx]
+        q_dot = state.joint_velocities[idx]
+
+        # Calcular torque de impedância
+        tau_impedance = self.kp * (self.q_desired - q) - self.kd * q_dot
+
+        # Adicionar gravity compensation
+        tau_total = tau_impedance + self.tau_g
+
+        # Enviar comando
+        cmd = JointCommand()
+        cmd.joint_name = self.joint_name
+        cmd.control_mode = "TORQUE"
+        cmd.target_torque = tau_total
+
+        self.robot.send_command(cmd)
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+    robot.set_control_mode("TORQUE")
+
+    ctrl = ImpedanceController(robot, "left_elbow")
+
+    # Impedância baixa (macio - fácil de empurrar)
+    print("Modo 1: Impedância baixa (Kp=20, Kd=1)")
+    ctrl.set_impedance(kp=20.0, kd=1.0)
+    ctrl.set_equilibrium(0.5)
+
+    print("Tente mover o cotovelo manualmente...")
+    for _ in range(500):  # 5 segundos @ 100 Hz
+        ctrl.step()
+        time.sleep(0.01)
+
+    # Impedância alta (rígido - difícil de empurrar)
+    print("\nModo 2: Impedância alta (Kp=100, Kd=5)")
+    ctrl.set_impedance(kp=100.0, kd=5.0)
+    ctrl.set_equilibrium(0.5)
+
+    print("Tente mover o cotovelo novamente...")
+    for _ in range(500):
+        ctrl.step()
+        time.sleep(0.01)
+
+    robot.set_control_mode("IDLE")
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## 🛡️ Safety Limits
+
+### Tipos de Limites
+
+<Tabs>
+<TabItem value="position" label="📍 Limites de Posição">
+
+```python
+JOINT_LIMITS = {
+    "left_hip_pitch": (-0.8, 1.6),     # [rad]
+    "left_hip_roll": (-0.5, 0.5),
+    "left_hip_yaw": (-0.3, 0.3),
+    "left_knee": (0.0, 2.3),           # Não dobra reverso
+    "left_ankle_pitch": (-0.7, 0.7),
+    "left_ankle_roll": (-0.3, 0.3),
+    # ... (resto das juntas)
+}
+
+def clamp_position(joint_name: str, position: float) -> float:
+    """Garante posição dentro dos limites"""
+    min_pos, max_pos = JOINT_LIMITS[joint_name]
+    return max(min_pos, min(max_pos, position))
+```
+
+**Uso:**
+
+```python
+target = 3.0  # Fora dos limites!
+safe_target = clamp_position("left_knee", target)
+# safe_target = 2.3 (limite máximo)
+```
+
+</TabItem>
+<TabItem value="velocity" label="🚄 Limites de Velocidade">
+
+```python
+MAX_VELOCITIES = {
+    "left_hip_pitch": 5.0,    # [rad/s]
+    "left_knee": 5.0,
+    "left_elbow": 8.0,        # Juntas menores = mais rápidas
+    # ...
+}
+
+def limit_velocity(joint_name: str, velocity: float) -> float:
+    """Limita velocidade"""
+    max_vel = MAX_VELOCITIES.get(joint_name, 5.0)
+    return max(-max_vel, min(max_vel, velocity))
+```
+
+</TabItem>
+<TabItem value="torque" label="⚡ Limites de Torque">
+
+```python
+MAX_TORQUES = {
+    "left_hip_pitch": 45.0,   # [Nm] - quadril é forte
+    "left_knee": 45.0,
+    "left_ankle_pitch": 30.0,
+    "left_shoulder_pitch": 25.0,
+    "left_elbow": 20.0,
+    "left_wrist_yaw": 10.0,   # Pulso é fraco
+    # ...
+}
+
+def limit_torque(joint_name: str, torque: float) -> float:
+    """Limita torque"""
+    max_tau = MAX_TORQUES.get(joint_name, 20.0)
+    return max(-max_tau, min(max_tau, torque))
+```
+
+</TabItem>
+<TabItem value="temperature" label="🌡️ Limites de Temperatura">
+
+```python
+MAX_TEMP = 80.0  # [°C] - desligar motor se exceder
+
+def check_temperature(robot: G1Robot):
+    """Verifica temperatura de todos os motores"""
+    state = robot.get_state()
+
+    for joint_name, temp in zip(state.joint_names, state.joint_temperatures):
+        if temp > MAX_TEMP:
+            print(f"🔥 OVERHEATING: {joint_name} = {temp}°C")
+            robot.emergency_stop()
+            return False
+
+    return True
+
+# Usar em loop de controle:
+while True:
+    if not check_temperature(robot):
+        break
+    # ... resto do controle
+```
+
+</TabItem>
+</Tabs>
+
+### Safety Wrapper Completo
+
+```python
+#!/usr/bin/env python3
+"""
+safe_controller.py - Wrapper com todos os safety checks
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class JointLimits:
+    position_min: float
+    position_max: float
+    velocity_max: float
+    torque_max: float
+    temp_max: float = 80.0
+
+class SafeJointController:
+    def __init__(self, robot: G1Robot, joint_name: str, limits: JointLimits):
+        self.robot = robot
+        self.joint_name = joint_name
+        self.limits = limits
+
+        # Contadores de violações
+        self.violations = {
+            "position": 0,
+            "velocity": 0,
+            "torque": 0,
+            "temperature": 0
+        }
+
+    def send_position_command(self, position: float, velocity: Optional[float] = None) -> bool:
+        """
+        Envia comando de posição com safety checks
+
+        Returns:
+            True se comando foi enviado, False se violou limites
+        """
+        # Check 1: Position limits
+        if position < self.limits.position_min or position > self.limits.position_max:
+            print(f"❌ Position limit violated: {position:.3f} not in "
+                  f"[{self.limits.position_min:.3f}, {self.limits.position_max:.3f}]")
+            self.violations["position"] += 1
+            position = max(self.limits.position_min, min(self.limits.position_max, position))
+
+        # Check 2: Velocity limits
+        if velocity is not None:
+            if abs(velocity) > self.limits.velocity_max:
+                print(f"❌ Velocity limit violated: {velocity:.3f} exceeds {self.limits.velocity_max:.3f}")
+                self.violations["velocity"] += 1
+                velocity = max(-self.limits.velocity_max, min(self.limits.velocity_max, velocity))
+
+        # Check 3: Temperature
+        state = self.robot.get_state()
+        idx = state.joint_names.index(self.joint_name)
+        temp = state.joint_temperatures[idx]
+
+        if temp > self.limits.temp_max:
+            print(f"🔥 Temperature limit exceeded: {temp:.1f}°C > {self.limits.temp_max:.1f}°C")
+            self.violations["temperature"] += 1
+            return False  # Não enviar comando
+
+        # Tudo OK, enviar comando
+        cmd = JointCommand()
+        cmd.joint_name = self.joint_name
+        cmd.control_mode = "POSITION"
+        cmd.target_position = position
+        if velocity is not None:
+            cmd.max_velocity = velocity
+
+        self.robot.send_command(cmd)
+        return True
+
+    def send_torque_command(self, torque: float) -> bool:
+        """Envia comando de torque com safety checks"""
+        # Check torque limit
+        if abs(torque) > self.limits.torque_max:
+            print(f"❌ Torque limit violated: {torque:.2f} exceeds {self.limits.torque_max:.2f}")
+            self.violations["torque"] += 1
+            torque = max(-self.limits.torque_max, min(self.limits.torque_max, torque))
+
+        # Check temperature
+        state = self.robot.get_state()
+        idx = state.joint_names.index(self.joint_name)
+        temp = state.joint_temperatures[idx]
+
+        if temp > self.limits.temp_max:
+            print(f"🔥 Temperature limit exceeded: {temp:.1f}°C")
+            self.violations["temperature"] += 1
+            return False
+
+        # Enviar
+        cmd = JointCommand()
+        cmd.joint_name = self.joint_name
+        cmd.control_mode = "TORQUE"
+        cmd.target_torque = torque
+
+        self.robot.send_command(cmd)
+        return True
+
+    def print_violations(self):
+        """Imprime estatísticas de violações"""
+        total = sum(self.violations.values())
+        print(f"\n=== Safety Violations for {self.joint_name} ===")
+        print(f"Position:    {self.violations['position']}")
+        print(f"Velocity:    {self.violations['velocity']}")
+        print(f"Torque:      {self.violations['torque']}")
+        print(f"Temperature: {self.violations['temperature']}")
+        print(f"Total:       {total}")
+
+# Uso:
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+
+    # Definir limites para joelho
+    knee_limits = JointLimits(
+        position_min=0.0,
+        position_max=2.3,
+        velocity_max=5.0,
+        torque_max=45.0,
+        temp_max=75.0  # Mais conservador
+    )
+
+    ctrl = SafeJointController(robot, "left_knee", knee_limits)
+
+    # Comandos normais
+    robot.set_control_mode("POSITION")
+    ctrl.send_position_command(1.0, velocity=1.0)  # OK
+    ctrl.send_position_command(3.0, velocity=1.0)  # Clamped para 2.3
+
+    # Estatísticas
+    ctrl.print_violations()
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## 🎛️ PID Tuning
+
+### Método Ziegler-Nichols (Simplificado)
+
+**Procedimento:**
+
+1. **Começar com Kp=0, Kd=0, Ki=0**
+
+2. **Aumentar Kp até começar a oscilar**
+   - Kp crítico = Ku
+   - Período de oscilação = Tu
+
+3. **Calcular ganhos:**
+   - Kp = 0.6 * Ku
+   - Kd = 0.075 * Ku * Tu
+   - Ki = 1.2 * Ku / Tu
+
+**Implementação automatizada:**
+
+```python
+#!/usr/bin/env python3
+"""
+pid_tuning.py - Auto-tuning de PID
+"""
+
+from unitree_sdk2_python import G1Robot, JointCommand
+import time
+import numpy as np
+
+class PIDTuner:
+    def __init__(self, robot: G1Robot, joint_name: str):
+        self.robot = robot
+        self.joint_name = joint_name
+
+    def find_critical_gain(self, initial_kp: float = 10.0, max_kp: float = 200.0):
+        """
+        Encontra ganho crítico Ku (onde sistema começa a oscilar)
+
+        Returns:
+            (Ku, Tu): Ganho crítico e período de oscilação
+        """
+        print("Procurando ganho crítico...")
+
+        kp = initial_kp
+        kd = 0.0
+        ki = 0.0
+
+        target_position = 1.0
+
+        while kp < max_kp:
+            print(f"\nTestando Kp = {kp:.1f}")
+
+            # Aplicar ganho
+            cmd = JointCommand()
+            cmd.joint_name = self.joint_name
+            cmd.control_mode = "POSITION"
+            cmd.target_position = target_position
+            cmd.kp = kp
+            cmd.kd = kd
+            cmd.ki = ki
+
+            self.robot.send_command(cmd)
+
+            # Coletar dados (3 segundos)
+            positions = []
+            times = []
+            start_time = time.time()
+
+            for _ in range(300):  # 3s @ 100 Hz
+                state = self.robot.get_state()
+                idx = state.joint_names.index(self.joint_name)
+                pos = state.joint_positions[idx]
+
+                positions.append(pos)
+                times.append(time.time() - start_time)
+
+                time.sleep(0.01)
+
+            # Detectar oscilação
+            positions = np.array(positions)
+            is_oscillating, period = self._detect_oscillation(positions, times)
+
+            if is_oscillating:
+                print(f"✅ Oscilação detectada! Ku = {kp:.1f}, Tu = {period:.3f}s")
+                return kp, period
+
+            # Aumentar Kp
+            kp *= 1.5
+
+        print("❌ Não encontrou ganho crítico (sem oscilação)")
+        return None, None
+
+    def _detect_oscillation(self, positions: np.ndarray, times: list) -> tuple:
+        """
+        Detecta se sinal está oscilando
+
+        Returns:
+            (is_oscillating, period)
+        """
+        # Remover steady-state (últimos 50% dos dados)
+        mid = len(positions) // 2
+        signal = positions[mid:]
+
+        # Detectar cruzamentos de zero (detrended)
+        mean = np.mean(signal)
+        detrended = signal - mean
+        crossings = np.where(np.diff(np.sign(detrended)))[0]
+
+        if len(crossings) < 4:
+            return False, 0.0
+
+        # Calcular período médio
+        periods = [times[mid + crossings[i+1]] - times[mid + crossings[i]]
+                   for i in range(len(crossings) - 1)]
+        avg_period = np.mean(periods) * 2  # *2 pois zero-crossing é meia onda
+
+        # Oscilação se amplitude > 0.05 rad
+        amplitude = np.max(signal) - np.min(signal)
+        is_oscillating = amplitude > 0.05
+
+        return is_oscillating, avg_period
+
+    def compute_pid_gains(self, ku: float, tu: float) -> dict:
+        """Calcula ganhos via Ziegler-Nichols"""
+        kp = 0.6 * ku
+        kd = 0.075 * ku * tu
+        ki = 1.2 * ku / tu
+
+        return {"kp": kp, "kd": kd, "ki": ki}
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection(timeout=10)
+    robot.set_control_mode("POSITION")
+
+    tuner = PIDTuner(robot, "left_knee")
+
+    # Auto-tune
+    ku, tu = tuner.find_critical_gain()
+
+    if ku is not None:
+        gains = tuner.compute_pid_gains(ku, tu)
+        print(f"\n=== Ganhos recomendados ===")
+        print(f"Kp = {gains['kp']:.2f}")
+        print(f"Kd = {gains['kd']:.2f}")
+        print(f"Ki = {gains['ki']:.2f}")
+    else:
+        print("Auto-tuning falhou")
+
+    robot.disconnect()
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Entendi os 3 modos de controle (POSITION, VELOCITY, TORQUE)
+- [ ] Implementei Position Controller com PID customizado
+- [ ] Testei Velocity Controller com rampa
+- [ ] Implementei Gravity Compensation para Torque Mode
+- [ ] Criei Impedance Controller
+- [ ] Implementei SafeJointController com todos os limites
+- [ ] Entendi PID tuning (Ziegler-Nichols)
+- [ ] Testei código em robô real ou simulação
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[📊 Leitura de Estados e Sensores →](./estados-sensores)**
+
+Aprenda a ler e processar dados de IMU, força/torque, encoders e fazer sensor fusion.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 70-90 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 85% prático, 15% teórico

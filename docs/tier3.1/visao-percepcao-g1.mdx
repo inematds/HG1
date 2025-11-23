@@ -1,0 +1,706 @@
+---
+sidebar_position: 8
+title: 8. Visão e Percepção no G1
+description: Câmeras RealSense, depth processing, SLAM e object detection
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 👁️ Visão e Percepção no Unitree G1
+
+:::tip Objetivo do Módulo
+Dominar o sistema de visão do G1: câmeras Intel RealSense D435i, processamento de depth, SLAM (mapeamento e localização), e object detection pipeline completo.
+:::
+
+---
+
+## 📷 Intel RealSense D435i
+
+### Especificações do Hardware
+
+**G1 possui 2x RealSense D435i:**
+- **Localização:** Frontal (head), orientadas para frente
+- **Field of View:** 87° × 58° (H × V)
+- **Depth range:** 0.3m - 10m
+- **Resolução RGB:** 1920x1080 @ 30 fps (default: 640x480)
+- **Resolução Depth:** 1280x720 @ 30 fps
+- **IMU integrado:** 6-axis (200 Hz)
+
+### Acessando Câmeras
+
+<Tabs>
+<TabItem value="realsense-ros" label="🔧 Via RealSense ROS2">
+
+**Instalar:**
+
+```bash
+sudo apt install ros-humble-realsense2-camera
+```
+
+**Launch:**
+
+```bash
+# Câmera esquerda
+ros2 launch realsense2_camera rs_launch.py \
+  camera_name:=camera_left \
+  serial_no:='_123456789'  # Serial da câmera esquerda
+
+# Câmera direita (outro terminal)
+ros2 launch realsense2_camera rs_launch.py \
+  camera_name:=camera_right \
+  serial_no:='_987654321'  # Serial da câmera direita
+```
+
+**Topics publicados:**
+
+```bash
+ros2 topic list | grep camera_left
+# /camera_left/color/image_raw
+# /camera_left/depth/image_rect_raw
+# /camera_left/infra1/image_rect_raw
+# /camera_left/infra2/image_rect_raw
+# /camera_left/aligned_depth_to_color/image_raw
+# /camera_left/accel/sample
+# /camera_left/gyro/sample
+```
+
+</TabItem>
+<TabItem value="unitree-sdk" label="🤖 Via Unitree SDK">
+
+```python
+#!/usr/bin/env python3
+"""
+camera_stream.py - Streaming de câmeras via Unitree SDK
+"""
+
+from unitree_sdk2_python import G1Robot, Subscriber
+import numpy as np
+import cv2
+
+class CameraStreamer:
+    def __init__(self, robot: G1Robot):
+        self.robot = robot
+
+        # Subscribers para câmeras
+        self.left_rgb_sub = Subscriber(
+            "/camera_left/color/image_raw",
+            callback=self.left_rgb_callback
+        )
+        self.left_depth_sub = Subscriber(
+            "/camera_left/depth/image_rect_raw",
+            callback=self.left_depth_callback
+        )
+
+    def left_rgb_callback(self, msg):
+        """Processa imagem RGB"""
+        # Converter DDS Image para numpy array
+        img = np.frombuffer(msg.data, dtype=np.uint8).reshape(
+            (msg.height, msg.width, 3)
+        )
+
+        # Converter RGB para BGR (OpenCV)
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        # Exibir
+        cv2.imshow("Left Camera - RGB", img_bgr)
+        cv2.waitKey(1)
+
+    def left_depth_callback(self, msg):
+        """Processa depth map"""
+        # 16-bit unsigned (mm)
+        depth = np.frombuffer(msg.data, dtype=np.uint16).reshape(
+            (msg.height, msg.width)
+        )
+
+        # Converter para metros
+        depth_m = depth.astype(np.float32) / 1000.0
+
+        # Visualizar (normalizar para 0-255)
+        depth_vis = cv2.normalize(depth_m, None, 0, 255,
+                                   cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        depth_colored = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+
+        cv2.imshow("Left Camera - Depth", depth_colored)
+        cv2.waitKey(1)
+
+    def run(self):
+        """Roda streamers"""
+        self.left_rgb_sub.spin()
+
+def main():
+    robot = G1Robot()
+    robot.wait_for_connection()
+
+    streamer = CameraStreamer(robot)
+    streamer.run()
+
+if __name__ == "__main__":
+    main()
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🗺️ Depth Processing
+
+### Point Cloud Generation
+
+```python
+#!/usr/bin/env python3
+"""
+pointcloud_generator.py - Gera point clouds das câmeras
+"""
+
+import numpy as np
+import open3d as o3d
+from sensor_msgs.msg import Image, CameraInfo
+import cv2
+
+class PointCloudGenerator:
+    def __init__(self):
+        # Parâmetros intrínsecos da D435i (1280x720)
+        self.fx = 640.0  # Focal length X
+        self.fy = 640.0  # Focal length Y
+        self.cx = 640.0  # Principal point X
+        self.cy = 360.0  # Principal point Y
+
+        self.width = 1280
+        self.height = 720
+
+    def depth_to_pointcloud(self, depth_image: np.ndarray,
+                             rgb_image: np.ndarray = None) -> o3d.geometry.PointCloud:
+        """
+        Converte depth image para point cloud
+
+        Args:
+            depth_image: Depth map em metros (HxW)
+            rgb_image: Opcional, imagem RGB (HxWx3)
+
+        Returns:
+            Open3D PointCloud
+        """
+        # Criar meshgrid de coordenadas de pixel
+        u = np.arange(self.width)
+        v = np.arange(self.height)
+        u, v = np.meshgrid(u, v)
+
+        # Backproject para 3D
+        z = depth_image
+        x = (u - self.cx) * z / self.fx
+        y = (v - self.cy) * z / self.fy
+
+        # Flatten e remover pontos inválidos (depth = 0)
+        points = np.stack([x, y, z], axis=-1).reshape(-1, 3)
+        valid = points[:, 2] > 0  # Z > 0
+
+        points = points[valid]
+
+        # Criar point cloud
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+
+        # Adicionar cores se RGB fornecido
+        if rgb_image is not None:
+            colors = rgb_image.reshape(-1, 3)[valid] / 255.0
+            pcd.colors = o3d.utility.Vector3dVector(colors)
+
+        return pcd
+
+    def visualize_pointcloud(self, pcd: o3d.geometry.PointCloud):
+        """Visualiza point cloud interativo"""
+        o3d.visualization.draw_geometries([pcd])
+
+# Exemplo de uso:
+def main():
+    generator = PointCloudGenerator()
+
+    # Simular depth (na prática, ler de ROS topic ou Unitree SDK)
+    depth = np.random.rand(720, 1280) * 5.0  # 0-5 metros
+
+    # Gerar point cloud
+    pcd = generator.depth_to_pointcloud(depth)
+
+    print(f"Point cloud: {len(pcd.points)} pontos")
+
+    # Visualizar
+    generator.visualize_pointcloud(pcd)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Obstacle Detection
+
+```python
+class ObstacleDetector:
+    def __init__(self, height_threshold=0.15):
+        """
+        Detecta obstáculos baseado em depth
+
+        Args:
+            height_threshold: Altura mínima para considerar obstáculo [m]
+        """
+        self.height_threshold = height_threshold
+
+    def detect_obstacles(self, depth_image: np.ndarray) -> list:
+        """
+        Detecta obstáculos na imagem de profundidade
+
+        Returns:
+            Lista de (x, y, width, height) de obstáculos
+        """
+        # Threshold: pontos mais próximos que 2m
+        close_points = (depth_image > 0.3) & (depth_image < 2.0)
+
+        # Converter para uint8
+        close_points_img = (close_points * 255).astype(np.uint8)
+
+        # Encontrar contornos
+        contours, _ = cv2.findContours(
+            close_points_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        obstacles = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+
+            # Filtrar ruído (área mínima)
+            if area < 100:
+                continue
+
+            x, y, w, h = cv2.boundingRect(contour)
+            obstacles.append((x, y, w, h))
+
+        return obstacles
+
+    def visualize_obstacles(self, rgb_image: np.ndarray,
+                             obstacles: list) -> np.ndarray:
+        """Desenha bounding boxes dos obstáculos"""
+        img_vis = rgb_image.copy()
+
+        for (x, y, w, h) in obstacles:
+            cv2.rectangle(img_vis, (x, y), (x+w, y+h), (0, 0, 255), 2)
+            cv2.putText(img_vis, "Obstacle", (x, y-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+        return img_vis
+```
+
+---
+
+## 🗺️ SLAM (Simultaneous Localization and Mapping)
+
+### ORB-SLAM3 com RealSense
+
+**Instalar:**
+
+```bash
+# ORB-SLAM3 dependencies
+sudo apt install libeigen3-dev libopencv-dev libpangolin-dev
+
+# Clonar ORB-SLAM3
+cd ~
+git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+cd ORB_SLAM3
+
+# Build
+chmod +x build.sh
+./build.sh
+
+# Build ROS2 wrapper
+cd ~/g1_ros2_ws/src
+git clone https://github.com/thien94/orb_slam3_ros2.git
+cd ~/g1_ros2_ws
+colcon build --packages-select orb_slam3_ros2
+```
+
+**Configuração para D435i:**
+
+```yaml
+# D435i.yaml - ORB-SLAM3 config
+%YAML:1.0
+
+Camera.type: "PinHole"
+
+Camera.fx: 640.0
+Camera.fy: 640.0
+Camera.cx: 640.0
+Camera.cy: 360.0
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.width: 1280
+Camera.height: 720
+
+Camera.fps: 30.0
+Camera.RGB: 1
+
+ORBextractor.nFeatures: 1200
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+```
+
+**Launch:**
+
+```bash
+ros2 run orb_slam3_ros2 stereo \
+  --vocabulary ./Vocabulary/ORBvoc.txt \
+  --settings ./Examples/Stereo/D435i.yaml
+```
+
+### RTAB-Map (Alternative)
+
+```bash
+# Instalar RTAB-Map
+sudo apt install ros-humble-rtabmap-ros
+
+# Launch
+ros2 launch rtabmap_launch rtabmap.launch.py \
+  rtabmap_args:="--delete_db_on_start" \
+  depth_topic:=/camera_left/aligned_depth_to_color/image_raw \
+  rgb_topic:=/camera_left/color/image_raw \
+  camera_info_topic:=/camera_left/color/camera_info \
+  frame_id:=base_link \
+  approx_sync:=true
+```
+
+**Visualizar mapa:**
+
+```bash
+ros2 run rviz2 rviz2
+# Adicionar display: Map -> /rtabmap/mapData
+```
+
+---
+
+## 🎯 Object Detection
+
+### YOLOv8 Integration
+
+```python
+#!/usr/bin/env python3
+"""
+yolo_detector.py - Object detection com YOLOv8
+"""
+
+from ultralytics import YOLO
+import cv2
+import numpy as np
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
+from cv_bridge import CvBridge
+
+class YOLODetectorNode(Node):
+    def __init__(self):
+        super().__init__('yolo_detector')
+
+        # Carregar modelo YOLOv8
+        self.model = YOLO('yolov8n.pt')  # nano (rápido)
+
+        # Subscriber para câmera
+        self.image_sub = self.create_subscription(
+            Image, '/camera_left/color/image_raw',
+            self.image_callback, 10
+        )
+
+        # Publisher para detecções
+        self.detection_pub = self.create_publisher(
+            Detection2DArray, '/detections', 10
+        )
+
+        self.bridge = CvBridge()
+
+        self.get_logger().info('YOLOv8 Detector ready')
+
+    def image_callback(self, msg: Image):
+        """Processa imagem e detecta objetos"""
+        # Converter ROS Image para OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+        # Detectar objetos
+        results = self.model(cv_image, verbose=False)
+
+        # Criar mensagem de detecções
+        detections_msg = Detection2DArray()
+        detections_msg.header = msg.header
+
+        for result in results:
+            boxes = result.boxes
+
+            for box in boxes:
+                detection = Detection2D()
+
+                # Bounding box
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                detection.bbox.center.position.x = float((x1 + x2) / 2)
+                detection.bbox.center.position.y = float((y1 + y2) / 2)
+                detection.bbox.size_x = float(x2 - x1)
+                detection.bbox.size_y = float(y2 - y1)
+
+                # Classe e confiança
+                hypothesis = ObjectHypothesisWithPose()
+                hypothesis.hypothesis.class_id = str(int(box.cls[0]))
+                hypothesis.hypothesis.score = float(box.conf[0])
+
+                detection.results.append(hypothesis)
+                detections_msg.detections.append(detection)
+
+                # Desenhar na imagem
+                cv2.rectangle(cv_image, (int(x1), int(y1)), (int(x2), int(y2)),
+                              (0, 255, 0), 2)
+                label = f"{self.model.names[int(box.cls[0])]} {box.conf[0]:.2f}"
+                cv2.putText(cv_image, label, (int(x1), int(y1)-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Publicar detecções
+        self.detection_pub.publish(detections_msg)
+
+        # Exibir imagem
+        cv2.imshow("YOLOv8 Detections", cv_image)
+        cv2.waitKey(1)
+
+def main():
+    rclpy.init()
+    node = YOLODetectorNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+**Rodar:**
+
+```bash
+# Instalar ultralytics
+pip3 install ultralytics
+
+# Rodar detector
+ros2 run g1_perception yolo_detector
+```
+
+### 3D Object Localization
+
+```python
+class Object3DLocalizer:
+    def __init__(self, camera_intrinsics):
+        self.fx = camera_intrinsics['fx']
+        self.fy = camera_intrinsics['fy']
+        self.cx = camera_intrinsics['cx']
+        self.cy = camera_intrinsics['cy']
+
+    def localize_object(self, bbox: tuple, depth_image: np.ndarray) -> dict:
+        """
+        Calcula posição 3D do objeto
+
+        Args:
+            bbox: (x1, y1, x2, y2) bounding box
+            depth_image: Depth map [m]
+
+        Returns:
+            dict com 'position' (x, y, z) em metros
+        """
+        x1, y1, x2, y2 = bbox
+
+        # Centro do bbox
+        u = int((x1 + x2) / 2)
+        v = int((y1 + y2) / 2)
+
+        # Profundidade no centro
+        z = depth_image[v, u]
+
+        if z == 0:
+            return None  # Depth inválido
+
+        # Backproject para 3D
+        x = (u - self.cx) * z / self.fx
+        y = (v - self.cy) * z / self.fy
+
+        return {
+            'position': (x, y, z),
+            'distance': np.sqrt(x**2 + y**2 + z**2)
+        }
+```
+
+---
+
+## 📊 Perception Pipeline Completo
+
+```python
+#!/usr/bin/env python3
+"""
+perception_system.py - Sistema de percepção completo
+"""
+
+from dataclasses import dataclass
+from typing import List
+
+@dataclass
+class DetectedObject:
+    """Objeto detectado"""
+    class_name: str
+    confidence: float
+    bbox_2d: tuple  # (x1, y1, x2, y2)
+    position_3d: tuple  # (x, y, z)
+    distance: float
+
+class PerceptionSystem(Node):
+    def __init__(self):
+        super().__init__('perception_system')
+
+        # YOLO detector
+        self.yolo = YOLO('yolov8n.pt')
+
+        # 3D localizer
+        intrinsics = {
+            'fx': 640.0, 'fy': 640.0,
+            'cx': 640.0, 'cy': 360.0
+        }
+        self.localizer = Object3DLocalizer(intrinsics)
+
+        # Obstacle detector
+        self.obstacle_detector = ObstacleDetector()
+
+        # Subscribers
+        self.rgb_sub = self.create_subscription(
+            Image, '/camera_left/color/image_raw',
+            self.rgb_callback, 10
+        )
+        self.depth_sub = self.create_subscription(
+            Image, '/camera_left/depth/image_rect_raw',
+            self.depth_callback, 10
+        )
+
+        # Estado
+        self.latest_rgb = None
+        self.latest_depth = None
+        self.detected_objects: List[DetectedObject] = []
+
+        # Timer para processar
+        self.create_timer(0.1, self.process_perception)  # 10 Hz
+
+        self.bridge = CvBridge()
+
+    def rgb_callback(self, msg):
+        self.latest_rgb = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+    def depth_callback(self, msg):
+        depth_raw = self.bridge.imgmsg_to_cv2(msg, desired_encoding='16UC1')
+        self.latest_depth = depth_raw.astype(np.float32) / 1000.0  # mm -> m
+
+    def process_perception(self):
+        """Pipeline de percepção"""
+        if self.latest_rgb is None or self.latest_depth is None:
+            return
+
+        # 1. Detectar objetos (YOLO)
+        results = self.yolo(self.latest_rgb, verbose=False)
+
+        self.detected_objects.clear()
+
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])
+
+                # 2. Localizar em 3D
+                loc_3d = self.localizer.localize_object(
+                    (x1, y1, x2, y2), self.latest_depth
+                )
+
+                if loc_3d is not None:
+                    obj = DetectedObject(
+                        class_name=self.yolo.names[class_id],
+                        confidence=confidence,
+                        bbox_2d=(x1, y1, x2, y2),
+                        position_3d=loc_3d['position'],
+                        distance=loc_3d['distance']
+                    )
+                    self.detected_objects.append(obj)
+
+        # 3. Detectar obstáculos
+        obstacles = self.obstacle_detector.detect_obstacles(self.latest_depth)
+
+        # 4. Visualizar
+        self.visualize(self.latest_rgb, obstacles)
+
+        # 5. Log
+        self.log_perception()
+
+    def visualize(self, img, obstacles):
+        """Visualiza percepção"""
+        img_vis = img.copy()
+
+        # Desenhar objetos detectados
+        for obj in self.detected_objects:
+            x1, y1, x2, y2 = [int(c) for c in obj.bbox_2d]
+            cv2.rectangle(img_vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+            label = f"{obj.class_name} {obj.confidence:.2f} ({obj.distance:.2f}m)"
+            cv2.putText(img_vis, label, (x1, y1-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Desenhar obstáculos
+        for (x, y, w, h) in obstacles:
+            cv2.rectangle(img_vis, (x, y), (x+w, y+h), (0, 0, 255), 1)
+
+        cv2.imshow("Perception", img_vis)
+        cv2.waitKey(1)
+
+    def log_perception(self):
+        """Log estado da percepção"""
+        if len(self.detected_objects) > 0:
+            self.get_logger().info(f"Detected {len(self.detected_objects)} objects:")
+            for obj in self.detected_objects:
+                self.get_logger().info(
+                    f"  - {obj.class_name}: {obj.distance:.2f}m @ {obj.position_3d}"
+                )
+
+def main():
+    rclpy.init()
+    node = PerceptionSystem()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+```
+
+---
+
+## ✅ Checklist de Conclusão
+
+- [ ] Acessei câmeras RealSense D435i (ROS2 ou Unitree SDK)
+- [ ] Gerei point clouds de depth images
+- [ ] Implementei obstacle detection
+- [ ] Configurei SLAM (ORB-SLAM3 ou RTAB-Map)
+- [ ] Integrei YOLOv8 para object detection
+- [ ] Implementei 3D object localization
+- [ ] Criei Perception System completo
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🤖 Autonomia Completa →](./autonomia-completa)**
+
+Integre todos os sistemas: state machine, decision making, error recovery e navegação multi-floor.
+:::
+
+---
+
+**⏱️ Tempo estimado:** 80-100 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 75% prático, 25% teórico

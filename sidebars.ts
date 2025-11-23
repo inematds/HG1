@@ -130,6 +130,26 @@ const sidebars: SidebarsConfig = {
       ],
     },
   ],
+
+  // Tier 3.1: Programando Unitree G1
+  tier3_1: [
+    {
+      type: 'category',
+      label: 'Tier 3.1: Programando Unitree G1',
+      items: [
+        'tier3.1/introducao-sdk-g1',
+        'tier3.1/comunicacao-dds',
+        'tier3.1/controle-baixo-nivel',
+        'tier3.1/estados-sensores',
+        'tier3.1/locomocao-customizada',
+        'tier3.1/manipulacao-bracos',
+        'tier3.1/integracao-ros2-g1',
+        'tier3.1/visao-percepcao-g1',
+        'tier3.1/autonomia-completa',
+        'tier3.1/deploy-projetos-g1',
+      ],
+    },
+  ],
 };
 
 export default sidebars;

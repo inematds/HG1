@@ -1,0 +1,863 @@
+---
+sidebar_position: 10
+title: 10. Deploy de Projetos no G1
+description: Systemd services, Docker, remote debugging e OTA updates
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🚀 Deploy de Projetos no Unitree G1
+
+:::tip Objetivo do Módulo
+Dominar deployment completo no G1: criar systemd services para auto-start, containerizar com Docker, implementar remote debugging, fazer OTA updates, e monitorar robô em produção.
+:::
+
+---
+
+## 🖥️ Jetson Orin NX Overview
+
+### Hardware do G1
+
+**Computador Onboard:**
+- **CPU:** 8-core ARM Cortex-A78AE @ 2.0 GHz
+- **GPU:** Ampere (1024 CUDA cores)
+- **RAM:** 16 GB LPDDR5
+- **Storage:** 256 GB NVMe SSD
+- **OS:** Ubuntu 22.04 (JetPack 6.0)
+- **AI Performance:** 100 TOPS (INT8)
+
+### SSH Access
+
+```bash
+# Conectar via WiFi
+ssh unitree@192.168.123.10
+# Senha padrão: unitree
+
+# Ou via Ethernet
+ssh unitree@192.168.123.10
+
+# Primeira vez: trocar senha
+passwd
+```
+
+**Setup SSH Keys (sem senha):**
+
+```bash
+# No seu PC:
+ssh-keygen -t ed25519 -C "your_email@example.com"
+ssh-copy-id unitree@192.168.123.10
+
+# Agora pode conectar sem senha:
+ssh unitree@192.168.123.10
+```
+
+---
+
+## 📦 Estrutura de Projeto
+
+### Organização Recomendada
+
+```
+/home/unitree/
+├── g1_workspace/
+│   ├── src/
+│   │   ├── g1_bridge/
+│   │   ├── g1_perception/
+│   │   ├── g1_navigation/
+│   │   └── g1_manipulation/
+│   ├── install/
+│   ├── build/
+│   └── log/
+├── data/
+│   ├── maps/
+│   ├── models/  # YOLO, etc.
+│   └── logs/
+├── config/
+│   ├── nav2_params.yaml
+│   ├── moveit_config/
+│   └── perception_config.yaml
+└── scripts/
+    ├── start_autonomy.sh
+    ├── stop_autonomy.sh
+    └── health_check.sh
+```
+
+### Setup Script
+
+```bash
+#!/bin/bash
+# setup_g1_project.sh - Setup inicial do projeto
+
+set -e
+
+echo "🤖 Setup Unitree G1 Project"
+
+# 1. Atualizar sistema
+sudo apt update && sudo apt upgrade -y
+
+# 2. Instalar dependências
+sudo apt install -y \
+    ros-humble-desktop \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-moveit \
+    ros-humble-realsense2-camera \
+    python3-pip \
+    git \
+    vim \
+    htop \
+    tmux
+
+# 3. Python packages
+pip3 install \
+    unitree_sdk2_python \
+    numpy \
+    opencv-python \
+    ultralytics \
+    open3d
+
+# 4. Criar workspace
+mkdir -p ~/g1_workspace/src
+cd ~/g1_workspace
+colcon build
+
+# 5. Source workspace
+echo "source ~/g1_workspace/install/setup.bash" >> ~/.bashrc
+
+# 6. Criar diretórios
+mkdir -p ~/data/{maps,models,logs}
+mkdir -p ~/config
+mkdir -p ~/scripts
+
+echo "✅ Setup completo!"
+```
+
+---
+
+## 🔄 Systemd Services
+
+### Service para Auto-Start
+
+<Tabs>
+<TabItem value="bridge" label="🌉 G1 Bridge Service">
+
+**Criar service:**
+
+```bash
+sudo nano /etc/systemd/system/g1-bridge.service
+```
+
+**Conteúdo:**
+
+```ini
+[Unit]
+Description=Unitree G1 ROS2 Bridge
+After=network.target
+
+[Service]
+Type=simple
+User=unitree
+Group=unitree
+WorkingDirectory=/home/unitree/g1_workspace
+
+# Source ROS2 e workspace
+Environment="ROS_DOMAIN_ID=0"
+ExecStartPre=/bin/bash -c "source /opt/ros/humble/setup.bash && source /home/unitree/g1_workspace/install/setup.bash"
+
+# Comando principal
+ExecStart=/bin/bash -c "source /opt/ros/humble/setup.bash && source /home/unitree/g1_workspace/install/setup.bash && ros2 run g1_ros2_bridge g1_bridge"
+
+# Restart automático
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Habilitar e iniciar:**
+
+```bash
+# Recarregar systemd
+sudo systemctl daemon-reload
+
+# Habilitar (auto-start no boot)
+sudo systemctl enable g1-bridge.service
+
+# Iniciar agora
+sudo systemctl start g1-bridge.service
+
+# Verificar status
+sudo systemctl status g1-bridge.service
+
+# Ver logs
+journalctl -u g1-bridge.service -f
+```
+
+</TabItem>
+<TabItem value="navigation" label="🗺️ Navigation Service">
+
+**g1-navigation.service:**
+
+```ini
+[Unit]
+Description=Unitree G1 Navigation System
+After=network.target g1-bridge.service
+Requires=g1-bridge.service
+
+[Service]
+Type=simple
+User=unitree
+Group=unitree
+WorkingDirectory=/home/unitree/g1_workspace
+
+ExecStart=/bin/bash -c "source /opt/ros/humble/setup.bash && source /home/unitree/g1_workspace/install/setup.bash && ros2 launch nav2_bringup navigation_launch.py params_file:=/home/unitree/config/nav2_params.yaml"
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+</TabItem>
+<TabItem value="perception" label="👁️ Perception Service">
+
+**g1-perception.service:**
+
+```ini
+[Unit]
+Description=Unitree G1 Perception System
+After=network.target g1-bridge.service
+Requires=g1-bridge.service
+
+[Service]
+Type=simple
+User=unitree
+Group=unitree
+WorkingDirectory=/home/unitree/g1_workspace
+
+ExecStart=/bin/bash -c "source /opt/ros/humble/setup.bash && source /home/unitree/g1_workspace/install/setup.bash && ros2 run g1_perception perception_system"
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+</TabItem>
+<TabItem value="all" label="🚀 Master Service">
+
+**g1-autonomy.service** (inicia todos):
+
+```ini
+[Unit]
+Description=Unitree G1 Complete Autonomy System
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+ExecStart=/bin/bash /home/unitree/scripts/start_autonomy.sh
+ExecStop=/bin/bash /home/unitree/scripts/stop_autonomy.sh
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**start_autonomy.sh:**
+
+```bash
+#!/bin/bash
+# start_autonomy.sh - Inicia todos os serviços
+
+set -e
+
+echo "🚀 Starting G1 Autonomy System"
+
+# Ordem de inicialização
+systemctl start g1-bridge.service
+sleep 5
+
+systemctl start g1-perception.service
+sleep 3
+
+systemctl start g1-navigation.service
+sleep 3
+
+echo "✅ All systems operational"
+```
+
+**stop_autonomy.sh:**
+
+```bash
+#!/bin/bash
+# stop_autonomy.sh - Para todos os serviços
+
+echo "🛑 Stopping G1 Autonomy System"
+
+systemctl stop g1-navigation.service
+systemctl stop g1-perception.service
+systemctl stop g1-bridge.service
+
+echo "✅ All systems stopped"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🐳 Docker Containerization
+
+### Dockerfile para G1
+
+```dockerfile
+# Dockerfile.g1
+FROM arm64v8/ros:humble
+
+# Metadata
+LABEL maintainer="your_email@example.com"
+LABEL description="Unitree G1 Autonomy Container"
+
+# Avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-opencv \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-moveit \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    unitree_sdk2_python \
+    numpy \
+    ultralytics \
+    open3d
+
+# Create workspace
+RUN mkdir -p /workspace/src
+WORKDIR /workspace
+
+# Copy source code
+COPY ./src /workspace/src
+
+# Build workspace
+RUN . /opt/ros/humble/setup.sh && \
+    colcon build --symlink-install
+
+# Source workspace on container start
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /workspace/install/setup.bash" >> /root/.bashrc
+
+# Entrypoint
+COPY ./docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+CMD ["bash"]
+```
+
+**docker-entrypoint.sh:**
+
+```bash
+#!/bin/bash
+set -e
+
+# Source ROS2
+source /opt/ros/humble/setup.bash
+source /workspace/install/setup.bash
+
+# Execute command
+exec "$@"
+```
+
+### Docker Compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  g1_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.g1
+    image: g1_autonomy:latest
+    container_name: g1_bridge
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - /home/unitree/g1_workspace:/workspace
+      - /home/unitree/data:/data
+      - /home/unitree/config:/config
+    environment:
+      - ROS_DOMAIN_ID=0
+      - CYCLONEDDS_URI=file:///config/cyclonedds.xml
+    command: ros2 run g1_ros2_bridge g1_bridge
+
+  g1_perception:
+    image: g1_autonomy:latest
+    container_name: g1_perception
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    depends_on:
+      - g1_bridge
+    volumes:
+      - /home/unitree/g1_workspace:/workspace
+      - /home/unitree/data:/data
+      - /home/unitree/config:/config
+    environment:
+      - ROS_DOMAIN_ID=0
+    command: ros2 run g1_perception perception_system
+
+  g1_navigation:
+    image: g1_autonomy:latest
+    container_name: g1_navigation
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    depends_on:
+      - g1_bridge
+    volumes:
+      - /home/unitree/g1_workspace:/workspace
+      - /home/unitree/data/maps:/maps
+      - /home/unitree/config:/config
+    environment:
+      - ROS_DOMAIN_ID=0
+    command: >
+      ros2 launch nav2_bringup navigation_launch.py
+      params_file:=/config/nav2_params.yaml
+```
+
+**Build e Run:**
+
+```bash
+# Build image
+docker-compose build
+
+# Iniciar todos os containers
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Parar todos
+docker-compose down
+```
+
+---
+
+## 🔍 Remote Debugging
+
+### VS Code Remote SSH
+
+**1. Instalar extensão:** Remote - SSH (Microsoft)
+
+**2. Configurar:**
+
+```bash
+# No PC, editar ~/.ssh/config
+nano ~/.ssh/config
+```
+
+**Adicionar:**
+
+```
+Host g1-robot
+    HostName 192.168.123.10
+    User unitree
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+**3. Conectar:**
+
+- VS Code: `Ctrl+Shift+P` → "Remote-SSH: Connect to Host" → `g1-robot`
+- Agora VS Code está rodando no G1!
+
+**4. Debugar Python:**
+
+**.vscode/launch.json:**
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: ROS2 Node",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/install/g1_perception/lib/g1_perception/perception_system",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}/install/g1_perception/lib/python3.10/site-packages"
+            },
+            "justMyCode": false
+        }
+    ]
+}
+```
+
+### ROS2 Debugging Tools
+
+```bash
+# Ver todos os nodes rodando
+ros2 node list
+
+# Informações de um node
+ros2 node info /g1_bridge
+
+# Ver topics
+ros2 topic list
+
+# Echo de topic (monitorar)
+ros2 topic echo /joint_states
+
+# Hz de topic
+ros2 topic hz /joint_states
+
+# Gravar bag (para debug posterior)
+ros2 bag record -a -o debug_session
+
+# Replay bag
+ros2 bag play debug_session
+```
+
+### Profiling
+
+```python
+#!/usr/bin/env python3
+"""
+profiler.py - Profiling de performance
+"""
+
+import cProfile
+import pstats
+import io
+
+def profile_node():
+    """Profile ROS2 node"""
+    pr = cProfile.Profile()
+    pr.enable()
+
+    # Código a ser profileado
+    # rclpy.spin(node)
+
+    pr.disable()
+
+    # Salvar resultados
+    s = io.StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+    ps.print_stats(20)  # Top 20
+
+    print(s.getvalue())
+
+    # Ou salvar em arquivo
+    ps.dump_stats('/tmp/profile.stats')
+```
+
+---
+
+## 🔄 OTA Updates
+
+### Update Script
+
+```bash
+#!/bin/bash
+# ota_update.sh - Over-The-Air update
+
+set -e
+
+UPDATE_URL="https://your-server.com/g1_updates/latest.tar.gz"
+BACKUP_DIR="/home/unitree/backups"
+WORKSPACE="/home/unitree/g1_workspace"
+
+echo "🔄 Starting OTA Update"
+
+# 1. Criar backup
+echo "📦 Creating backup..."
+mkdir -p $BACKUP_DIR
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+tar -czf $BACKUP_DIR/workspace_backup_$TIMESTAMP.tar.gz $WORKSPACE
+
+# 2. Parar serviços
+echo "🛑 Stopping services..."
+sudo systemctl stop g1-autonomy.service
+
+# 3. Download update
+echo "⬇️  Downloading update..."
+wget -O /tmp/update.tar.gz $UPDATE_URL
+
+# 4. Extrair
+echo "📂 Extracting update..."
+cd $WORKSPACE
+tar -xzf /tmp/update.tar.gz
+
+# 5. Build
+echo "🔨 Building workspace..."
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+
+# 6. Reiniciar serviços
+echo "🚀 Restarting services..."
+sudo systemctl start g1-autonomy.service
+
+# 7. Verificar saúde
+echo "🩺 Health check..."
+sleep 10
+./scripts/health_check.sh
+
+if [ $? -eq 0 ]; then
+    echo "✅ Update successful!"
+else
+    echo "❌ Update failed - Rolling back..."
+
+    # Rollback
+    sudo systemctl stop g1-autonomy.service
+    rm -rf $WORKSPACE
+    tar -xzf $BACKUP_DIR/workspace_backup_$TIMESTAMP.tar.gz -C /
+    sudo systemctl start g1-autonomy.service
+
+    echo "⚠️  Rolled back to previous version"
+    exit 1
+fi
+
+# 8. Limpar
+rm /tmp/update.tar.gz
+
+echo "🎉 OTA Update complete!"
+```
+
+### Health Check Script
+
+```bash
+#!/bin/bash
+# health_check.sh - Verifica saúde do sistema
+
+set -e
+
+echo "🩺 G1 Health Check"
+
+# 1. Verificar serviços systemd
+echo "Checking systemd services..."
+SERVICES=("g1-bridge" "g1-perception" "g1-navigation")
+
+for service in "${SERVICES[@]}"; do
+    if systemctl is-active --quiet $service.service; then
+        echo "  ✅ $service: running"
+    else
+        echo "  ❌ $service: NOT running"
+        exit 1
+    fi
+done
+
+# 2. Verificar ROS2 nodes
+echo "Checking ROS2 nodes..."
+NODES=("/g1_bridge" "/perception_system" "/controller_server")
+
+for node in "${NODES[@]}"; do
+    if ros2 node list | grep -q $node; then
+        echo "  ✅ $node: alive"
+    else
+        echo "  ❌ $node: NOT found"
+        exit 1
+    fi
+done
+
+# 3. Verificar topics (frequência)
+echo "Checking topic frequencies..."
+JOINT_STATE_HZ=$(ros2 topic hz /joint_states --window 10 2>&1 | grep "average rate" | awk '{print $3}')
+
+if (( $(echo "$JOINT_STATE_HZ > 50" | bc -l) )); then
+    echo "  ✅ /joint_states: ${JOINT_STATE_HZ} Hz"
+else
+    echo "  ❌ /joint_states: ${JOINT_STATE_HZ} Hz (too low)"
+    exit 1
+fi
+
+# 4. Verificar bateria
+echo "Checking battery..."
+BATTERY=$(ros2 topic echo /robot_state --once | grep "battery_percentage" | awk '{print $2}')
+
+if (( $(echo "$BATTERY > 10" | bc -l) )); then
+    echo "  ✅ Battery: ${BATTERY}%"
+else
+    echo "  ⚠️  Battery LOW: ${BATTERY}%"
+fi
+
+# 5. Verificar disco
+echo "Checking disk space..."
+DISK_USAGE=$(df -h /home | tail -1 | awk '{print $5}' | sed 's/%//')
+
+if [ $DISK_USAGE -lt 90 ]; then
+    echo "  ✅ Disk: ${DISK_USAGE}% used"
+else
+    echo "  ⚠️  Disk almost full: ${DISK_USAGE}%"
+fi
+
+echo ""
+echo "✅ All health checks passed!"
+exit 0
+```
+
+---
+
+## 📊 Monitoring & Logging
+
+### Prometheus + Grafana
+
+**docker-compose.monitoring.yml:**
+
+```yaml
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+```
+
+### Custom Metrics Exporter
+
+```python
+#!/usr/bin/env python3
+"""
+metrics_exporter.py - Exporta métricas do G1 para Prometheus
+"""
+
+from prometheus_client import start_http_server, Gauge
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float32
+
+class MetricsExporter(Node):
+    def __init__(self):
+        super().__init__('metrics_exporter')
+
+        # Prometheus gauges
+        self.battery_gauge = Gauge('g1_battery_percentage', 'Battery percentage')
+        self.cpu_temp_gauge = Gauge('g1_cpu_temperature', 'CPU temperature')
+        self.joint_temp_gauge = Gauge('g1_joint_temperature', 'Joint temperature', ['joint_name'])
+
+        # Subscribers
+        self.create_subscription(JointState, '/joint_states', self.joint_callback, 10)
+
+        # Start Prometheus server
+        start_http_server(8000)
+        self.get_logger().info('Metrics exporter started on :8000')
+
+    def joint_callback(self, msg):
+        """Update joint metrics"""
+        for name, temp in zip(msg.name, msg.effort):  # Effort usado para temp (placeholder)
+            self.joint_temp_gauge.labels(joint_name=name).set(temp)
+
+def main():
+    rclpy.init()
+    node = MetricsExporter()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## ✅ Checklist Final
+
+- [ ] Criei estrutura de projeto organizada
+- [ ] Configurei systemd services para auto-start
+- [ ] Containerizei projeto com Docker
+- [ ] Setup remote debugging com VS Code
+- [ ] Implementei OTA update script
+- [ ] Criei health check script
+- [ ] Setup monitoring (Prometheus + Grafana)
+- [ ] Testei deploy completo
+
+---
+
+## 🎓 Conclusão do Tier 3.1
+
+**Parabéns!** Você completou o Tier 3.1 - Programando Unitree G1.
+
+**Você agora domina:**
+
+1. ✅ Unitree SDK (DDS, APIs, conexão)
+2. ✅ Controle de baixo nível (PID, torque, posição)
+3. ✅ Leitura de sensores (IMU, força, encoders)
+4. ✅ Locomoção customizada (gaits, terrain adaptation)
+5. ✅ Manipulação (IK, gripper, pick and place)
+6. ✅ Integração ROS2 (bridge, tf2, MoveIt, Nav2)
+7. ✅ Visão (RealSense, SLAM, object detection)
+8. ✅ Autonomia (FSM, behavior trees, recovery)
+9. ✅ Multi-floor navigation (elevadores, escadas)
+10. ✅ Deploy profissional (systemd, Docker, OTA)
+
+**Próximos passos:**
+- 🚀 Deploy seu projeto em robô real
+- 📹 Grave vídeos para portfólio
+- 💼 Candidate-se para vagas em robótica
+- 🤝 Contribua para projetos open-source
+
+**Recursos adicionais:**
+- [Unitree Developer Forum](https://forum.unitree.com)
+- [G1 GitHub Examples](https://github.com/unitreerobotics)
+- [ROS2 Humble Docs](https://docs.ros.org/en/humble/)
+
+---
+
+**⏱️ Tempo estimado:** 90-120 min
+**🧠 Nível:** Avançado
+**💻 Hands-on:** 80% prático, 20% teórico
