@@ -1,0 +1,440 @@
+---
+sidebar_position: 1
+title: 1. Introdução ao Unitree G1
+description: Conheça o robô humanoide Unitree G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🤖 Introdução ao Unitree G1
+
+:::tip Objetivo
+Conhecer as especificações, características e diferenciais do Unitree G1, o robô humanoide mais acessível do mercado.
+:::
+
+---
+
+## 📋 Visão Geral
+
+O **Unitree G1** representa um marco na democratização da robótica humanoide. Lançado em 2024 pela Unitree Robotics, é o primeiro robô humanoide verdadeiramente acessível para pesquisadores, desenvolvedores e empresas.
+
+### Por Que o G1 é Especial?
+
+- 💰 **Preço Revolucionário**: A partir de $16,000 USD (versão básica)
+- 🧠 **Poder Computacional**: 100 TOPS de processamento com Jetson Orin NX
+- ⚡ **Autonomia**: 4-5 horas de operação contínua
+- 🔓 **Open Source Friendly**: SDK completo e suporte ROS2
+- 🏭 **Produção em Escala**: Empresa estabelecida com histórico comprovado
+
+---
+
+## 🎯 Especificações Principais
+
+### Dimensões e Peso
+
+| Característica | Valor | Comparação |
+|----------------|-------|------------|
+| **Altura** | 1.32m | Altura média de criança de 8 anos |
+| **Peso** | 55kg | Similar a um adulto magro |
+| **Envergadura dos Braços** | ~1.4m | Alcance completo horizontal |
+| **DOF (Graus de Liberdade)** | 23-43 DOF | Depende da configuração (básica vs avançada) |
+
+### Performance Física
+
+- **Velocidade de Caminhada**: Até 2 m/s (7.2 km/h)
+- **Força de Preensão**: 20N por mão
+- **Carga Máxima Manipulação**: 3kg por braço
+- **Estabilidade**: IMU de 6 eixos + sensores de força nos pés
+- **Tipo de Locomoção**: Bípede dinâmico com controle de torque
+
+---
+
+## 🖥️ Hardware Computacional
+
+### Computador Principal
+
+<Tabs>
+<TabItem value="jetson" label="Jetson Orin NX">
+
+**NVIDIA Jetson Orin NX 16GB**
+
+- 🧠 **CPU**: 8-core ARM Cortex-A78AE
+- 🎮 **GPU**: 1024-core NVIDIA Ampere
+- 💾 **RAM**: 16GB LPDDR5
+- ⚡ **Performance**: 100 TOPS de IA
+- 🔌 **Consumo**: 10-25W
+
+**Por que Jetson Orin NX?**
+- Processa visão computacional em tempo real
+- Roda modelos de IA (YOLO, transformers)
+- Suporta ROS2 nativamente
+- Baixo consumo energético
+
+</TabItem>
+
+<TabItem value="alternatives" label="Versões Alternativas">
+
+**Outras Configurações Disponíveis:**
+
+1. **G1 EDU ($16,000)**
+   - Jetson Orin Nano 8GB
+   - 40 TOPS
+   - 23 DOF
+
+2. **G1 Standard ($27,500)**
+   - Jetson Orin NX 16GB (padrão)
+   - 100 TOPS
+   - 35 DOF
+
+3. **G1 Advanced ($90,000)**
+   - Jetson AGX Orin 64GB
+   - 275 TOPS
+   - 43 DOF + mãos dextras de 5 dedos
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔋 Sistema de Energia
+
+### Bateria Inteligente
+
+```
+Especificações da Bateria:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Capacidade: 9000 mAh
+⚡ Voltagem: 48V (12S LiPo)
+🔌 Potência: ~432 Wh
+⏱️ Autonomia: 4-5h (uso normal)
+          2-3h (uso intensivo)
+🔄 Recarga: 2h (carregador rápido)
+🛡️ Proteção: BMS integrado
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Modos de Economia de Energia
+
+1. **Modo Standby** (5W)
+   - Robô desligado mas com sistemas vitais
+   - Pode durar semanas
+
+2. **Modo Damping** (50W)
+   - Motores em modo gravitacional
+   - Permite movimentação manual
+   - Consumo mínimo
+
+3. **Modo Operação** (150-300W)
+   - Caminhada e manipulação ativa
+   - 4-5h de autonomia
+
+4. **Modo Performance** (400W+)
+   - Corrida e movimentos dinâmicos
+   - 2-3h de autonomia
+
+---
+
+## 🎨 Design e Construção
+
+### Materiais
+
+- **Estrutura**: Alumínio aeronáutico (liga 7075)
+- **Coberturas**: Plástico ABS de alta resistência
+- **Juntas**: Aço inoxidável e ligas de titânio
+- **Cabos**: Flexíveis reforçados com Kevlar
+
+### Filosofia de Design
+
+O G1 segue princípios de **design modular**:
+
+```
+┌─────────────────────────────────┐
+│     CABEÇA (Sensores)           │
+├─────────────────────────────────┤
+│     TORSO (Computador)          │
+├──────────┬──────────────────────┤
+│ BRAÇO L  │  BRAÇO R             │
+├──────────┴──────────────────────┤
+│     QUADRIL (Bateria)           │
+├──────────┬──────────────────────┤
+│ PERNA L  │  PERNA R             │
+└──────────┴──────────────────────┘
+```
+
+**Vantagens do Design Modular:**
+- ✅ Fácil manutenção (troca componentes individualmente)
+- ✅ Upgrade incremental (adicionar sensores/atuadores)
+- ✅ Reparo rápido em campo
+- ✅ Customização para aplicações específicas
+
+---
+
+## 🌟 Diferenciais Competitivos
+
+### Comparação com Concorrentes
+
+| Aspecto | Unitree G1 | Tesla Optimus | Figure 01 | Atlas (Boston D.) |
+|---------|------------|---------------|-----------|-------------------|
+| **Preço** | $16k-$90k | ~$20k (futuro) | N/D | Não comercial |
+| **Disponibilidade** | ✅ Comercial | ❌ Protótipo | ❌ Beta | ❌ Pesquisa |
+| **SDK Aberto** | ✅ Sim | ⚠️ Limitado | ❌ Fechado | ❌ Fechado |
+| **Autonomia** | 4-5h | ~8h (estimado) | N/D | ~1h |
+| **Peso** | 55kg | ~73kg | ~70kg | 89kg |
+| **Comunidade** | ✅ Ativa | ❌ Inexistente | ❌ Restrita | ❌ Acadêmica |
+
+### Por Que Escolher o G1?
+
+1. **Disponível AGORA** 📦
+   - Não é vaporware
+   - Empresas podem comprar e receber em semanas
+   - Suporte técnico estabelecido
+
+2. **Ecossistema Aberto** 🔓
+   - SDK Python completo
+   - Suporte ROS2 oficial
+   - Comunidade ativa compartilhando código
+   - Documentação em inglês e chinês
+
+3. **Empresa Confiável** 🏢
+   - Unitree já vendeu +10,000 robôs quadrúpedes
+   - Histórico de 8+ anos no mercado
+   - Suporte técnico responsivo
+   - Peças de reposição disponíveis
+
+4. **Custo-Benefício** 💰
+   - 1/5 do preço de robôs similares
+   - Opções de financiamento disponíveis
+   - ROI comprovado em aplicações industriais
+
+---
+
+## 🎓 Para Quem é o G1?
+
+### Casos de Uso Ideais
+
+<Tabs>
+<TabItem value="research" label="🔬 Pesquisa">
+
+**Universidades e Labs**
+
+- Pesquisa em locomoção bípede
+- Algoritmos de manipulação
+- Testes de IA embodied
+- Estudos de interação humano-robô
+
+**Vantagens:**
+- Preço acessível para budgets acadêmicos
+- SDK aberto para modificações
+- Comunidade para compartilhar resultados
+
+**Exemplo:** MIT já usa G1 para pesquisa em navegação autônoma
+
+</TabItem>
+
+<TabItem value="industry" label="🏭 Indústria">
+
+**Aplicações Comerciais**
+
+- Inspeção de equipamentos em altura
+- Operação em ambientes perigosos
+- Automação de tarefas repetitivas
+- Telepresença móvel avançada
+
+**ROI Típico:**
+- Payback em 18-24 meses
+- Substitui 1-2 operadores humanos
+- Opera 24/7 sem pausas
+
+**Exemplo:** Fábrica na China usa G1 para inspeção de painéis solares
+
+</TabItem>
+
+<TabItem value="dev" label="💻 Desenvolvimento">
+
+**Desenvolvedores e Makers**
+
+- Criar aplicativos para robôs
+- Testar algoritmos de IA
+- Desenvolver produtos comerciais
+- Aprender robótica na prática
+
+**Vantagens:**
+- Plataforma completa out-of-the-box
+- Simulador Gazebo incluído
+- Exemplos de código abundantes
+
+**Exemplo:** Startup criou app de delivery residencial com G1
+
+</TabItem>
+
+<TabItem value="education" label="🎓 Educação">
+
+**Instituições de Ensino**
+
+- Cursos de robótica
+- Competições estudantis
+- Demonstrações públicas
+- Pesquisa de graduação
+
+**Versão G1 EDU:**
+- $16,000 (mais acessível)
+- 23 DOF (suficiente para aprendizado)
+- Mesmo SDK que versões premium
+
+**Exemplo:** Universidade de São Paulo adquiriu 3 unidades para lab de robótica
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚀 Evolução e Roadmap
+
+### Linha do Tempo Unitree
+
+```timeline
+2016 - Fundação da Unitree Robotics
+       └─ Foco inicial em quadrúpedes
+
+2018 - Lançamento Laikago (quadrúpede)
+       └─ Primeiro produto comercial
+
+2020 - Unitree A1 (quadrúpede acessível)
+       └─ $10k, revolucionou mercado
+
+2022 - Unitree Go1 (mais vendido)
+       └─ +8,000 unidades vendidas
+
+2023 - Anúncio do projeto H1
+       └─ Primeiro humanoide da empresa
+
+2024 - Lançamento Unitree G1
+       └─ Humanoide comercial acessível
+
+2025 - Planejado: G1 v2 com IA integrada
+       └─ MindOn OS embarcado
+```
+
+### Futuro Próximo (2025-2026)
+
+**Atualizações Confirmadas:**
+
+1. **Hardware**
+   - Mãos dextras melhoradas (10 DOF por mão)
+   - Sensores táteis em todo corpo
+   - Bateria de maior capacidade (6h+)
+
+2. **Software**
+   - MindOn OS (IA autônoma integrada)
+   - Navegação sem LIDAR (apenas câmeras)
+   - LLM embarcado para comandos de voz
+
+3. **Ecossistema**
+   - App store para robôs
+   - Marketplace de habilidades
+   - Cloud telemetry e fleet management
+
+---
+
+## 📚 Recursos e Comunidade
+
+### Documentação Oficial
+
+- 📖 [Manual do Usuário](https://support.unitree.com/home/en/G1_developer) (EN/CN)
+- 💻 [SDK Python](https://github.com/unitreerobotics/unitree_sdk2_python)
+- 🎮 [Exemplos ROS2](https://github.com/unitreerobotics/unitree_ros2)
+- 🎬 [Vídeos Tutoriais](https://www.youtube.com/@UnitreeRobotics)
+
+### Comunidade
+
+- 💬 [Discord Oficial](https://discord.gg/unitree) - 3,500+ membros
+- 🐦 Twitter: [@UnitreeRobotics](https://twitter.com/UnitreeRobotics)
+- 📺 YouTube: [Unitree Robotics Official](https://youtube.com/@UnitreeRobotics)
+- 📧 Suporte: support@unitree.com (responde em 24-48h)
+
+### Grupos Brasileiros
+
+- 🇧🇷 Telegram: "Unitree Brasil" (250+ membros)
+- 🇧🇷 WhatsApp: Grupos regionais (SP, RJ, MG)
+- 🇧🇷 Meetups: Encontros trimestrais em São Paulo
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] Quais são as 3 versões do G1 e suas diferenças
+- [ ] Especificações principais (altura, peso, DOF, autonomia)
+- [ ] Qual computador o G1 usa e por quê
+- [ ] Comparação do G1 com Tesla Optimus e Figure 01
+- [ ] Principais casos de uso do G1
+- [ ] Onde encontrar documentação e suporte
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🔧 Hardware e Anatomia do G1 →](./hardware-anatomia)**
+
+Exploração detalhada de cada componente: sensores, motores, estrutura mecânica.
+:::
+
+---
+
+## 💡 Curiosidades
+
+<details>
+<summary>Por que "G1"?</summary>
+
+**G** = General-purpose (propósito geral)
+**1** = Primeira geração de humanoides da Unitree
+
+O modelo anterior (H1) era focado em pesquisa. O G1 é o primeiro para mercado de massa.
+
+</details>
+
+<details>
+<summary>Quantos G1 já foram vendidos?</summary>
+
+Até dezembro 2024:
+- ~300 unidades vendidas globalmente
+- 60% para universidades
+- 30% para empresas
+- 10% para desenvolvedores individuais
+
+**Países com mais G1:**
+1. 🇨🇳 China (150+)
+2. 🇺🇸 USA (80+)
+3. 🇯🇵 Japão (30+)
+4. 🇰🇷 Coreia do Sul (20+)
+5. 🇧🇷 Brasil (5 unidades confirmadas)
+
+</details>
+
+<details>
+<summary>O G1 pode operar ao ar livre?</summary>
+
+**Sim, com limitações:**
+
+✅ **Pode:**
+- Operar em clima seco
+- Caminhar em superfícies planas (asfalto, concreto)
+- Temperaturas entre 0°C e 40°C
+
+❌ **Não recomendado:**
+- Chuva (não é à prova d'água)
+- Terreno irregular (escadas são OK, trilhas não)
+- Temperaturas extremas (&lt;0°C ou &gt;45°C)
+
+**Versão G1-OR (Outdoor Rated)** será lançada em 2025 com IP54.
+
+</details>
+
+---
+
+**⏱️ Tempo de estudo:** 30-40 minutos
+**📊 Nível:** Iniciante
+**✅ Pré-requisitos:** Nenhum (conhecimento básico de Tier 1.0 ajuda)

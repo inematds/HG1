@@ -1,0 +1,654 @@
+---
+sidebar_position: 8
+title: 8. Aquisição e Setup Inicial
+description: Comprar, importar, unbox e primeiro boot
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🛒 Aquisição e Setup Inicial
+
+:::tip Objetivo
+Guia completo para adquirir o Unitree G1, processo de importação, unboxing e configuração inicial.
+:::
+
+---
+
+## 💰 Modelos e Preços
+
+### Versões Disponíveis
+
+<Tabs>
+<TabItem value="edu" label="G1 EDU - $16,000">
+
+**Especificações:**
+```
+┌──────────────────────────────────────┐
+│ UNITREE G1 EDU                       │
+├──────────────────────────────────────┤
+│ DOF: 23                               │
+│ Computador: Jetson Orin Nano 8GB     │
+│ IA: 40 TOPS                           │
+│ LIDAR: ❌ Não incluso                │
+│ Mãos: Garra simples (1 DOF)          │
+│ Bateria: 9Ah (4h autonomia)          │
+│ Câmeras: 2x (stereo)                 │
+└──────────────────────────────────────┘
+
+Para Quem:
+✅ Universidades
+✅ Estudantes (com budget limitado)
+✅ Aprendizado básico
+✅ Desenvolvimento de software simples
+
+Limitações:
+❌ Sem LIDAR (navegação limitada)
+❌ Menos DOF (menos versatilidade)
+❌ Processamento mais lento
+```
+
+</TabItem>
+
+<TabItem value="standard" label="G1 Standard - $27,500">
+
+**Especificações:**
+```
+┌──────────────────────────────────────┐
+│ UNITREE G1 STANDARD ⭐ Mais Popular  │
+├──────────────────────────────────────┤
+│ DOF: 35                               │
+│ Computador: Jetson Orin NX 16GB      │
+│ IA: 100 TOPS                          │
+│ LIDAR: ✅ Livox Mid-360              │
+│ Mãos: Garra paralela (force sensor)  │
+│ Bateria: 9Ah (4.5h autonomia)        │
+│ Câmeras: 3x (front + stereo)         │
+└──────────────────────────────────────┘
+
+Para Quem:
+✅ Pesquisa séria
+✅ Desenvolvimento comercial
+✅ Empresas tech
+✅ Labs bem-equipados
+
+Vantagens:
+✅ LIDAR para navegação robusta
+✅ 35 DOF = versatilidade completa
+✅ 100 TOPS = IA em tempo real
+```
+
+</TabItem>
+
+<TabItem value="advanced" label="G1 Advanced - $90,000">
+
+**Especificações:**
+```
+┌──────────────────────────────────────┐
+│ UNITREE G1 ADVANCED                  │
+├──────────────────────────────────────┤
+│ DOF: 43                               │
+│ Computador: Jetson AGX Orin 64GB     │
+│ IA: 275 TOPS                          │
+│ LIDAR: ✅ + Radar mmWave             │
+│ Mãos: 5 dedos dextros (10 DOF cada)  │
+│ Bateria: 12Ah (6h autonomia)         │
+│ Câmeras: 5x + sensores táteis corpo  │
+└──────────────────────────────────────┘
+
+Para Quem:
+✅ Produção industrial
+✅ Pesquisa avançada (manipulação)
+✅ Empresas com budget grande
+✅ Aplicações críticas
+
+Diferenciais:
+✅ Mãos dextras (manipulação fina)
+✅ 275 TOPS (múltiplos modelos IA)
+✅ Sensores táteis (todo corpo)
+✅ Bateria maior (6h)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📦 O Que Vem na Caixa
+
+### Conteúdo Standard Package
+
+```
+┌─────────────────────────────────────────────┐
+│ 📦 UNITREE G1 SHIPPING BOX                  │
+│    Dimensões: 150x80x60cm                   │
+│    Peso: 75kg (G1 + embalagem)              │
+├─────────────────────────────────────────────┤
+│ 🤖 Robô G1 (montado, em posição sentada)    │
+│ 🔋 Bateria 9Ah (1x, pré-instalada)          │
+│ ⚡ Carregador 50.4V 5A (110-240V)           │
+│ 🎮 Controle RC Unitree (2.4GHz)             │
+│ 🔌 Cabos (USB-C, Ethernet, extensão)        │
+│ 🧰 Kit ferramentas:                         │
+│    ├─ Chaves allen (M2-M6)                  │
+│    ├─ Chave de fenda                        │
+│    ├─ Pinça                                 │
+│    └─ Luvas anti-estática                   │
+│ 📚 Documentação:                             │
+│    ├─ Quick Start Guide (EN/CN)            │
+│    ├─ Safety Manual                         │
+│    └─ Warranty Card                         │
+│ 💿 USB Drive:                                │
+│    ├─ SDK completo                          │
+│    ├─ Simulador Gazebo                      │
+│    ├─ Exemplos código                       │
+│    └─ Drivers                               │
+└─────────────────────────────────────────────┘
+
+❌ NÃO INCLUSOS (vendidos separadamente):
+   - Bateria extra ($800)
+   - SSD NVMe ($80-200)
+   - Case de transporte ($500)
+   - Peças de reposição
+```
+
+---
+
+## 🌍 Processo de Compra
+
+### Passo a Passo
+
+<Tabs>
+<TabItem value="order" label="1. Fazer Pedido">
+
+**Site Oficial:**
+```
+https://shop.unitree.com/
+
+1. Selecionar modelo (EDU/Standard/Advanced)
+
+2. Configurar opções:
+   ├─ Cor (padrão: cinza grafite)
+   ├─ Voltagem carregador (110V ou 220V)
+   ├─ Add-ons (baterias extras, case)
+   └─ Upgrade SSD (opcional)
+
+3. Shipping:
+   ├─ China → Brasil: DHL Express (5-7 dias)
+   ├─ Seguro obrigatório (incluído)
+   └─ Tracking fornecido
+
+4. Pagamento:
+   ├─ Wire Transfer (padrão)
+   ├─ PayPal (+ 4.5% fee)
+   ├─ Crypto (USDT aceito)
+   └─ Financing (via parceiros, disponível em alguns países)
+
+5. Confirmação:
+   ├─ Email com número pedido
+   ├─ Contato sales engineer
+   └─ Estimativa produção: 2-4 semanas
+```
+
+**Contatos Unitree:**
+- 📧 Email: sales@unitree.com
+- 📞 WhatsApp: +86 571-8999-6666 (suporte em inglês)
+- 💬 WeChat: unitree_robotics
+
+</TabItem>
+
+<TabItem value="import" label="2. Importação Brasil">
+
+**Processo de Importação:**
+
+```bash
+# 1. Declaração de Importação
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DHL/FedEx lida com customs clearance
+
+Documentos necessários (fornecidos por Unitree):
+├─ Commercial Invoice
+├─ Packing List
+├─ Bill of Lading
+└─ Certificate of Origin
+
+# 2. Impostos e Taxas (Brasil)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Valor G1 Standard: $27,500 USD
+
+II (Imposto Importação):     16% → $4,400
+IPI:                         10% → $2,750
+ICMS (SP):                   18% → $4,950
+PIS/COFINS:                  9.25% → $2,544
+────────────────────────────────────────
+Impostos Totais:            ~$14,644 (53%!)
+Custo Final:                ~$42,144 (~R$ 210k)
+
+⚠️ Brasil tem impostos MUITO altos em robôs
+```
+
+**Alternativas para Reduzir Custo:**
+
+1. **Importação via Universidade**
+   - Se afiliado a universidade, pode ter isenção parcial
+   - Contactar setor de importação da instituição
+
+2. **Pessoa Jurídica (CNPJ)**
+   - Empresas podem deduzir impostos
+   - Menor carga tributária efetiva
+
+3. **Zona Franca (Manaus)**
+   - Isenções de IPI e ICMS
+   - Requer CNPJ em Manaus
+
+</TabItem>
+
+<TabItem value="timeline" label="3. Timeline">
+
+**Da Compra até Entrega:**
+
+```
+Semana 0: Pedido confirmado
+├─ Pagamento processado
+└─ Produção inicia
+
+Semana 2: Robô montado
+├─ Testes de qualidade (72h)
+├─ Calibração de fábrica
+└─ Embalagem
+
+Semana 3: Shipped
+├─ DHL coleta em Hangzhou, China
+├─ Tracking number enviado
+└─ Transit: 5-7 dias
+
+Semana 3.5: Customs (Brasil)
+├─ Desembaraço aduaneiro (1-3 dias)
+├─ Pagamento impostos
+└─ Liberação pela Receita Federal
+
+Semana 4: Entrega Final
+├─ DHL agenda entrega
+├─ Requer assinatura + ID
+└─ Inspeção na entrega (verificar danos)
+
+TOTAL: 4-6 semanas (pedido → recebimento)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📦 Unboxing
+
+### Procedimento Seguro
+
+**Passo a Passo:**
+
+```
+1. PREPARAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Espaço amplo (3x3m mínimo)
+✅ Superfície plana
+✅ 2 pessoas (robô pesa 55kg)
+✅ Câmera/celular (documentar para possível claim)
+✅ Ferramentas da caixa prontas
+
+2. INSPEÇÃO EXTERNA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📸 Fotografar caixa (todos lados)
+✅ Verificar lacres de segurança intactos
+✅ Checar por danos visíveis
+❌ Se dano grave, NÃO abrir → contactar DHL
+
+3. ABERTURA DA CAIXA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Tampa superior (4 parafusos)
+# Espuma protetora (2 camadas)
+# G1 em posição sentada, espuma-moldada
+
+4. REMOÇÃO DO ROBÔ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ IMPORTANTE: 2 pessoas!
+# Pessoa 1: Segura torso por baixo dos "ombros"
+# Pessoa 2: Segura pernas (perto dos joelhos)
+# Levantar junto, movimento suave
+# Colocar em chão plano
+
+5. REMOVER EMBALAGEM PROTETORA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Plástico protetor (cabeça, torso, pernas)
+# Espuma entre juntas (não jogar fora! guardar)
+# Tags de transporte (remover)
+
+6. INSPEÇÃO VISUAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Painéis externos (arranhões, rachaduras)
+✅ Juntas (movimento livre quando em damping)
+✅ Cabos (nenhum desconectado)
+✅ LIDAR (lente limpa, sem rachaduras)
+✅ Câmeras (lentes limpas)
+```
+
+---
+
+## ⚙️ Primeiro Boot
+
+### Sequência de Inicialização
+
+<Tabs>
+<TabItem value="first-boot" label="Power ON">
+
+**Procedimento:**
+
+```bash
+# 1. INSERIR BATERIA
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Compartimento: Quadril (traseiro)
+# - Alinhar conectores
+# - Push até "click"
+# - LED bateria acende (verde)
+
+# 2. PRESSIONAR BOTÃO POWER
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Localização: Torso (lado direito)
+# - Press 2 segundos
+# - LED status: Vermelho → Amarelo → Azul
+
+# 3. BOOT SEQUENCE (20-30s)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[0s]   Power ON
+       └─ Jetson boot
+[5s]   Ubuntu loading
+[10s]  ROS2 nodes starting
+[15s]  Motor controllers init
+[18s]  Sensor calibration
+       ├─ IMU zero-point
+       ├─ Motor encoders
+       └─ Force sensors baseline
+[20s]  WiFi AP starting
+       └─ SSID: Unitree-G1-XXXX
+[25s]  ✅ READY (LED azul sólido)
+       └─ Mode: DAMPING (safe)
+```
+
+**Indicadores LED:**
+
+| Cor | Estado | Significado |
+|-----|--------|-------------|
+| 🔴 Vermelho | Booting | Sistema iniciando |
+| 🟡 Amarelo | Loading | Carregando OS |
+| 🔵 Azul | Damping | Pronto, modo seguro |
+| 🟢 Verde | Preparation | Em pé, pronto para comandos |
+| 🟢 (piscando) | Movement | Operação ativa |
+| 🔴 (rápido) | Erro | Emergency stop ou erro |
+
+</TabItem>
+
+<TabItem value="first-connect" label="Primeira Conexão">
+
+**SSH Inicial:**
+
+```bash
+# 1. Conectar laptop ao WiFi do G1
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SSID: Unitree-G1-XXXX  # XXXX = serial number (na etiqueta)
+Password: (vem no Quick Start Guide, geralmente "unitree2024")
+
+# 2. SSH
+ssh unitree@192.168.123.1
+# Password padrão: 123
+
+# 3. Primeira coisa: TROCAR SENHA!
+passwd
+# Nova senha (anote em local seguro!)
+
+# 4. Verificar versão do sistema
+cat /etc/unitree_version
+# Output: Unitree G1 Firmware v1.2.3
+
+# 5. Atualizar (se disponível)
+sudo unitree-update check
+sudo unitree-update install  # Se houver updates
+
+# 6. Reboot
+sudo reboot
+```
+
+**Checklist Pós-Boot:**
+
+```python
+# test_systems.py
+from unitree_sdk import Robot
+import time
+
+robot = Robot()
+
+print("🔍 SYSTEM CHECK")
+print("=" * 50)
+
+# 1. Bateria
+battery = robot.get_battery_status()
+print(f"✅ Bateria: {battery.soc}% ({battery.voltage:.1f}V)")
+assert battery.soc > 50, "⚠️ Carregar bateria antes de operar"
+
+# 2. Sensores
+imu = robot.get_imu()
+print(f"✅ IMU: Pitch={imu.pitch:.1f}° Roll={imu.roll:.1f}°")
+
+# 3. Câmeras
+for cam in ['front', 'left', 'right']:
+    frame = getattr(robot, f'camera_{cam}').read()
+    assert frame is not None, f"❌ Câmera {cam} falhou"
+print(f"✅ Câmeras: Todas OK")
+
+# 4. LIDAR (se houver)
+if robot.has_lidar:
+    cloud = robot.lidar.get_point_cloud()
+    assert len(cloud) > 1000, "❌ LIDAR com poucos pontos"
+    print(f"✅ LIDAR: {len(cloud)} pontos")
+
+# 5. Motores
+temps = robot.get_motor_temperatures()
+avg_temp = sum(temps.values()) / len(temps)
+print(f"✅ Motores: Temperatura média {avg_temp:.0f}°C")
+assert avg_temp < 50, "⚠️ Motores muito quentes (esperar esfriar)"
+
+# 6. Rede
+import socket
+hostname = socket.gethostname()
+print(f"✅ Hostname: {hostname}")
+
+print("=" * 50)
+print("🎉 TODOS SISTEMAS OK!")
+```
+
+</TabItem>
+
+<TabItem value="calibration" label="Calibração Inicial">
+
+**Calibração de Fábrica já feita, mas verificar:**
+
+```python
+# calibration_check.py
+from unitree_sdk import Robot
+
+robot = Robot()
+
+print("🔧 CALIBRATION CHECK")
+
+# 1. Joint calibration
+print("Verificando calibração de juntas...")
+robot.set_mode(0)  # Damping
+
+for joint_name in robot.get_joint_names():
+    pos = robot.get_joint_position(joint_name)
+    print(f"{joint_name:20s}: {pos:7.2f}° ", end="")
+
+    # Mover manualmente a junta, deve reportar corretamente
+    input(f"[Mova {joint_name} manualmente e pressione Enter]")
+    new_pos = robot.get_joint_position(joint_name)
+
+    if abs(new_pos - pos) < 1:
+        print("⚠️ Encoder não detectou movimento!")
+    else:
+        print(f"✅ Delta: {new_pos - pos:.1f}°")
+
+# 2. IMU calibration
+print("\n🧭 Calibração IMU:")
+print("Coloque robô em superfície PLANA e NÍVEL")
+input("Pressione Enter quando pronto...")
+
+robot.calibrate_imu()  # 10 segundos
+print("✅ IMU calibrado (novo zero-point)")
+
+# 3. Force sensors
+print("\n⚖️ Zerando sensores de força:")
+print("Certifique-se que pés NÃO estão tocando chão")
+input("Pressione Enter quando pés estiverem no ar...")
+
+robot.zero_force_sensors()
+print("✅ Sensores de força zerados")
+
+print("\n🎉 Calibração completa!")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🛡️ Primeiro Uso Seguro
+
+### Checklist de Segurança
+
+```
+ANTES DE LEVANTAR O ROBÔ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Área livre de obstáculos (3m raio)
+✅ Chão plano e nivelado (inclinação &lt;3°)
+✅ Sem pessoas/pets próximos (min 2m)
+✅ Controle RC em mãos (emergency stop pronto)
+✅ Bateria &lt;50%
+✅ Todos sistemas checados (script acima)
+✅ Você leu o Safety Manual
+✅ Supervisão de 2 pessoas (recomendado 1ª vez)
+
+DURANTE PRIMEIRO STAND-UP:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👀 Observar movimento das pernas
+👂 Ouvir sons anormais (grinding, clicking)
+🤚 PRONTO para emergency stop (L2+R2)
+📹 Gravar em vídeo (útil se houver problema)
+
+SE ALGO DER ERRADO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛑 L2+R2 imediatamente
+📧 Contactar support@unitree.com
+📹 Enviar vídeo do problema
+⏸️ NÃO continuar usando até resolver
+```
+
+---
+
+### Primeiro Stand-Up (Modo Seguro)
+
+```python
+# first_standup.py
+from unitree_sdk import Robot
+import time
+
+robot = Robot()
+
+print("🤖 PRIMEIRO STAND-UP")
+print("=" * 50)
+
+# Verificações pré-flight
+assert robot.get_mode() == 0, "Deve estar em Damping"
+assert robot.battery.soc > 50, "Bateria baixa"
+
+chao_plano = input("Chão está plano? (s/n): ")
+if chao_plano.lower() != 's':
+    print("❌ Encontre superfície plana primeiro")
+    exit()
+
+area_livre = input("Área 3m livre de obstáculos? (s/n): ")
+if area_livre.lower() != 's':
+    print("❌ Limpe a área primeiro")
+    exit()
+
+print("\n✅ Pré-flight OK")
+print("⏳ Iniciando stand-up em 3 segundos...")
+time.sleep(1)
+print("3...")
+time.sleep(1)
+print("2...")
+time.sleep(1)
+print("1...")
+
+# Stand up!
+try:
+    robot.stand_up()  # Leva ~5 segundos
+
+    # Aguardar até modo Preparation
+    while robot.get_mode() != 1:
+        print(f"Status: {robot.get_mode()}", end='\r')
+        time.sleep(0.1)
+
+    print("\n🎉 SUCESSO! Robô está em pé!")
+    print(f"Modo: {robot.get_mode()} (Preparation)")
+
+    # Checar estabilidade
+    time.sleep(2)  # Esperar estabilizar
+
+    imu = robot.get_imu()
+    if abs(imu.pitch) > 5 or abs(imu.roll) > 5:
+        print(f"⚠️ Instável! Pitch={imu.pitch:.1f}° Roll={imu.roll:.1f}°")
+        print("Verificar chão e motores")
+    else:
+        print(f"✅ Estável! Pitch={imu.pitch:.1f}° Roll={imu.roll:.1f}°")
+
+except Exception as e:
+    print(f"\n❌ ERRO: {e}")
+    print("Robô em emergency stop")
+    print("Verificar logs e contactar suporte")
+
+# Sentar novamente (modo seguro)
+input("\nPressione Enter para sentar...")
+robot.sit_down()
+
+print("✅ Primeiro stand-up completo!")
+print("Próximo: Testar caminhada básica")
+```
+
+---
+
+## ✅ Checklist de Setup Completo
+
+Após finalizar esta seção, você deve ter:
+
+- [ ] G1 recebido e inspecionado (sem danos)
+- [ ] Unboxing feito com segurança (2 pessoas)
+- [ ] Primeiro boot realizado (LED azul)
+- [ ] SSH funcionando (senha trocada!)
+- [ ] System check passou (bateria, sensores, motores OK)
+- [ ] Calibração verificada
+- [ ] Primeiro stand-up com sucesso
+- [ ] G1 estável em modo Preparation
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🎓 Casos de Uso e Aplicações →](./casos-uso-aplicacoes)**
+
+Exemplos reais de aplicação do G1: pesquisa, indústria, educação.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 30-40 minutos
+**📦 Hands-on:** Aplicável somente se você adquiriu o G1
+**💰 Budget:** $16k-$90k USD + impostos

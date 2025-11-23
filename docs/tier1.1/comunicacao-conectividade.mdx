@@ -1,0 +1,674 @@
+---
+sidebar_position: 5
+title: 5. Comunicação e Conectividade
+description: WiFi, 4G, API remota e multi-robô
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📡 Comunicação e Conectividade
+
+:::tip Objetivo
+Dominar as opções de comunicação do G1: WiFi, Ethernet, 4G, controle remoto e coordenação multi-robô.
+:::
+
+---
+
+## 📶 Opções de Conectividade
+
+### WiFi Integrado
+
+**Hardware**: Intel AX200 WiFi 6 (802.11ax)
+
+```
+Especificações:
+├─ Bandas: 2.4GHz + 5GHz dual-band
+├─ Velocidade: Até 2.4 Gbps (teórico)
+├─ Real: 300-600 Mbps (depende distância)
+├─ Latência: ~5-10ms (local)
+├─ Alcance: 50m indoor, 150m outdoor
+└─ Antenas: 2x2 MIMO integradas no torso
+```
+
+**Modos de Operação:**
+
+<Tabs>
+<TabItem value="ap" label="Access Point (Padrão)">
+
+**G1 como Hotspot:**
+
+```bash
+# Config padrão ao ligar
+SSID: Unitree-G1-XXXX  # XXXX = serial number
+Password: (fornecida com robô)
+IP do G1: 192.168.123.1
+DHCP range: 192.168.123.10-254
+
+# Conexão:
+# Laptop/PC → WiFi "Unitree-G1-XXXX"
+# SSH: ssh unitree@192.168.123.1
+```
+
+**Vantagens:**
+- ✅ Zero configuração
+- ✅ Funciona em qualquer lugar
+- ✅ Controle direto (sem internet)
+
+**Limitações:**
+- ❌ Apenas 1-5 clientes simultâneos
+- ❌ Sem acesso à internet (a menos que compartilhe via USB tethering)
+
+</TabItem>
+
+<TabItem value="client" label="Client Mode">
+
+**G1 conecta a WiFi existente:**
+
+```bash
+# SSH ao G1 (mode AP)
+ssh unitree@192.168.123.1
+
+# Configurar para client
+sudo nmcli dev wifi connect "SuaRedeWiFi" password "SuaSenha"
+
+# G1 pega IP via DHCP da sua rede (ex: 192.168.1.15)
+
+# Descobrir novo IP
+hostname -I
+# Output: 192.168.1.15
+```
+
+**Vantagens:**
+- ✅ G1 acessa internet (updates, cloud)
+- ✅ Múltiplos G1s na mesma rede
+- ✅ Integra com infraestrutura existente
+
+**Desvantagens:**
+- ❌ Requer WiFi disponível
+- ❌ Depende de cobertura
+
+**Switching Back to AP:**
+```bash
+# Restaurar mode AP
+sudo unitree-network-reset
+sudo reboot
+```
+
+</TabItem>
+
+<TabItem value="mesh" label="WiFi Mesh (Avançado)">
+
+**Para cobertura ampla (armazéns, fábricas):**
+
+```
+Instalação de rede mesh:
+├─ Router principal (wired backhaul)
+├─ 3-5 access points mesh
+├─ Roaming automático (802.11r)
+└─ G1 mantém conexão andando
+
+Exemplo com Ubiquiti UniFi:
+- UniFi Dream Machine Pro (controller)
+- 4x UniFi 6 Lite (APs)
+- Cobertura: área 2000m²
+- Custo: ~$800
+```
+
+**Configurar G1 para roaming:**
+```bash
+# Priorizar força do sinal (roaming rápido)
+sudo sh -c 'echo "options iwlwifi 11n_disable=1" >> /etc/modprobe.d/iwlwifi.conf'
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Ethernet Gigabit
+
+**2x Portas GbE:**
+
+```
+Port 1 (eth0): Sensores (LIDAR, câmeras)
+Port 2 (eth1): Rede externa (disponível)
+
+# Usar para:
+- Conexão com switch/router
+- Uplink estável (alternativa a WiFi)
+- PoE reverse (G1 fornece energia - NÃO RECOMENDADO)
+```
+
+**Configurar IP estático:**
+```bash
+# Editar netplan
+sudo nano /etc/netplan/01-netcfg.yaml
+
+network:
+  version: 2
+  ethernets:
+    eth1:
+      addresses:
+        - 10.0.0.100/24
+      gateway4: 10.0.0.1
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+
+# Aplicar
+sudo netplan apply
+```
+
+---
+
+### 4G/5G LTE (Opcional)
+
+**USB Modem Support:**
+
+```bash
+# Compatível com modems:
+- Quectel EC25 (4G LTE)
+- Huawei E3372 (4G stick)
+- SixFab HAT (Raspberry Pi compatible)
+
+# Instalação:
+1. Conectar modem USB à porta do torso
+2. Instalar drivers
+   sudo apt install usb-modeswitch modemmanager
+
+3. Configurar APN
+   sudo nmcli connection add type gsm ifname '*' con-name '4G' \
+     apn 'your.apn.com'
+
+4. Conectar
+   sudo nmcli connection up '4G'
+
+# G1 agora tem internet móvel!
+```
+
+**Casos de Uso:**
+- 🏭 Robôs em campo sem WiFi
+- 🚛 Robôs móveis outdoor
+- ☁️ Telemetria em tempo real para cloud
+- 📹 Streaming de vídeo remoto
+
+**Custo Estimado:**
+- Hardware (modem): $50-150
+- Plano de dados: $20-50/mês (10-50GB)
+
+---
+
+## 🎮 Controle Remoto
+
+### Controle Físico (RC)
+
+**Incluído na caixa: Controle Unitree RC**
+
+```
+Layout do Controle:
+┌────────────────────────┐
+│  [L2]         [R2]     │ ← Triggers (emergency stop)
+│                        │
+│ [Joystick L]  [Joystick R] │
+│  (move)      (camera)  │
+│                        │
+│  [L1] [START] [R1]     │
+│     [SELECT]           │
+└────────────────────────┘
+
+Comandos:
+• L1 + UP: Levantar (stand up)
+• L1 + DOWN: Sentar (sit down)
+• L stick: Mover (X=frente/trás, Y=esquerda/direita)
+• R stick: Olhar (controla cabeça)
+• L2 + R2: Emergency stop
+```
+
+**Alcance**: 100m (2.4GHz), 300m (433MHz upgrade)
+
+**Protocolo**: SBUS (Serial Bus) - 16 canais
+
+---
+
+### App Móvel (iOS/Android)
+
+**Unitree Go App:**
+
+<Tabs>
+<TabItem value="features" label="Funcionalidades">
+
+```
+📱 Unitree Go 2.0 App
+━━━━━━━━━━━━━━━━━━━━━━━━━
+📹 Live Camera Feed
+   • Stream 1080p @ 30fps
+   • Latência: 150-300ms
+
+🎮 Virtual Joystick
+   • Move robot via touchscreen
+   • Sensitivity ajustável
+
+🤖 Pose Control
+   • Pre-programmed poses
+   • "Sit", "Stand", "Wave", "Dance"
+
+📊 Telemetry
+   • Battery %
+   • Motor temps
+   • Speed, position
+
+🗺️ Waypoint Navigation
+   • Tap no mapa para ir
+   • Evita obstáculos automaticamente
+
+💬 Voice Commands (beta)
+   • "Go forward"
+   • "Turn left"
+   • "Come here"
+```
+
+**Download:**
+- iOS: App Store - "Unitree Go"
+- Android: Google Play - "Unitree Go"
+
+</TabItem>
+
+<TabItem value="connection" label="Conexão">
+
+**Conectar App ao G1:**
+
+```
+1. G1 ligado em modo AP
+   SSID: Unitree-G1-XXXX
+
+2. Smartphone conecta ao WiFi do G1
+
+3. Abrir app Unitree Go
+
+4. App auto-detecta G1 na rede
+   IP: 192.168.123.1
+   Port: 8080 (HTTP), 8081 (WebSocket)
+
+5. Conectar (senha se configurada)
+```
+
+**Troubleshooting:**
+```bash
+# Se app não conecta:
+
+# 1. Verificar firewall
+sudo ufw status
+sudo ufw allow 8080/tcp
+sudo ufw allow 8081/tcp
+
+# 2. Restart service
+sudo systemctl restart unitree-web-service
+
+# 3. Ver logs
+journalctl -u unitree-web-service -f
+```
+
+</TabItem>
+
+<TabItem value="api" label="API WebSocket">
+
+**Protocolo usado pelo app (você pode criar seu próprio app!):**
+
+```javascript
+// JavaScript example
+const ws = new WebSocket('ws://192.168.123.1:8081');
+
+ws.onopen = () => {
+    console.log('Connected to G1');
+
+    // Enviar comando de movimento
+    ws.send(JSON.stringify({
+        cmd: 'move',
+        linear_x: 0.5,  // m/s
+        angular_z: 0.0  // rad/s
+    }));
+};
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    console.log('Battery:', data.battery.soc + '%');
+    console.log('Position:', data.pose);
+};
+```
+
+**Python Client:**
+```python
+import websocket
+import json
+
+def on_message(ws, message):
+    data = json.loads(message)
+    print(f"SOC: {data['battery']['soc']}%")
+
+def on_open(ws):
+    # Comando de movimento
+    ws.send(json.dumps({
+        'cmd': 'walk',
+        'speed': 0.8,
+        'direction': 0  # 0=frente, 90=esquerda, 180=trás, 270=direita
+    }))
+
+ws = websocket.WebSocketApp(
+    'ws://192.168.123.1:8081',
+    on_message=on_message,
+    on_open=on_open
+)
+
+ws.run_forever()
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🌐 API Remota
+
+### REST API
+
+**Controle via HTTP:**
+
+```python
+import requests
+
+G1_IP = '192.168.123.1'
+BASE_URL = f'http://{G1_IP}:8080/api/v1'
+
+# 1. Obter status
+response = requests.get(f'{BASE_URL}/status')
+print(response.json())
+# {'battery': 85, 'mode': 'standing', 'speed': 0.0}
+
+# 2. Enviar comando
+requests.post(f'{BASE_URL}/move', json={
+    'linear_x': 0.5,
+    'angular_z': 0.0
+})
+
+# 3. Executar pose
+requests.post(f'{BASE_URL}/pose/wave')
+
+# 4. Pegar foto
+img_bytes = requests.get(f'{BASE_URL}/camera/front').content
+with open('snapshot.jpg', 'wb') as f:
+    f.write(img_bytes)
+```
+
+---
+
+### ROS2 Remote (DDS)
+
+**Controlar ROS2 de outra máquina na mesma rede:**
+
+```bash
+# No seu laptop (Linux):
+
+# 1. Instalar ROS2 Humble (mesma versão do G1)
+sudo apt install ros-humble-desktop
+
+# 2. Configurar ROS_DOMAIN_ID (match com G1)
+echo "export ROS_DOMAIN_ID=1" >> ~/.bashrc
+source ~/.bashrc
+
+# 3. Descobrir nodes do G1
+ros2 node list
+# /camera_node (do G1!)
+# /lidar_node
+
+# 4. Enviar comandos
+ros2 topic pub /cmd_vel geometry_msgs/Twist \
+  "{linear: {x: 0.5}, angular: {z: 0.0}}"
+
+# 5. Ver câmera
+ros2 run image_view image_view --ros-args \
+  -r image:=/camera/front/image_raw
+```
+
+**Multi-Robot via DDS:**
+```bash
+# Separar robôs por ROS_DOMAIN_ID
+
+# G1 número 1:
+export ROS_DOMAIN_ID=1
+
+# G1 número 2:
+export ROS_DOMAIN_ID=2
+
+# Cada um em "rede" ROS separada
+# Para comunicar entre eles, use bridge ou namespaces
+```
+
+---
+
+## 🤝 Coordenação Multi-Robô
+
+### Fleet Management
+
+**Gerenciar 3+ G1s simultaneamente:**
+
+<Tabs>
+<TabItem value="rosboard" label="ROSBoard Dashboard">
+
+**Interface web centralizada:**
+
+```bash
+# Instalar ROSBoard
+pip3 install rosboard
+
+# Rodar no seu laptop
+rosboard
+
+# Acessar: http://localhost:8888
+# Adicionar topics de cada G1:
+# - /g1_01/battery
+# - /g1_02/battery
+# - /g1_01/camera
+# etc.
+```
+
+</TabItem>
+
+<TabItem value="fleet-mgmt" label="Fleet Manager (Custom)">
+
+```python
+# fleet_manager.py
+import requests
+from concurrent.futures import ThreadPoolExecutor
+
+class FleetManager:
+    def __init__(self, robot_ips):
+        self.robots = {
+            f'G1-{i+1}': ip
+            for i, ip in enumerate(robot_ips)
+        }
+
+    def get_all_status(self):
+        """Pegar status de todos robôs em paralelo"""
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                name: executor.submit(
+                    requests.get,
+                    f'http://{ip}:8080/api/v1/status'
+                )
+                for name, ip in self.robots.items()
+            }
+
+            results = {}
+            for name, future in futures.items():
+                try:
+                    results[name] = future.result().json()
+                except Exception as e:
+                    results[name] = {'error': str(e)}
+
+            return results
+
+    def command_all(self, cmd):
+        """Enviar mesmo comando para todos"""
+        for name, ip in self.robots.items():
+            requests.post(
+                f'http://{ip}:8080/api/v1/move',
+                json=cmd
+            )
+
+# Uso:
+fleet = FleetManager([
+    '192.168.1.10',  # G1-1
+    '192.168.1.11',  # G1-2
+    '192.168.1.12',  # G1-3
+])
+
+# Status de todos
+status = fleet.get_all_status()
+for robot, data in status.items():
+    print(f"{robot}: Battery {data['battery']}%")
+
+# Todos param
+fleet.command_all({'linear_x': 0, 'angular_z': 0})
+```
+
+</TabItem>
+
+<TabItem value="coordination" label="Coordenação de Tarefas">
+
+**Exemplo: 3 G1s patrulhando armazém:**
+
+```python
+# patrol_coordinator.py
+import time
+
+class PatrolCoordinator:
+    def __init__(self, fleet):
+        self.fleet = fleet
+        self.zones = {
+            'G1-1': [(0, 0), (10, 0), (10, 10), (0, 10)],  # Zone A
+            'G1-2': [(10, 0), (20, 0), (20, 10), (10, 10)],  # Zone B
+            'G1-3': [(0, 10), (10, 10), (10, 20), (0, 20)],  # Zone C
+        }
+
+    def assign_zones(self):
+        """Cada robô patrulha sua zona"""
+        for robot, waypoints in self.zones.items():
+            ip = self.fleet.robots[robot]
+            requests.post(
+                f'http://{ip}:8080/api/v1/patrol',
+                json={'waypoints': waypoints, 'loop': True}
+            )
+
+    def monitor(self):
+        """Monitorar progresso"""
+        while True:
+            status = self.fleet.get_all_status()
+
+            for robot, data in status.items():
+                if data['battery'] < 20:
+                    print(f"⚠️ {robot} low battery, return to base")
+                    self.return_to_base(robot)
+
+                if 'anomaly_detected' in data:
+                    print(f"🚨 {robot} detected anomaly at {data['position']}")
+                    self.alert_security(robot, data['position'])
+
+            time.sleep(10)  # Check a cada 10s
+
+# Uso:
+coordinator = PatrolCoordinator(fleet)
+coordinator.assign_zones()
+coordinator.monitor()  # Loop infinito
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔒 Segurança
+
+### Autenticação
+
+**Proteger acesso ao G1:**
+
+```bash
+# 1. Trocar senha SSH
+passwd  # Senha padrão '123' → senha forte
+
+# 2. Desabilitar acesso root
+sudo nano /etc/ssh/sshd_config
+# PermitRootLogin no
+sudo systemctl restart sshd
+
+# 3. Habilitar firewall
+sudo ufw enable
+sudo ufw allow 22/tcp   # SSH
+sudo ufw allow 8080/tcp # API
+sudo ufw deny 3389      # Block RDP
+
+# 4. Gerar chave SSH
+ssh-keygen -t ed25519
+ssh-copy-id unitree@192.168.123.1
+
+# Agora login sem senha (mais seguro que senha)
+```
+
+---
+
+### VPN para Acesso Remoto
+
+**Acessar G1 de qualquer lugar (internet):**
+
+```bash
+# Instalar WireGuard no G1
+sudo apt install wireguard
+
+# Configurar
+sudo nano /etc/wireguard/wg0.conf
+
+[Interface]
+Address = 10.0.0.2/24
+PrivateKey = (gerada com 'wg genkey')
+ListenPort = 51820
+
+[Peer]
+PublicKey = (da sua máquina)
+AllowedIPs = 10.0.0.1/32
+
+# Ativar
+sudo wg-quick up wg0
+sudo systemctl enable wg-quick@wg0
+
+# Agora você acessa G1 via 10.0.0.2 de qualquer lugar!
+```
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] WiFi 6 dual-band (50m indoor, 150m outdoor)
+- [ ] Modos: AP (padrão) vs Client
+- [ ] Controle via RC, App móvel, API REST, ROS2
+- [ ] Como conectar múltiplos G1s na mesma rede
+- [ ] Configurar 4G LTE opcional
+- [ ] Proteger acesso com SSH keys e firewall
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[⚙️ Modos de Operação →](./modos-operacao)**
+
+Damping, Preparation, Movement - entenda os estados do G1.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 45-55 minutos
+**📊 Nível:** Intermediário
+**📡 Hands-on:** Conectar ao G1 via WiFi, testar API

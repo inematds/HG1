@@ -1,0 +1,702 @@
+---
+sidebar_position: 2
+title: 2. Hardware e Anatomia
+description: Componentes detalhados do Unitree G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🔧 Hardware e Anatomia do G1
+
+:::tip Objetivo
+Entender em profundidade cada componente do Unitree G1: sensores, atuadores, estrutura mecânica e eletrônica.
+:::
+
+---
+
+## 🗺️ Mapa Anatômico Completo
+
+```
+                    ┌──────────────┐
+                    │   CABEÇA     │
+                    │ • LIDAR 3D   │
+                    │ • 3x Câmeras │
+                    │ • IMU        │
+                    └──────┬───────┘
+                           │
+                    ┌──────┴───────┐
+                    │    TORSO     │
+                    │ • Jetson NX  │
+                    │ • Ethernet   │
+                    │ • Coolers    │
+                    └─┬──────────┬─┘
+                ┌─────┴───┐  ┌───┴─────┐
+                │ OMBRO L │  │ OMBRO R │
+                │ • 3 DOF │  │ • 3 DOF │
+                └─────┬───┘  └───┬─────┘
+                ┌─────┴───┐  ┌───┴─────┐
+                │ BRAÇO L │  │ BRAÇO R │
+                │ • Cotov │  │ • Cotov │
+                │ • Pulso │  │ • Pulso │
+                └─────┬───┘  └───┬─────┘
+                ┌─────┴───┐  ┌───┴─────┐
+                │  MÃO L  │  │  MÃO R  │
+                │ • Garra │  │ • Garra │
+                │ • F.Sens│  │ • F.Sens│
+                └─────────┘  └─────────┘
+                      │
+                ┌─────┴─────┐
+                │  QUADRIL  │
+                │ • Bateria │
+                │ • 3 DOF   │
+                └─┬───────┬─┘
+            ┌─────┴───┐ ┌─┴─────┐
+            │ COXA L  │ │ COXA R│
+            │ • Motor │ │ • Motor│
+            └─────┬───┘ └───┬───┘
+            ┌─────┴───┐ ┌───┴───┐
+            │ JOELHO L│ │JOELHO R│
+            └─────┬───┘ └───┬───┘
+            ┌─────┴───┐ ┌───┴───┐
+            │TORNOZ L │ │TORNOZ R│
+            │ • 2 DOF │ │ • 2 DOF│
+            └─────┬───┘ └───┬───┘
+            ┌─────┴───┐ ┌───┴───┐
+            │  PÉ L   │ │  PÉ R │
+            │ • F.Sens│ │ • F.Sens│
+            └─────────┘ └─────────┘
+```
+
+---
+
+## 👁️ Sistema Sensorial
+
+### LIDAR 3D (Cabeça)
+
+<Tabs>
+<TabItem value="specs" label="Especificações">
+
+**Modelo**: Livox Mid-360 (ou similar)
+
+| Parâmetro | Valor |
+|-----------|-------|
+| **Tipo** | Solid-state rotativo |
+| **Alcance** | 0.5m - 40m |
+| **Precisão** | ±2cm |
+| **FOV** | 360° horizontal, 59° vertical |
+| **Taxa** | 100,000 pontos/segundo |
+| **Wavelength** | 905nm (infravermelho) |
+| **Interface** | Ethernet (100Mbps) |
+| **Consumo** | 8W |
+
+</TabItem>
+
+<TabItem value="function" label="Função">
+
+**O Que o LIDAR Faz?**
+
+1. **Mapeamento 3D**
+   ```
+   [LIDAR] → Point Cloud → SLAM → Mapa 3D
+   ```
+   - Cria mapas do ambiente em tempo real
+   - Identifica obstáculos com precisão centimétrica
+   - Funciona em escuridão total
+
+2. **Navegação Autônoma**
+   - Detecta paredes, móveis, pessoas
+   - Calcula trajetórias sem colisão
+   - Atualiza posição do robô (localização)
+
+3. **Detecção de Degraus/Buracos**
+   - Identifica mudanças de elevação
+   - Previne quedas
+
+**Limitações:**
+- ❌ Não identifica superfícies transparentes (vidro)
+- ❌ Pode ter interferência com outros LIDARs próximos
+- ❌ Consome energia significativa
+
+</TabItem>
+
+<TabItem value="alternative" label="Versão Sem LIDAR">
+
+**G1 EDU (sem LIDAR) - $16k**
+
+Usa apenas câmeras para navegação:
+- 3x câmeras RGB (stereo vision)
+- Algoritmos de Visual SLAM
+- Menor precisão mas funcional para indoor
+
+**Trade-off:**
+- 💰 $11k mais barato
+- 📏 Precisão 70% menor
+- 🔋 Economiza 8W (20min+ de bateria)
+
+</TabItem>
+</Tabs>
+
+---
+
+### Câmeras (3x)
+
+**Configuração Padrão:**
+
+1. **Câmera Frontal Central** (Cabeça)
+   - Resolução: 1920x1080 @ 30fps
+   - FOV: 110° diagonal
+   - Uso: Navegação principal, detecção de objetos
+
+2. **Câmera Frontal Esquerda** (Cabeça)
+   - Resolução: 640x480 @ 60fps
+   - FOV: 160° fisheye
+   - Uso: Visão periférica, detecção de obstáculos laterais
+
+3. **Câmera Frontal Direita** (Cabeça)
+   - Igual à esquerda (stereo pair)
+   - Uso: Depth estimation (profundidade)
+
+**Processamento:**
+```python
+# Exemplo: depth map com stereo vision
+import cv2
+
+# Imagens das câmeras L/R
+imgL = camera_left.read()
+imgR = camera_right.read()
+
+# Calcular disparidade
+stereo = cv2.StereoBM_create(numDisparities=16*5, blockSize=15)
+disparity = stereo.compute(imgL, imgR)
+
+# Converter para profundidade (metros)
+depth_map = (focal_length * baseline) / disparity
+```
+
+---
+
+### IMU (Unidade de Medição Inercial)
+
+**Localização**: Dentro do torso (próximo ao centro de massa)
+
+**Sensores Integrados:**
+- 📐 **Acelerômetro 3-axis**: Detecta aceleração linear
+- 🔄 **Giroscópio 3-axis**: Detecta rotação angular
+- 🧭 **Magnetômetro 3-axis** (opcional): Bússola magnética
+
+**Especificações:**
+```
+Modelo: BMI088 (Bosch)
+├─ Taxa de Atualização: 400 Hz
+├─ Acelerômetro Range: ±24g
+├─ Giroscópio Range: ±2000°/s
+├─ Precisão Angular: 0.1°
+└─ Interface: SPI (alta velocidade)
+```
+
+**Para Que Serve:**
+1. **Equilíbrio Dinâmico**
+   - Detecta quando robô está caindo
+   - Ativa reflexos de estabilização em &lt;10ms
+
+2. **Odometria**
+   - Estima posição quando GPS/LIDAR falham
+   - Integra aceleração para calcular deslocamento
+
+3. **Controle de Postura**
+   - Mantém torso vertical durante caminhada
+   - Compensa inclinações do terreno
+
+**Demonstração Prática:**
+```python
+# Ler IMU e detectar queda
+imu_data = robot.read_imu()
+
+if abs(imu_data.pitch) > 30:  # Inclinação &lt;30°
+    print("⚠️ QUEDA DETECTADA!")
+    robot.emergency_stop()
+    robot.extend_arms()  # Proteger queda
+```
+
+---
+
+### Sensores de Força (Pés e Mãos)
+
+<Tabs>
+<TabItem value="feet" label="Sensores nos Pés">
+
+**Cada pé tem 4 load cells (células de carga):**
+
+```
+    ┌───────────────┐
+    │ [1]     [2]   │  ← Frente do pé
+    │               │
+    │               │
+    │ [3]     [4]   │  ← Calcanhar
+    └───────────────┘
+```
+
+**Especificações:**
+- Tipo: Strain gauge
+- Range: 0-500N por sensor (2000N total = 200kg)
+- Precisão: ±1N
+- Taxa: 1000 Hz
+
+**Aplicações:**
+
+1. **Detecção de Contato com Chão**
+   ```python
+   if foot_force.total() > 50:  # 5kg
+       print("Pé no chão")
+   else:
+       print("Pé no ar (fase swing)")
+   ```
+
+2. **Distribuição de Peso**
+   - Calcula Centro de Pressão (CoP)
+   - Previne escorregamento
+
+3. **Detecção de Terreno**
+   - Superfície dura (força alta, deformação baixa)
+   - Superfície macia (força média, deformação alta)
+
+</TabItem>
+
+<TabItem value="hands" label="Sensores nas Mãos">
+
+**Cada mão tem sensores de força na garra:**
+
+- **Tipo**: Torque sensor no motor da garra
+- **Range**: 0-20N (2kg)
+- **Precisão**: 0.1N
+
+**Uso:**
+1. **Detecção de Objeto Segurado**
+   ```python
+   hand.close(force=5.0)  # Fechar com max 5N
+
+   if hand.get_force() > 0.5:
+       print("Objeto detectado!")
+   ```
+
+2. **Prevenção de Dano**
+   - Se força &gt; limite, para de fechar
+   - Protege objetos frágeis
+
+3. **Feedback Tátil**
+   - Robô "sente" quando toca algo
+   - Permite manipulação delicada
+
+**Exemplo - Pegar Copo:**
+```python
+# Aproximar mão do copo
+hand.open()
+arm.move_to(cup_position)
+
+# Fechar com limite de força
+hand.close(force=3.0, speed=0.5)
+
+# Verificar se pegou
+if hand.get_force() > 0.5:
+    print("✅ Copo segurado")
+    arm.lift(height=0.3)  # Levantar
+else:
+    print("❌ Falha, tentar novamente")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## ⚙️ Sistema de Atuação
+
+### Motores (23-43 DOF)
+
+**Tipos de Motores no G1:**
+
+1. **Motor de Juntas (Joint Motors)**
+   - Tipo: BLDC (Brushless DC) com redução harmônica
+   - Controle: Torque direto via FOC (Field-Oriented Control)
+   - Feedback: Encoder absoluto 14-bit (16,384 posições/rotação)
+
+2. **Distribuição de DOF (versão Standard 35 DOF):**
+
+| Parte do Corpo | DOF | Motores |
+|----------------|-----|---------|
+| Cabeça | 2 | Pan, Tilt |
+| Torso/Cintura | 3 | Roll, Pitch, Yaw |
+| Braço Esquerdo | 7 | Ombro (3), Cotovelo (1), Pulso (3) |
+| Braço Direito | 7 | Ombro (3), Cotovelo (1), Pulso (3) |
+| Mão Esquerda | 1 | Garra paralela |
+| Mão Direita | 1 | Garra paralela |
+| Perna Esquerda | 6 | Quadril (3), Joelho (1), Tornozelo (2) |
+| Perna Direita | 6 | Quadril (3), Joelho (1), Tornozelo (2) |
+| **TOTAL** | **35** | |
+
+---
+
+### Motores das Pernas (Mais Potentes)
+
+<Tabs>
+<TabItem value="specs" label="Especificações">
+
+**Motor do Quadril (3x por perna):**
+- Torque Máximo: 180 Nm
+- Velocidade: 0-120 RPM (após redução)
+- Potência: 500W pico
+- Redução: 1:50 harmonic drive
+- Peso: 1.2kg
+
+**Motor do Joelho:**
+- Torque: 250 Nm (maior torque do robô!)
+- Velocidade: 0-90 RPM
+- Potência: 750W pico
+- Redução: 1:60
+
+**Motor do Tornozelo (2x por perna):**
+- Torque: 100 Nm
+- Velocidade: 0-150 RPM
+- Potência: 300W
+
+</TabItem>
+
+<TabItem value="control" label="Controle">
+
+**Modos de Controle:**
+
+1. **Modo Posição**
+   ```python
+   # Mover joelho para 90°
+   robot.set_joint_position('knee_left', angle=90)
+   ```
+
+2. **Modo Velocidade**
+   ```python
+   # Joelho a 30°/s
+   robot.set_joint_velocity('knee_left', speed=30)
+   ```
+
+3. **Modo Torque** (mais usado)
+   ```python
+   # Aplicar 50Nm no joelho
+   robot.set_joint_torque('knee_left', torque=50)
+   ```
+
+**Por que Controle de Torque?**
+- Permite compliance (flexibilidade)
+- Absorve impactos durante caminhada
+- Adapta-se a terrenos irregulares
+
+</TabItem>
+
+<TabItem value="cooling" label="Resfriamento">
+
+**Sistema de Cooling:**
+
+Motores das pernas geram muito calor (&gt;200W durante corrida).
+
+**Soluções:**
+1. **Dissipadores de Alumínio**
+   - Integrados no case do motor
+   - Área superficial: 150cm²
+
+2. **Condução para Estrutura**
+   - Estrutura de alumínio age como heatsink
+   - Dissipa calor por todo corpo
+
+3. **Limitação Térmica**
+   - Sensor de temperatura em cada motor
+   - Se &gt;80°C, reduz potência automaticamente
+   - Se &gt;90°C, para o motor (proteção)
+
+**Monitoramento:**
+```python
+temps = robot.get_motor_temperatures()
+print(f"Joelho esquerdo: {temps['knee_left']}°C")
+
+if max(temps.values()) > 85:
+    print("⚠️ Motores quentes, reduzindo velocidade")
+    robot.set_walk_speed(0.5)  # Metade da velocidade
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Motores dos Braços (Menor Torque, Maior Precisão)
+
+**Características:**
+- Torque: 20-50 Nm (depende da junta)
+- Precisão: 0.02° (encoder 14-bit)
+- Velocidade: 0-180 RPM
+- Payload: 3kg no end-effector
+
+**Exemplo - Trajetória Suave:**
+```python
+# Mover braço em arco circular
+import numpy as np
+
+for t in np.linspace(0, 2*np.pi, 100):
+    x = 0.3 * np.cos(t)  # 30cm de raio
+    y = 0.3 * np.sin(t)
+    z = 1.0  # Altura constante
+
+    robot.arm_left.move_to_xyz(x, y, z, duration=0.1)
+    time.sleep(0.1)
+```
+
+---
+
+## 🔌 Sistema Eletrônico
+
+### Arquitetura de Comunicação
+
+```
+┌─────────────────────────────────────────────────┐
+│            Jetson Orin NX (Main Brain)          │
+│  • ROS2 Humble                                  │
+│  • Python/C++ control                           │
+│  • Vision processing                            │
+└────────┬──────────────────────────┬─────────────┘
+         │                          │
+    Ethernet 1Gbps            CAN Bus 1Mbps
+         │                          │
+┌────────┴─────────┐    ┌───────────┴──────────────┐
+│  LIDAR + Cameras │    │   Motor Controllers (35x)│
+│  • Sensor fusion │    │   • Real-time control    │
+│  • Point clouds  │    │   • 1kHz update rate     │
+└──────────────────┘    └───────────┬──────────────┘
+                                    │
+                            ┌───────┴────────┐
+                            │  IMU + Force   │
+                            │  Sensors       │
+                            └────────────────┘
+```
+
+**Protocolos Usados:**
+- **Ethernet**: Sensores de alto bandwidth (LIDAR, câmeras)
+- **CAN Bus**: Motores e sensores de baixa latência
+- **I2C**: Sensores auxiliares (temperatura, voltagem)
+- **SPI**: IMU (requer alta velocidade)
+
+---
+
+### Power Distribution
+
+**Fluxo de Energia:**
+
+```
+┌─────────────┐
+│  Bateria    │ 48V 9Ah (432Wh)
+│  12S LiPo   │
+└──────┬──────┘
+       │
+       ├─→ [DC-DC 48V→12V] → Motores Pernas (6x)
+       │                      • 50W cada (standby)
+       │                      • 500W cada (pico)
+       │
+       ├─→ [DC-DC 48V→12V] → Motores Braços (14x)
+       │                      • 20W cada (standby)
+       │                      • 200W cada (pico)
+       │
+       ├─→ [DC-DC 48V→19V] → Jetson Orin NX
+       │                      • 15W (idle)
+       │                      • 25W (full load)
+       │
+       ├─→ [DC-DC 48V→12V] → LIDAR
+       │                      • 8W constante
+       │
+       └─→ [DC-DC 48V→5V]  → Câmeras + Sensores
+                              • 10W total
+```
+
+**Consumo Típico por Modo:**
+
+| Modo | Consumo | Autonomia |
+|------|---------|-----------|
+| Standby | 20W | 20h+ |
+| Damping | 50W | 8h |
+| Caminhada lenta | 150W | 4.5h |
+| Caminhada rápida | 300W | 2.5h |
+| Corrida | 500W | 1.5h |
+
+---
+
+## 🏗️ Estrutura Mecânica
+
+### Materiais e Construção
+
+<Tabs>
+<TabItem value="frame" label="Frame Principal">
+
+**Estrutura Interna (Endoskeleton):**
+
+- Material: Alumínio 7075-T6
+  - Resistência: 570 MPa
+  - Peso específico: 2.81 g/cm³
+  - Tratamento: Anodização dura
+
+**Por que Alumínio 7075?**
+- ✅ Alta resistência/peso (melhor que aço)
+- ✅ Boa dissipação térmica
+- ✅ Fácil usinagem (reduz custo)
+- ✅ Resistente à corrosão
+
+**Comparação:**
+| Material | Resistência | Peso | Custo |
+|----------|-------------|------|-------|
+| Aço | ⭐⭐⭐⭐⭐ | ❌ Pesado | 💰 Barato |
+| Alumínio 7075 | ⭐⭐⭐⭐ | ✅ Leve | 💰💰 Médio |
+| Fibra de Carbono | ⭐⭐⭐⭐⭐ | ✅ Muito Leve | 💰💰💰💰 Caro |
+| Titânio | ⭐⭐⭐⭐⭐ | ✅ Leve | 💰💰💰💰💰 Muito Caro |
+
+</TabItem>
+
+<TabItem value="covers" label="Coberturas">
+
+**Painéis Externos:**
+
+- Material: ABS de alta resistência
+- Espessura: 2-3mm
+- Acabamento: Texturizado fosco
+
+**Vantagens:**
+- 🛡️ Protege componentes internos
+- 🎨 Estética profissional
+- 💵 Barato para substituir se danificar
+- ♻️ Reciclável
+
+**Cores Disponíveis:**
+- Cinza grafite (padrão)
+- Branco (sob encomenda)
+- Custom (para pedidos &gt;10 unidades)
+
+</TabItem>
+
+<TabItem value="joints" label="Juntas e Conexões">
+
+**Bearings (Rolamentos):**
+- Tipo: Duplo de esferas selado
+- Material: Aço inoxidável 440C
+- Vida útil: 10,000 horas de operação
+
+**Cabos Internos:**
+- Tipo: Flexível multicore
+- Reforço: Trança de Kevlar
+- Proteção: Conduits plásticos
+- Vida útil: 1 milhão de ciclos de flexão
+
+**Conectores:**
+- Tipo: Hirose DF13/DF14 (alta confiabilidade)
+- Proteção: IP40 (poeira)
+- Lock mechanism para evitar desconexão
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔧 Modularidade e Manutenção
+
+### Componentes Intercambiáveis
+
+**Nível 1 - Substituição Simples (sem ferramentas):**
+- Bateria (clip mechanism)
+- Painéis externos de ABS
+
+**Nível 2 - Ferramentas Básicas (chave allen):**
+- Mãos/garras (4 parafusos)
+- Câmeras (2 parafusos + conector)
+- LIDAR (4 parafusos + conector)
+
+**Nível 3 - Técnico Treinado:**
+- Motores individuais (desmontagem parcial)
+- Jetson Orin (acesso interno ao torso)
+- IMU (calibração necessária após troca)
+
+**Nível 4 - Fábrica/Service Center:**
+- Frame estrutural
+- Módulos de potência
+- Recalibração completa
+
+---
+
+### Kit de Peças de Reposição Recomendado
+
+**Para laboratórios/empresas:**
+
+```
+📦 Kit Básico ($500)
+├─ 2x Parafusos M3/M4/M5 (sortimento)
+├─ 1x Jogo de conectores sobressalentes
+├─ 1x Garra substituta
+└─ 1x Painel externo (torso)
+
+📦 Kit Avançado ($2,000)
+├─ Kit Básico
+├─ 1x Motor de junta (reserva)
+├─ 1x Encoder sobressalente
+├─ 1x Câmera adicional
+└─ 1x Bateria extra (9Ah)
+
+📦 Kit Profissional ($5,000)
+├─ Kit Avançado
+├─ 2x Motores de perna
+├─ 1x LIDAR sobressalente
+├─ 1x Jetson Orin NX
+└─ Ferramentas especiais de calibração
+```
+
+---
+
+## 📊 Comparação de Configurações
+
+### G1 EDU vs Standard vs Advanced
+
+| Componente | EDU ($16k) | Standard ($27.5k) | Advanced ($90k) |
+|------------|------------|-------------------|-----------------|
+| **DOF** | 23 | 35 | 43 |
+| **Computador** | Orin Nano 8GB | Orin NX 16GB | AGX Orin 64GB |
+| **LIDAR** | ❌ Não | ✅ Sim | ✅ Sim + radar |
+| **Mãos** | Garra simples | Garra paralela | 5 dedos dextros |
+| **Sensores Táteis** | Mínimo | Médio | Todo corpo |
+| **Bateria** | 9Ah (4h) | 9Ah (4.5h) | 12Ah (6h) |
+| **Payload** | 2kg | 3kg | 5kg |
+
+**Qual Escolher?**
+
+- **EDU**: Aprendizado, universidades, budget limitado
+- **Standard**: Pesquisa séria, desenvolvimento, empresas
+- **Advanced**: Produção, manipulação complexa, IA avançada
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] Quantos DOF tem o G1 Standard (35) e onde estão distribuídos
+- [ ] Quais sensores estão na cabeça (LIDAR + 3 câmeras + IMU)
+- [ ] Para que servem os sensores de força nos pés (balanço, detecção de terreno)
+- [ ] Tipos de motores e controle (BLDC, controle de torque)
+- [ ] Material da estrutura (alumínio 7075)
+- [ ] Diferenças entre EDU/Standard/Advanced
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🔌 Sistema de Energia e Bateria →](./energia-bateria)**
+
+Entenda em profundidade o sistema de energia, BMS, carregamento e otimização de autonomia.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 45-60 minutos
+**📊 Nível:** Intermediário
+**🔧 Hands-on:** Recomendado ter acesso ao G1 físico para identificar componentes

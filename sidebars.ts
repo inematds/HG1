@@ -11,11 +11,11 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
  Create as many sidebars as you want.
  */
 const sidebars: SidebarsConfig = {
-  // Tier 1: Conhecendo Humanoides (Foundation)
+  // Tier 1.0: Conhecendo Humanoides (Foundation)
   tier1: [
     {
       type: 'category',
-      label: 'Tier 1: Conhecendo Humanoides',
+      label: 'Tier 1.0: Conhecendo Humanoides',
       items: [
         'tier1/introducao',
         'tier1/historia',
@@ -27,6 +27,26 @@ const sidebars: SidebarsConfig = {
         'tier1/software',
         'tier1/aplicacoes',
         'tier1/futuro',
+      ],
+    },
+  ],
+
+  // Tier 1.1: Conhecendo Unitree G1
+  tier1_1: [
+    {
+      type: 'category',
+      label: 'Tier 1.1: Conhecendo Unitree G1',
+      items: [
+        'tier1.1/introducao-g1',
+        'tier1.1/hardware-anatomia',
+        'tier1.1/energia-bateria',
+        'tier1.1/sistema-computacional',
+        'tier1.1/comunicacao-conectividade',
+        'tier1.1/modos-operacao',
+        'tier1.1/specs-comparacao',
+        'tier1.1/aquisicao-setup',
+        'tier1.1/casos-uso-aplicacoes',
+        'tier1.1/futuro-roadmap',
       ],
     },
   ],

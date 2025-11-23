@@ -59,7 +59,7 @@ export default function Home(): JSX.Element {
     1.1: {
       title: 'Tier 1.1: Conhecendo Unitree G1',
       color: '#2563EB',
-      link: '#',
+      link: '/docs/tier1.1/introducao-g1',
       slogan: '"Mergulhe no G1"',
       benefits: [
         'Hardware detalhado do G1',
@@ -92,6 +92,18 @@ export default function Home(): JSX.Element {
         'Troubleshooting específico'
       ],
     },
+    4.0: {
+      title: 'Tier 4: Plataforma MindOn',
+      color: '#F59E0B',
+      link: '#',
+      slogan: '"IA autônoma de verdade"',
+      benefits: [
+        'Autonomia completa sem controle',
+        'LLM e compreensão de linguagem',
+        'Aprendizado contínuo',
+        'Integração casa inteligente'
+      ],
+    },
     3.0: {
       title: 'Tier 3.0: Programando Humanoides',
       color: '#10B981',
@@ -114,18 +126,6 @@ export default function Home(): JSX.Element {
         'Controle de baixo nível',
         'Integração ROS2',
         'Projetos customizados'
-      ],
-    },
-    4.0: {
-      title: 'Tier 4: Plataforma MindOn',
-      color: '#F59E0B',
-      link: '#',
-      slogan: '"IA autônoma de verdade"',
-      benefits: [
-        'Autonomia completa sem controle',
-        'LLM e compreensão de linguagem',
-        'Aprendizado contínuo',
-        'Integração casa inteligente'
       ],
     },
   };

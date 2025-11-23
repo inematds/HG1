@@ -1,0 +1,530 @@
+---
+sidebar_position: 7
+title: 7. Especificações vs Concorrentes
+description: G1 vs Tesla Optimus, Figure 01, Atlas
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🎯 Especificações vs Concorrentes
+
+:::tip Objetivo
+Comparação técnica completa do Unitree G1 com principais concorrentes: Tesla Optimus, Figure 01, Atlas e outros.
+:::
+
+---
+
+## 📊 Tabela Comparativa Completa
+
+### Hardware e Performance
+
+| Especificação | **Unitree G1** | Tesla Optimus Gen 2 | Figure 01 | Boston Dynamics Atlas | Agility Digit |
+|---------------|----------------|---------------------|-----------|----------------------|---------------|
+| **Altura** | 1.32m | 1.73m | 1.68m | 1.50m | 1.75m |
+| **Peso** | 55kg | 73kg | 70kg | 89kg | 65kg |
+| **DOF** | 35 (standard) | 28 | 16 | 28 | 20 |
+| **Velocidade Máx** | 2 m/s (walk) | 2.2 m/s | 1.2 m/s | 3.5 m/s | 1.5 m/s |
+| **Payload** | 3kg | 10kg | 20kg | 25kg | 16kg |
+| **Autonomia** | 4.5h | ~8h (est.) | 5h | 1h | 4h |
+| **Computador** | Jetson Orin NX | Custom Tesla FSD | Custom | N/D | Qualcomm RB5 |
+| **IA Power** | 100 TOPS | 300+ TOPS (est.) | 50 TOPS (est.) | N/D | 15 TOPS |
+
+---
+
+### Sensores
+
+| Sensor | **Unitree G1** | Tesla Optimus | Figure 01 | Atlas | Digit |
+|--------|----------------|---------------|-----------|-------|-------|
+| **LIDAR** | ✅ Livox Mid-360 | ❌ (cameras only) | ❌ | ❌ | ✅ Velodyne |
+| **Câmeras** | 3x RGB | 8x cameras | 6x RGB + depth | Multiple | 5x stereo |
+| **IMU** | ✅ 6-axis | ✅ | ✅ | ✅ | ✅ |
+| **Force Sensors** | Pés + mãos | Tesla (proprietary) | Whole-body | Pés + corpo | Pés |
+| **Depth Sensing** | Stereo + LIDAR | Stereo (Tesla Vision) | Depth cameras | LIDAR histórico | Stereo |
+
+---
+
+### Disponibilidade e Custo
+
+| Aspecto | **Unitree G1** | Tesla Optimus | Figure 01 | Atlas | Digit |
+|---------|----------------|---------------|-----------|-------|-------|
+| **Preço** | 💰 $16k-$90k | $20k-$30k (futuro) | N/D | Não comercial | ~$150k+ |
+| **Disponibilidade** | ✅ **Comercial AGORA** | ❌ Protótipo (2025-2026?) | ❌ Beta privado | ❌ Pesquisa | ⚠️ Comercial (lotes pequenos) |
+| **Prazo Entrega** | 2-4 semanas | N/A | N/A | N/A | 6-12 meses |
+| **SDK Aberto** | ✅ **Sim** (Python, ROS2) | ⚠️ Limitado (futuro) | ❌ Fechado | ❌ Fechado | ⚠️ Parcial |
+| **Comunidade** | ✅ Ativa (3k+ devs) | ❌ Inexistente | ❌ Restrita | ❌ Acadêmica | ⚠️ Pequena |
+
+---
+
+## 🤖 Análise Detalhada por Concorrente
+
+### Tesla Optimus Gen 2
+
+<Tabs>
+<TabItem value="specs" label="Especificações">
+
+**Anunciado:** Dezembro 2024 (Gen 2)
+
+```
+Hardware:
+├─ Altura: 1.73m (closer to human)
+├─ Peso: 73kg
+├─ DOF: 28 (hands with 11 DOF each!)
+├─ Mãos: 5 dedos dextros, 11 DOF por mão
+└─ Bateria: Estimado 2.3 kWh (vs 432Wh do G1)
+
+Computador:
+├─ Custom Tesla chip (baseado em FSD)
+├─ Estimado 300+ TOPS
+└─ Inference otimizado para Tesla Neural Net
+
+Sensores:
+├─ 8x câmeras (360° coverage)
+├─ ZERO LIDAR (Tesla Vision only)
+├─ Force/torque sensors em toda estrutura
+└─ Processamento: Tesla Autopilot stack adaptado
+```
+
+</TabItem>
+
+<TabItem value="comparison" label="G1 vs Optimus">
+
+**Vantagens do G1:**
+
+1. **Disponível AGORA**
+   - Você pode comprar e receber em semanas
+   - Optimus: "maybe 2026" segundo Elon
+
+2. **LIDAR Incluído**
+   - Navegação mais robusta em ambientes complexos
+   - Optimus depende 100% de câmeras (funciona, mas mais difícil)
+
+3. **SDK Aberto**
+   - G1: Python SDK completo, ROS2 nativo
+   - Optimus: Será limitado (Tesla quer controlar ecosystem)
+
+4. **Comunidade Existente**
+   - G1: 3k+ desenvolvedores, fóruns ativos
+   - Optimus: Zero (ainda não lançado)
+
+5. **Preço Conhecido**
+   - G1: $16k-$90k (real, hoje)
+   - Optimus: "$20k someday" (Elon time = +5 years?)
+
+**Vantagens do Optimus:**
+
+1. **Mãos Dextras Superiores**
+   - 11 DOF por mão vs 1 DOF (garra) do G1
+   - Manipulação fina possível
+
+2. **Integração Tesla**
+   - Se você tem fábrica Tesla, integra direto
+   - Fleet management by Tesla
+
+3. **Bateria Maior**
+   - ~8h autonomia vs 4.5h do G1
+   - Melhor para turnos longos
+
+4. **Escala de Produção**
+   - Tesla planeja milhões/ano
+   - G1: Centenas a milhares/ano
+
+**Veredicto:**
+```
+Escolha G1 se:
+✅ Precisa AGORA (pesquisa, desenvolvimento)
+✅ Quer SDK aberto e customização
+✅ Orçamento limitado ($16k entry)
+
+Escolha Optimus se:
+⏳ Pode esperar 2-3 anos
+⏳ Precisa de mãos dextras avançadas
+⏳ Quer integração com ecossistema Tesla
+```
+
+</TabItem>
+
+<TabItem value="tech" label="Diferenças Técnicas">
+
+**Abordagem de Controle:**
+
+```python
+# Unitree G1: Model-based + Learning
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Usa modelo físico + RL para refinamento
+
+class G1Controller:
+    def __init__(self):
+        self.physics_model = load_urdf('g1.urdf')
+        self.rl_policy = load('locomotion_policy.pt')
+
+    def step(self, command):
+        # 1. Modelo físico calcula torques base
+        torques = self.physics_model.inverse_dynamics(command)
+
+        # 2. RL refina em tempo real
+        torques_refined = self.rl_policy(state, torques)
+
+        return torques_refined
+
+
+# Tesla Optimus: End-to-end Learning
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Neural net faz TUDO (visão → ação)
+
+class OptimusController:
+    def __init__(self):
+        # Único modelo neural gigante
+        self.end_to_end_net = TeslaNN(
+            inputs=['cameras_8x'],
+            outputs=['joint_commands_28x']
+        )
+
+    def step(self):
+        # Cameras → NN → Joint commands direto
+        images = self.cameras.read_all()
+        joint_targets = self.end_to_end_net(images)
+        return joint_targets
+```
+
+**Implicações:**
+- **G1**: Mais interpretável, debug mais fácil
+- **Optimus**: "Magia negra" mas potencialmente melhor performance
+
+</TabItem>
+</Tabs>
+
+---
+
+### Figure 01
+
+<Tabs>
+<TabItem value="overview" label="Visão Geral">
+
+**Figure AI - Backed by OpenAI, Nvidia, Microsoft**
+
+```
+Hardware:
+├─ Altura: 1.68m
+├─ Peso: 70kg
+├─ DOF: 16 (simplified for cost)
+├─ Mãos: Custom grippers (simple)
+├─ Payload: 20kg (foco em warehouse)
+
+Software:
+├─ GPT-4V integration (multimodal LLM)
+├─ Voice commands ("Pick up the box")
+├─ Vision-language-action model
+└─ Cloud-connected (requires internet)
+
+Status:
+└─ Beta testing em warehouse BMW
+   └─ Não disponível para venda pública ainda
+```
+
+</TabItem>
+
+<TabItem value="vs-g1" label="G1 vs Figure 01">
+
+**Vantagens do G1:**
+
+1. **Mais DOF** (35 vs 16)
+   - G1 mais versátil para tarefas complexas
+   - Figure 01 otimizado para warehouse (pick/place)
+
+2. **LIDAR**
+   - Navegação mais robusta
+   - Figure depende de depth cameras
+
+3. **Disponível para Compra**
+   - G1: Sim
+   - Figure 01: Beta privado apenas
+
+4. **Funciona Offline**
+   - G1: Sim (100% onboard)
+   - Figure 01: Requer conexão cloud para LLM
+
+**Vantagens do Figure 01:**
+
+1. **Payload** (20kg vs 3kg)
+   - Muito melhor para tarefas industriais pesadas
+   - G1 limitado a objetos leves
+
+2. **Integração LLM**
+   - GPT-4V embarcado
+   - Comandos naturais: "Find the red box and bring it to me"
+
+3. **Backing Financeiro**
+   - $675M em funding (OpenAI, Nvidia, Microsoft)
+   - G1: Empresa menor, menos recursos
+
+**Casos de Uso:**
+```
+Use G1 para:
+✅ Pesquisa acadêmica
+✅ Desenvolvimento de algoritmos
+✅ Tarefas leves/médias
+
+Use Figure 01 para:
+✅ Warehouse automation (quando disponível)
+✅ Manufatura (linhas de produção)
+✅ Tarefas com comandos de linguagem natural
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Boston Dynamics Atlas
+
+<Tabs>
+<TabItem value="legend" label="A Lenda">
+
+**Atlas: O Robô Mais Famoso do Mundo**
+
+```
+Specs (2024 Electric Version):
+├─ Altura: 1.50m
+├─ Peso: 89kg
+├─ DOF: 28
+├─ Velocidade: 3.5 m/s (corrida!)
+├─ Agilidade: Backflips, parkour
+└─ Autonomia: ~1h (elétrico)
+
+Histórico:
+├─ 2013: Versão hidráulica (DARPA Robotics Challenge)
+├─ 2016: Parkour demonstrations
+├─ 2023: Retirado (hidráulico)
+└─ 2024: Versão elétrica anunciada (não comercial)
+```
+
+**Por que Atlas NÃO é concorrente direto:**
+- ❌ Não é comercial (Boston Dynamics não vende)
+- ❌ Preço: >$1M estimado (se vendesse)
+- ❌ Foco: Pesquisa avançada, não produtos
+
+</TabItem>
+
+<TabItem value="what-if" label="E Se Fosse?">
+
+**Hipótese: Se Atlas fosse comercial...**
+
+| Aspecto | Atlas | Unitree G1 |
+|---------|-------|------------|
+| **Performance** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **Agilidade** | ⭐⭐⭐⭐⭐ (backflips!) | ⭐⭐⭐ (walking/jogging) |
+| **Robustez** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **Custo** | 💰💰💰💰💰 ($1M+) | 💰 ($16k-$90k) |
+| **Praticidade** | ⭐⭐ (1h bateria) | ⭐⭐⭐⭐ (4.5h) |
+| **SDK** | ❌ Fechado | ✅ Aberto |
+
+**Por Que G1 Ainda Vence para Maioria:**
+- 📦 Disponível AGORA
+- 💵 100x mais barato (?)
+- 🔓 SDK aberto (pesquisa)
+- 🔋 4x mais autonomia
+
+**Quando Atlas Seria Melhor:**
+- 🏗️ Construção (terreno extremo)
+- 🚒 Resgate (precisa de agilidade extrema)
+- 🎪 Demonstrações (wow factor)
+
+</TabItem>
+</Tabs>
+
+---
+
+### Agility Digit
+
+<Tabs>
+<TabItem value="industrial" label="Foco Industrial">
+
+**Agility Robotics Digit - Warehouse Specialist**
+
+```
+Specs:
+├─ Altura: 1.75m
+├─ Peso: 65kg
+├─ DOF: 20
+├─ Payload: 16kg (optimized for boxes)
+├─ Design: Pássaro (bird-like legs)
+└─ Autonomia: 4h
+
+Diferencial:
+├─ Projetado ESPECIFICAMENTE para warehouse
+├─ Braços simples (apenas pegar caixas)
+├─ Pernas bird-like (mais eficientes)
+└─ Já em produção (Ford, Amazon testando)
+
+Preço:
+└─ Estimado $150k-$250k
+   └─ Mas vendido em lotes/fleet
+```
+
+</TabItem>
+
+<TabItem value="digit-vs-g1" label="Digit vs G1">
+
+**G1 Vence em:**
+- 💰 **Custo** ($16k vs $150k+)
+- 🔓 **SDK** (aberto vs limitado)
+- 🎯 **Versatilidade** (35 DOF vs 20)
+- 🏫 **Educação/Pesquisa** (acessível)
+
+**Digit Vence em:**
+- 📦 **Payload** (16kg vs 3kg)
+- 🏭 **Industrial-Grade** (built for 24/7)
+- 🚛 **Suporte Enterprise** (Agility oferece fleet management)
+- ⚙️ **Warehouse-Optimized** (design específico)
+
+**Conclusão:**
+```
+G1 = Pesquisa, desenvolvimento, educação, versatilidade
+Digit = Produção industrial, warehouse, ROI comercial
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📈 Roadmap e Futuro
+
+### Próximas Gerações (2025-2027)
+
+<Tabs>
+<TabItem value="g1-roadmap" label="Unitree G1 Roadmap">
+
+```
+2024 Q4 - G1 v1.0 (ATUAL)
+├─ 35 DOF
+├─ Jetson Orin NX
+└─ Garra simples
+
+2025 Q2 - G1 v1.5 (Planejado)
+├─ Mãos 5 dedos (10 DOF/mão)
+├─ Sensores táteis no corpo todo
+├─ Bateria 12Ah (6h autonomia)
+└─ MindOn OS beta
+
+2026 Q1 - G1 v2.0
+├─ Jetson Thor (1000 TOPS)
+├─ Navigation sem LIDAR (cameras only)
+├─ LLM embarcado (Llama 3 quantized)
+└─ Preço reduzido: $12k (EDU)
+
+2027 - G1 Pro
+├─ Versão industrial reforçada
+├─ IP65 (dust/water resistant)
+├─ 8h+ autonomia
+└─ Fleet management cloud
+```
+
+</TabItem>
+
+<TabItem value="market" label="Mercado">
+
+**Projeções de Vendas (Unitree):**
+
+```
+2024: ~500 unidades
+├─ 60% Universidades
+├─ 30% Empresas tech
+└─ 10% Indivíduos
+
+2025: ~3,000 unidades (est.)
+├─ Expansão comercial
+└─ Preço reduzindo
+
+2027: ~20,000 unidades (goal)
+├─ Mass production
+└─ Competição com Tesla Optimus
+```
+
+**Comparação com Concorrentes:**
+
+| Empresa | 2024 | 2025 (est.) | 2027 (goal) |
+|---------|------|-------------|-------------|
+| Unitree | 500 | 3,000 | 20,000 |
+| Tesla | 0 | 100 (beta) | 1,000,000 (!?) |
+| Figure | 10 (beta) | 500 | 10,000 |
+| Agility | 50 | 500 | 5,000 |
+| Boston D. | 0 | 0 | 0 (não vende) |
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🏆 Veredito Final
+
+### Quando Escolher Cada Robô
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Pesquisa Acadêmica                       │
+│ Vencedor: UNITREE G1 ⭐                             │
+│ Razão: Custo acessível + SDK aberto + disponível   │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Desenvolvimento de Software              │
+│ Vencedor: UNITREE G1 ⭐                             │
+│ Razão: ROS2 nativo, comunidade, documentação       │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Warehouse Automation (2024)              │
+│ Vencedor: AGILITY DIGIT                            │
+│ Razão: Payload, industrial-grade, já disponível    │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Manufatura com LLM (futuro)              │
+│ Vencedor: FIGURE 01 (se ficar disponível)          │
+│ Razão: GPT-4V integration, backing forte           │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Mass Market Consumer (2026+)             │
+│ Vencedor: TESLA OPTIMUS (se cumprir promessas)     │
+│ Razão: Escala de produção, custo, brand            │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Use Case: Melhor Custo-Benefício HOJE (2024)       │
+│ Vencedor: UNITREE G1 ⭐⭐⭐                          │
+│ Razão: $16k, disponível, completo, open            │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] G1 é o mais acessível ($16k-$90k vs &gt;$150k outros)
+- [ ] G1 é ÚNICO disponível comercialmente hoje (2024)
+- [ ] Optimus tem mãos superiores mas ainda é vaporware
+- [ ] Figure 01 tem melhor payload (20kg vs 3kg)
+- [ ] Atlas é lenda mas não comercial
+- [ ] Digit é especialista em warehouse
+- [ ] Para pesquisa/educação: G1 é escolha óbvia
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🛒 Aquisição e Setup Inicial →](./aquisicao-setup)**
+
+Como comprar, importar, unbox e fazer primeiro boot do G1.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 35-45 minutos
+**📊 Nível:** Iniciante-Intermediário
+**📝 Comparação**: Atualizada Dezembro 2024

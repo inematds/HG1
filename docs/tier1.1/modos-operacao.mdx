@@ -1,0 +1,676 @@
+---
+sidebar_position: 6
+title: 6. Modos de Operação
+description: Damping, Preparation, Movement - estados do G1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# ⚙️ Modos de Operação
+
+:::tip Objetivo
+Compreender os três modos operacionais do G1 e transições entre eles: Damping, Preparation e Movement.
+:::
+
+---
+
+## 📊 Estados do Sistema
+
+### Diagrama de Estados
+
+```
+                    ┌─────────────────┐
+        Power ON →  │   BOOT (20s)    │
+                    └────────┬────────┘
+                             │
+                             ↓
+                    ┌────────────────┐
+                    │  0: DAMPING    │ ← Modo seguro
+                    │  (Zero torque)  │
+                    └───────┬────────┘
+                         ↕  │ L1+UP
+        Manual move      │  ↓
+                    ┌────────────────┐
+                    │ 1: PREPARATION │ ← Pronto para operar
+                    │   (Standing)    │
+                    └───────┬────────┘
+                         ↕  │ START
+      AUTO/Commands      │  ↓
+                    ┌────────────────┐
+                    │  2: MOVEMENT   │ ← Operação ativa
+                    │   (Walking)     │
+                    └───────┬────────┘
+                            │
+                L2+R2 →     ↓
+                    ┌────────────────┐
+                    │ EMERGENCY STOP │
+                    └────────────────┘
+                            │
+                            ↓ (sit down)
+                      [DAMPING]
+```
+
+---
+
+## 🔵 Mode 0: DAMPING (Safe Mode)
+
+### Características
+
+**Quando o G1 Entra neste Modo:**
+- ✅ Ao ligar (boot completo)
+- ✅ Após emergency stop
+- ✅ Bateria &lt;5%
+- ✅ Erro crítico detectado
+- ✅ Botão DAMPING pressionado
+
+**Comportamento:**
+```
+Motors: Zero torque (gravity compensation OFF)
+├─ Você pode mover membros manualmente
+├─ Robô NÃO se sustenta sozinho
+└─ Cai se não apoiado
+
+Sensores: Ativos (LIDAR, câmeras, IMU)
+├─ ROS2 nodes rodando
+└─ Pode ler telemetria
+
+Computador: Jetson ligado
+└─ SSH/API acessíveis
+```
+
+---
+
+### Uso Prático
+
+<Tabs>
+<TabItem value="manual" label="Movimentação Manual">
+
+**Quando Usar:**
+- Posicionar robô manualmente
+- Calibração de poses
+- Ensino por demonstração (kinesthetic teaching)
+- Manutenção segura
+
+**Exemplo:**
+```python
+from unitree_sdk import Robot
+
+robot = Robot()
+
+# Entrar em modo damping
+robot.set_mode(0)  # DAMPING
+
+print("Você pode mover os braços manualmente agora")
+print("Gravando trajetória...")
+
+trajectory = []
+for i in range(100):  # 10 segundos @ 10Hz
+    # Ler posições atuais das juntas
+    joint_positions = robot.get_joint_positions()
+    trajectory.append(joint_positions)
+    time.sleep(0.1)
+
+print("Trajetória gravada com", len(trajectory), "pontos")
+# Pode reproduzir depois em modo Movement
+```
+
+</TabItem>
+
+<TabItem value="transport" label="Transporte">
+
+**Preparar G1 para transporte:**
+
+```bash
+# 1. Modo damping
+robot.set_mode(0)
+
+# 2. Sentar posição compacta
+# (manualmente posicione):
+# - Pernas dobradas sob corpo
+# - Braços junto ao torso
+# - Cabeça centralizada
+
+# 3. Desligar
+robot.shutdown()
+
+# 4. Remover bateria
+# 5. Embalar em case
+```
+
+**Posição Recomendada para Transporte:**
+```
+     O  ← Cabeça baixa
+    /│\
+    / \  ← Pernas dobradas
+  Altura total: ~70cm (vs 132cm em pé)
+```
+
+</TabItem>
+
+<TabItem value="safety" label="Segurança">
+
+**Damping mode é o modo MAIS SEGURO:**
+
+✅ **Quando usar Damping:**
+- Primeira vez ligando o robô
+- Presença de crianças/pets próximos
+- Desenvolvimento de novo software (teste iniciais)
+- Qualquer situação incerta
+
+❌ **NÃO usar Damping quando:**
+- Robô precisa se sustentar em pé
+- Durante navegação autônoma
+- (Use Preparation ou Movement)
+
+**Emergency → Damping:**
+```python
+# Em qualquer código, sempre ter:
+try:
+    robot.walk(speed=1.0)
+except Exception as e:
+    print(f"Erro: {e}")
+    robot.emergency_stop()  # → Mode 0
+    robot.sit_down()
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🟡 Mode 1: PREPARATION (Ready)
+
+### Características
+
+**Estado:**
+```
+Motors: Torque ativo, holding position
+├─ Robô sustenta próprio peso
+├─ Pode ficar em pé indefinidamente
+└─ Consome ~80W
+
+Posição: Standing (padrão)
+├─ Pernas estendidas
+├─ Torso vertical
+└─ Braços relaxados ao lado
+
+Pronto para: Receber comandos
+├─ Executar poses
+├─ Mover braços
+└─ Iniciar caminhada (→ Movement)
+```
+
+---
+
+### Transição Damping → Preparation
+
+<Tabs>
+<TabItem value="manual-transition" label="Manualmente (RC)">
+
+**Usando Controle:**
+
+```
+Sequência:
+1. L1 + UP (press simultâneo)
+   └─ G1 inicia stand up sequence
+
+2. Aguardar 3-5 segundos
+   └─ Pernas estendem gradualmente
+
+3. LED status muda: Azul → Verde
+   └─ Modo Preparation ativo
+
+4. Pronto para operar!
+```
+
+**Animação de Stand-Up:**
+```
+Frame 1 (0s):   Sentado
+     _O_
+    / | \     Damping mode
+    ‾ ‾ ‾
+
+Frame 2 (1.5s): Apoiando mãos
+     _O_
+    /|||\ ←   Mãos no chão
+    / | \
+
+Frame 3 (3s):   Levantando
+     _O_
+    / | \  ←  Pernas estendendo
+    /   \
+
+Frame 4 (5s):   Em pé
+      O
+     /|\   ←  Preparation mode
+     / \
+```
+
+</TabItem>
+
+<TabItem value="api-transition" label="Via API">
+
+**Python SDK:**
+
+```python
+from unitree_sdk import Robot
+import time
+
+robot = Robot()
+
+# Verificar modo atual
+current_mode = robot.get_mode()
+print(f"Modo atual: {current_mode}")  # 0 = Damping
+
+# Stand up
+if current_mode == 0:
+    print("Iniciando stand up...")
+    robot.stand_up()  # Método high-level
+
+    # Aguardar transição
+    while robot.get_mode() != 1:
+        print("Aguardando... ", robot.get_mode())
+        time.sleep(0.5)
+
+    print("✅ Robô em pé (Preparation mode)")
+
+# Verificar se estável
+if robot.is_balanced():
+    print("✅ Equilíbrio estável")
+else:
+    print("⚠️ Instável, verificar chão plano")
+```
+
+</TabItem>
+
+<TabItem value="conditions" label="Pré-Condições">
+
+**Para stand-up ter sucesso, verificar:**
+
+1. **Chão Plano**
+   ```python
+   imu = robot.get_imu()
+   tilt = abs(imu.pitch) + abs(imu.roll)
+
+   if tilt > 5:  # Mais de 5° inclinação
+       print("⚠️ Chão muito inclinado!")
+       # Não tentar stand-up
+   ```
+
+2. **Bateria Suficiente**
+   ```python
+   if robot.battery.soc < 10:
+       print("❌ Bateria muito baixa para stand-up")
+       # Requer ~2% de bateria para stand-up
+   ```
+
+3. **Espaço Livre**
+   - Nada bloqueando pernas
+   - 1m de espaço ao redor mínimo
+   - Sem pessoas/objetos próximos
+
+4. **Sem Erros**
+   ```python
+   errors = robot.get_errors()
+   if errors:
+       print(f"❌ Erros detectados: {errors}")
+       print("Resolver antes de stand-up")
+   ```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Operações em Preparation Mode
+
+**O que você pode fazer:**
+
+```python
+# 1. Executar poses pré-programadas
+robot.pose('wave')         # Acenar
+robot.pose('point_front')  # Apontar para frente
+robot.pose('arms_up')      # Braços para cima
+
+# 2. Controle de braços
+robot.arm_left.move_to_xyz(x=0.3, y=0.2, z=1.0)
+
+# 3. Virar cabeça
+robot.head.pan(angle=45)   # Olhar 45° direita
+robot.head.tilt(angle=-20) # Olhar 20° para baixo
+
+# 4. Pequenos ajustes de posição (sem caminhar)
+robot.lean_forward(angle=5)   # Inclinar 5° frente
+robot.shift_weight_left()     # Peso perna esquerda
+
+# 5. Preparar para movimento
+robot.prepare_walk()  # Pré-calcula gait
+robot.set_mode(2)     # → Movement mode
+```
+
+---
+
+## 🟢 Mode 2: MOVEMENT (Active)
+
+### Características
+
+**Estado:**
+```
+Motors: Controle dinâmico ativo
+├─ Caminhada, corrida, saltos
+├─ Estabilização ativa (100Hz)
+└─ Consome 150-500W (depende velocidade)
+
+Controladores: Todos ativos
+├─ Locomotion controller (pernas)
+├─ Balance controller (IMU feedback)
+├─ Arm controllers (braços independentes)
+└─ Navigation (se autônomo)
+
+Sensores: Loop fechado
+├─ LIDAR → obstacle avoidance
+├─ Cameras → vision-based control
+├─ IMU → dynamic balance
+└─ Foot sensors → terrain adaptation
+```
+
+---
+
+### Transição Preparation → Movement
+
+<Tabs>
+<TabItem value="manual-walk" label="Caminhada Manual">
+
+**Via Controle RC:**
+
+```
+1. Certifique-se que está em Preparation (verde)
+
+2. Mover LEFT STICK:
+   ├─ UP/DOWN: Frente/trás
+   ├─ LEFT/RIGHT: Girar
+   └─ Magnitude: Velocidade
+
+3. G1 transiciona automaticamente para Movement
+   └─ LED: Verde → Verde piscando
+
+4. Soltar stick: Para e volta para Preparation
+```
+
+**Via Código:**
+```python
+# Método 1: Velocity command (manual)
+robot.set_velocity(linear_x=0.5, angular_z=0.0)
+# G1 entra em Movement mode automaticamente
+
+# Método 2: Explicit mode change
+robot.set_mode(2)  # Movement
+robot.walk_forward(speed=0.8)
+
+# Para
+robot.stop()  # Volta para Preparation
+```
+
+</TabItem>
+
+<TabItem value="auto-nav" label="Navegação Autônoma">
+
+**Com Nav2 (ROS2):**
+
+```python
+# navigation_example.py
+import rclpy
+from nav2_simple_commander.robot_navigator import BasicNavigator
+from geometry_msgs.msg import PoseStamped
+
+def navigate_to_goal(x, y, theta):
+    navigator = BasicNavigator()
+
+    # Definir goal
+    goal_pose = PoseStamped()
+    goal_pose.header.frame_id = 'map'
+    goal_pose.pose.position.x = x
+    goal_pose.pose.position.y = y
+    goal_pose.pose.orientation.z = theta
+
+    # G1 entra em Movement mode aqui
+    navigator.goToPose(goal_pose)
+
+    # Aguardar conclusão
+    while not navigator.isTaskComplete():
+        feedback = navigator.getFeedback()
+        print(f"Distância restante: {feedback.distance_remaining:.2f}m")
+
+    print("✅ Goal alcançado!")
+    # G1 volta para Preparation
+
+# Uso:
+navigate_to_goal(x=5.0, y=2.0, theta=0.0)  # 5m frente, 2m esquerda
+```
+
+</TabItem>
+
+<TabItem value="complex" label="Movimentos Complexos">
+
+**Caminhar + Manipular Simultaneamente:**
+
+```python
+# walk_and_grab.py
+from concurrent.futures import ThreadPoolExecutor
+
+def walk_task():
+    """Thread 1: Caminhar"""
+    robot.walk_to_position(x=2.0, y=0.0)
+
+def arm_task():
+    """Thread 2: Mover braço durante caminhada"""
+    time.sleep(1)  # Esperar começar andar
+
+    # Pegar objeto à direita enquanto anda
+    robot.arm_right.move_to_xyz(x=0.4, y=-0.3, z=0.8)
+    robot.hand_right.close()
+
+    time.sleep(2)  # Segurar
+
+    robot.hand_right.open()  # Soltar
+
+with ThreadPoolExecutor(max_workers=2) as executor:
+    f1 = executor.submit(walk_task)
+    f2 = executor.submit(arm_task)
+
+    f1.result()  # Aguardar ambos
+    f2.result()
+
+print("✅ Tarefa completa!")
+```
+
+**Corrida:**
+```python
+# Requer modo Movement
+robot.set_mode(2)
+
+# Velocidade máxima: 2 m/s (caminhada)
+robot.walk_forward(speed=2.0)
+
+# Para sprint (>2 m/s), usar gait específico
+robot.set_gait('run')  # Muda para gait de corrida
+robot.run(speed=3.0)   # Até 3 m/s
+
+# ⚠️ Corrida consome 600W+ (bateria dura ~1h)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### Limitações em Movement Mode
+
+**Restrições de Segurança:**
+
+```python
+# Velocidade máxima por gait
+LIMITS = {
+    'walk':   2.0,  # m/s
+    'run':    3.0,  # m/s
+    'trot':   1.5,  # m/s (mais estável)
+}
+
+# Aceleração máxima
+MAX_ACCEL = 1.0  # m/s²
+
+# Inclinação máxima do terreno
+MAX_SLOPE = 15  # graus
+
+# Altura de degrau
+MAX_STEP_HEIGHT = 0.20  # metros
+
+# Verificação antes de comando
+def safe_walk(speed):
+    if speed > LIMITS['walk']:
+        print(f"⚠️ Velocidade limitada a {LIMITS['walk']} m/s")
+        speed = LIMITS['walk']
+
+    if robot.get_slope() > MAX_SLOPE:
+        print("❌ Terreno muito inclinado!")
+        return False
+
+    robot.walk_forward(speed)
+    return True
+```
+
+---
+
+## 🔴 Emergency Stop
+
+### Ativação
+
+**Causas de E-Stop:**
+
+1. **Manual** (L2+R2 no controle)
+2. **Queda detectada** (IMU)
+   ```python
+   if abs(imu.pitch) > 45 or abs(imu.roll) > 45:
+       emergency_stop()
+   ```
+3. **Colisão** (força súbita nos pés/braços)
+4. **Bateria crítica** (&lt;3%)
+5. **Motor superaquecido** (&gt;90°C)
+6. **Perda de comunicação** (timeout 2s)
+
+---
+
+### Comportamento
+
+```
+Emergency Stop Sequence:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. [0ms] Parar todos comandos de movimento
+2. [10ms] Ativar controle de estabilização MAX
+3. [50ms] Tentar sit down controlado
+4. [2000ms] Se não conseguiu sentar → Damping mode
+5. [2100ms] Enviar log de erro
+
+LED: Vermelho piscando rápido
+Som: Beep contínuo (se alto-falante habilitado)
+```
+
+**Recovery:**
+```python
+# Após emergency stop
+if robot.get_mode() == 0:  # Damping
+    print("Robot em emergency stop")
+
+    # 1. Verificar causa
+    errors = robot.get_errors()
+    print(f"Erros: {errors}")
+
+    # 2. Resolver problema (ex: bateria)
+
+    # 3. Clear errors
+    robot.clear_errors()
+
+    # 4. Stand up novamente
+    robot.stand_up()  # → Preparation mode
+```
+
+---
+
+## 📊 Monitoramento de Estado
+
+### Dashboard em Tempo Real
+
+```python
+# monitor.py
+import time
+import os
+
+def monitor_robot_state():
+    while True:
+        os.system('clear')
+
+        mode = robot.get_mode()
+        mode_names = ['DAMPING', 'PREPARATION', 'MOVEMENT', 'ERROR']
+
+        print("═" * 50)
+        print(f"  UNITREE G1 STATUS MONITOR")
+        print("═" * 50)
+        print(f"Mode:    [{mode}] {mode_names[mode]}")
+        print(f"Battery:  {robot.battery.soc}% ({robot.battery.voltage:.1f}V)")
+        print(f"Speed:    {robot.get_speed():.2f} m/s")
+        print(f"Position: ({robot.x:.2f}, {robot.y:.2f})")
+        print(f"IMU:      Pitch={robot.imu.pitch:.1f}° Roll={robot.imu.roll:.1f}°")
+        print("═" * 50)
+
+        # Estado dos motores (resumido)
+        temps = robot.get_motor_temperatures()
+        max_temp = max(temps.values())
+        avg_temp = sum(temps.values()) / len(temps)
+
+        print(f"Motors:   Avg={avg_temp:.0f}°C Max={max_temp:.0f}°C")
+
+        # Warnings
+        if mode == 0 and robot.is_moving():
+            print("⚠️  WARNING: Moving in DAMPING mode!")
+
+        if max_temp > 80:
+            print("⚠️  WARNING: Motor overheating!")
+
+        if robot.battery.soc < 20:
+            print("⚠️  WARNING: Low battery!")
+
+        time.sleep(0.5)  # Update 2Hz
+
+# Rodar
+monitor_robot_state()
+```
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] 3 modos: Damping (0), Preparation (1), Movement (2)
+- [ ] Damping = zero torque, movimentação manual segura
+- [ ] Preparation = em pé, pronto para comandos
+- [ ] Movement = caminhada/navegação ativa
+- [ ] Emergency stop → sempre retorna para Damping
+- [ ] Transições: L1+UP (stand up), START (walk), L2+R2 (e-stop)
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🎯 Especificações vs Concorrentes →](./specs-comparacao)**
+
+G1 vs Tesla Optimus, Figure 01, Atlas - comparação técnica completa.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 40-50 minutos
+**📊 Nível:** Intermediário
+**🎮 Hands-on:** Testar transições de modos com RC ou API

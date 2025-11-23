@@ -1,0 +1,771 @@
+---
+sidebar_position: 3
+title: 3. Sistema de Energia e Bateria
+description: Bateria, BMS, carregamento e otimização
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🔋 Sistema de Energia e Bateria
+
+:::tip Objetivo
+Dominar o sistema de energia do G1: bateria, BMS, carregamento, otimização de autonomia e segurança.
+:::
+
+---
+
+## 🔋 Bateria Principal
+
+### Especificações Técnicas
+
+**Tipo**: LiPo 12S (12 células em série)
+
+```
+┌─────────────────────────────────────┐
+│  UNITREE G1 BATTERY PACK            │
+├─────────────────────────────────────┤
+│ Configuração: 12S2P                 │
+│ • 12 cells em série (voltagem)      │
+│ • 2 cells em paralelo (capacidade)  │
+├─────────────────────────────────────┤
+│ Voltagem Nominal:    48V (44.4V)    │
+│ Voltagem Máxima:     50.4V          │
+│ Voltagem Mínima:     36V            │
+├─────────────────────────────────────┤
+│ Capacidade:          9000mAh (9Ah)  │
+│ Energia Total:       432 Wh         │
+│ Corrente Contínua:   30A            │
+│ Corrente Pico:       90A (10s)      │
+├─────────────────────────────────────┤
+│ Peso:                2.1kg          │
+│ Dimensões:           250x150x80mm   │
+│ Química:             LiPo (LiCoO₂)  │
+└─────────────────────────────────────┘
+```
+
+---
+
+### Química da Bateria
+
+<Tabs>
+<TabItem value="lipo" label="Por que LiPo?">
+
+**LiPo vs Outras Tecnologias:**
+
+| Tipo | Energia/kg | Potência Pico | Ciclos | Custo |
+|------|------------|---------------|--------|-------|
+| **LiPo** | 180 Wh/kg | ⭐⭐⭐⭐⭐ | 500 | 💰💰 |
+| Li-Ion | 250 Wh/kg | ⭐⭐⭐ | 1000 | 💰💰💰 |
+| LiFePO₄ | 120 Wh/kg | ⭐⭐ | 2000 | 💰 |
+| NiMH | 80 Wh/kg | ⭐⭐ | 500 | 💰 |
+
+**Vantagens LiPo para Robótica:**
+1. ✅ **Alta potência de pico** (90A = 4.3kW!)
+   - Necessário para saltos, corrida
+   - Motores podem puxar muita corrente instantaneamente
+
+2. ✅ **Baixa resistência interna**
+   - Menos aquecimento durante descarga
+   - Voltagem estável mesmo com alta carga
+
+3. ✅ **Formato flexível**
+   - Pode ser moldada no quadril do robô
+   - Centraliza peso (melhor para balanço)
+
+**Desvantagens:**
+- ❌ Ciclos de vida menor (500 vs 1000 Li-Ion)
+- ❌ Mais perigosa se mal utilizada (risco de fogo)
+- ❌ Degrada mais rápido se armazenada carregada
+
+</TabItem>
+
+<TabItem value="cells" label="Anatomia das Células">
+
+**Cada célula LiPo:**
+
+```
+┌──────────────────┐
+│   + Terminal     │ ← 4.2V (carregada)
+├──────────────────┤
+│  [Catodo: LiCoO₂]│ ← Óxido de cobalto
+├──────────────────┤
+│  [Eletrólito]    │ ← Gel polimérico
+├──────────────────┤
+│  [Anodo: Grafite]│ ← Carbono
+├──────────────────┤
+│   - Terminal     │ ← 0V (referência)
+└──────────────────┘
+   │
+   └─→ Íons Li⁺ fluem entre anodo/catodo
+```
+
+**Reação Química:**
+- **Descarga**: Li⁺ vai do anodo → catodo (energia liberada)
+- **Carga**: Li⁺ vai do catodo → anodo (energia armazenada)
+
+**Degradação ao Longo do Tempo:**
+```python
+# Capacidade restante após N ciclos
+def battery_capacity(cycles, initial_capacity=9.0):
+    # Modelo de degradação LiPo
+    capacity = initial_capacity * (0.8 ** (cycles / 500))
+    return round(capacity, 2)
+
+print(f"Ciclo 0:    {battery_capacity(0)} Ah")    # 9.00 Ah
+print(f"Ciclo 250:  {battery_capacity(250)} Ah")  # 8.05 Ah
+print(f"Ciclo 500:  {battery_capacity(500)} Ah")  # 7.20 Ah (80%)
+print(f"Ciclo 1000: {battery_capacity(1000)} Ah") # 5.18 Ah (fim de vida)
+```
+
+</TabItem>
+
+<TabItem value="12s2p" label="Configuração 12S2P">
+
+**12S2P Explicado:**
+
+```
+Série (12S): Aumenta Voltagem
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[3.7V] + [3.7V] + ... + [3.7V] = 44.4V
+
+Paralelo (2P): Aumenta Capacidade
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[4.5Ah]
+   ║     → 9Ah total
+[4.5Ah]
+
+
+Layout Físico:
+┌─────┬─────┬─────┬─────┬─────┬─────┐
+│ S1  │ S2  │ S3  │ S4  │ S5  │ S6  │
+│ ║   │ ║   │ ║   │ ║   │ ║   │ ║   │
+│ ║   │ ║   │ ║   │ ║   │ ║   │ ║   │
+└─────┴─────┴─────┴─────┴─────┴─────┘
+┌─────┬─────┬─────┬─────┬─────┬─────┐
+│ S7  │ S8  │ S9  │ S10 │ S11 │ S12 │
+│ ║   │ ║   │ ║   │ ║   │ ║   │ ║   │
+│ ║   │ ║   │ ║   │ ║   │ ║   │ ║   │
+└─────┴─────┴─────┴─────┴─────┴─────┘
+```
+
+**Por que 12S?**
+- Motors need 48V nominal for efficiency
+- Standard industrial voltage (less DC-DC conversion)
+- Good balance between weight and power
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🛡️ BMS (Battery Management System)
+
+### Funções do BMS
+
+O BMS é o "cérebro" que protege a bateria e maximiza vida útil.
+
+**Proteções Implementadas:**
+
+1. **Sobre-corrente** (Overcurrent Protection)
+   ```
+   Se corrente > 90A por &lt;10s → Desliga saída
+   ```
+
+2. **Sub-voltagem** (Under-voltage Protection)
+   ```
+   Se qualquer célula < 3.0V → Desliga para proteger
+   ```
+
+3. **Sobre-voltagem** (Over-voltage Protection)
+   ```
+   Se qualquer célula > 4.25V → Para carregamento
+   ```
+
+4. **Temperatura**
+   ```
+   Se temp > 60°C → Reduz corrente máxima
+   Se temp > 70°C → Desliga emergência
+   Se temp < 0°C → Bloqueia carregamento
+   ```
+
+5. **Balanceamento de Células**
+   ```
+   Durante carga, equaliza voltagem de todas células
+   Método: Passive balancing (dissipa excesso em resistor)
+   ```
+
+---
+
+### Leitura de Dados do BMS
+
+<Tabs>
+<TabItem value="api" label="API Python">
+
+```python
+from unitree_sdk import Robot
+
+robot = Robot()
+battery = robot.get_battery_status()
+
+print(f"🔋 Estado da Bateria")
+print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+print(f"Voltagem Total:    {battery.voltage:.2f}V")
+print(f"Corrente:          {battery.current:.2f}A")
+print(f"SOC (Estado):      {battery.soc}%")
+print(f"Capacidade Resta:  {battery.remaining_capacity:.2f}Ah")
+print(f"Temperatura:       {battery.temperature}°C")
+print(f"Ciclos de Vida:    {battery.cycle_count}")
+print(f"Health:            {battery.health}%")
+print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+# Voltagens individuais das células
+for i, cell_v in enumerate(battery.cell_voltages):
+    print(f"Célula {i+1:2d}: {cell_v:.3f}V")
+
+# Checar warnings
+if battery.soc < 20:
+    print("⚠️  Bateria baixa! Retornar à base.")
+
+if battery.temperature > 55:
+    print("⚠️  Bateria quente! Reduzir carga.")
+
+if max(battery.cell_voltages) - min(battery.cell_voltages) > 0.1:
+    print("⚠️  Células desbalanceadas! Fazer carga completa.")
+```
+
+</TabItem>
+
+<TabItem value="ros2" label="ROS2 Topic">
+
+```bash
+# Ver status da bateria via ROS2
+ros2 topic echo /battery_status
+
+---
+header:
+  stamp:
+    sec: 1703001234
+    nanosec: 567890123
+  frame_id: 'base_link'
+voltage: 46.8  # Volts
+current: 12.3  # Amps (positivo = descarga)
+soc: 78        # State of Charge (%)
+temperature: 42  # Celsius
+health: 95     # Battery health (%)
+cycle_count: 127
+cell_voltages: [3.90, 3.91, 3.89, 3.90, 3.91, 3.90,
+                3.89, 3.90, 3.91, 3.90, 3.89, 3.90]
+time_to_empty: 3420  # Seconds (57 min)
+---
+```
+
+**Monitoramento Contínuo:**
+```bash
+# Plot em tempo real
+ros2 run plotjuggler plotjuggler
+
+# Adicionar /battery_status/soc
+# Adicionar /battery_status/temperature
+```
+
+</TabItem>
+
+<TabItem value="display" label="Display LED">
+
+**LEDs na Bateria Física:**
+
+```
+┌────────────────────────┐
+│  BATERIA UNITREE G1    │
+│                        │
+│  ┌──┐ ┌──┐ ┌──┐ ┌──┐  │
+│  │🟢│ │🟢│ │🟢│ │⚪│  │ ← 75% carga
+│  └──┘ └──┘ └──┘ └──┘  │
+│                        │
+│  [  BUTTON  ]          │ ← Press para ver SOC
+└────────────────────────┘
+```
+
+**Interpretação dos LEDs:**
+- 🟢 🟢 🟢 🟢 = 100-75%
+- 🟢 🟢 🟢 ⚪ = 75-50%
+- 🟢 🟢 ⚪ ⚪ = 50-25%
+- 🟢 ⚪ ⚪ ⚪ = 25-10%
+- 🔴 ⚪ ⚪ ⚪ = &lt;10% (CRÍTICO)
+- 🔴 piscando = Erro BMS
+
+</TabItem>
+</Tabs>
+
+---
+
+## ⚡ Sistema de Carregamento
+
+### Carregador Oficial
+
+**Unitree G1 Smart Charger**
+
+```
+Especificações:
+├─ Input:  100-240V AC (universal)
+├─ Output: 50.4V DC @ 5A (252W)
+├─ Tempo de Carga:
+│  ├─ 0→80%:  1.5h (fast charge)
+│  ├─ 80→100%: 0.5h (trickle charge)
+│  └─ Total:   ~2h
+├─ Proteções:
+│  ├─ Curto-circuito
+│  ├─ Sobre-temperatura
+│  ├─ Polaridade reversa
+│  └─ EMI filtering
+└─ Conectividade:
+   └─ LED status + comunicação BMS
+```
+
+---
+
+### Processo de Carregamento
+
+<Tabs>
+<TabItem value="stages" label="Estágios de Carga">
+
+**CC-CV Protocol (Constant Current - Constant Voltage):**
+
+```
+Corrente/Voltagem
+    │
+5A  ├─────────┐               STAGE 1: CC (Constant Current)
+    │         │               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │         │               • 5A constante
+    │         │               • Voltagem sobe gradualmente
+    │         │               • 0% → 80% SOC
+    │         └──────────┐    • Rápido (~1.5h)
+    │                    │
+    │                    │    STAGE 2: CV (Constant Voltage)
+    │                    │    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │                    │    • 50.4V constante
+    │                    └──  • Corrente cai gradualmente
+    │                         • 80% → 100% SOC
+0A  └─────────────────────── • Lento (~0.5h) para balancear células
+    0%                  80%  100%
+         Estado de Carga (SOC)
+```
+
+**Por que CV é lento?**
+- Células precisam balancear
+- Previne sobre-voltagem em células individuais
+- Maximiza vida útil da bateria
+
+</TabItem>
+
+<TabItem value="procedure" label="Procedimento">
+
+**Como Carregar o G1:**
+
+1. **Desligue o Robô**
+   ```bash
+   # Via software
+   robot.shutdown()
+
+   # Ou pressione botão power por 5s
+   ```
+
+2. **Conecte o Carregador**
+   - Porta de carga: lateral do quadril (plug XT60)
+   - LED carregador: Vermelho (carregando)
+
+3. **Aguarde Carga Completa**
+   - LED muda para Verde
+   - ~2 horas total
+   - BMS balanceia células automaticamente
+
+4. **Desconecte**
+   - Sempre desconecte carregador primeiro
+   - Depois desligue da tomada
+
+**⚠️ NUNCA:**
+- ❌ Carregar com robô ligado (pode confundir BMS)
+- ❌ Usar carregador não-oficial (risco de fogo)
+- ❌ Deixar carregando &lt;24h sem supervisão
+- ❌ Carregar em temperatura &lt;0°C ou &gt;45°C
+
+</TabItem>
+
+<TabItem value="fast" label="Carga Rápida">
+
+**Carregador Rápido (Opcional - $300):**
+
+```
+Unitree Fast Charger 10A:
+├─ Output: 50.4V @ 10A (504W)
+├─ 0→80% em 45 minutos
+├─ Total: ~70 minutos
+└─ Requer cooling ativo (ventilador)
+```
+
+**Trade-offs:**
+- ✅ 2x mais rápido
+- ✅ Útil para operação 24/7 (turnos)
+- ❌ Reduz ciclos de vida em ~20%
+- ❌ Bateria mais quente durante carga
+- ❌ Requer ventilação adequada
+
+**Quando usar Fast Charge:**
+- Operação comercial com downtime limitado
+- Situações emergenciais
+- Não usar rotineiramente
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Autonomia e Otimização
+
+### Consumo por Atividade
+
+**Benchmark Oficial:**
+
+| Atividade | Potência Média | Autonomia |
+|-----------|----------------|-----------|
+| **Standby** (motores off) | 20W | 20h+ |
+| **Damping** (gravidade) | 50W | 8h |
+| **Parado em pé** | 80W | 5h |
+| **Caminhada lenta** (0.5 m/s) | 150W | 4.5h |
+| **Caminhada normal** (1 m/s) | 250W | 2.8h |
+| **Caminhada rápida** (2 m/s) | 400W | 1.7h |
+| **Corrida** (3 m/s) | 600W | 1.1h |
+| **Manipulação** (braços) | +30W | -20min |
+| **LIDAR ativo** | +8W | -15min |
+| **Processamento IA** (GPU) | +15W | -25min |
+
+---
+
+### Estimativa de Autonomia
+
+```python
+def estimate_runtime(activities):
+    """
+    Estima autonomia baseado em perfil de uso.
+
+    activities: lista de (potência_W, duração_min)
+    """
+    BATTERY_WH = 432  # Wh
+
+    total_energy = 0  # Wh
+
+    for power, duration_min in activities:
+        energy = (power * duration_min) / 60  # W * h
+        total_energy += energy
+
+    remaining = BATTERY_WH - total_energy
+    return remaining, (remaining / BATTERY_WH) * 100
+
+# Exemplo: Missão de inspeção
+mission = [
+    (150, 30),  # 30min caminhando lento
+    (80, 10),   # 10min parado (inspecionando)
+    (180, 5),   # 5min manipulando (tirando foto)
+    (150, 30),  # 30min retornando
+]
+
+remaining_wh, soc = estimate_runtime(mission)
+print(f"Energia restante: {remaining_wh:.1f} Wh ({soc:.0f}%)")
+print(f"Missão OK: {soc > 20}")  # Mínimo 20% reserva
+
+# Output:
+# Energia restante: 256.5 Wh (59%)
+# Missão OK: True
+```
+
+---
+
+### Dicas de Otimização
+
+<Tabs>
+<TabItem value="software" label="Otimizações de Software">
+
+**1. Desligar Sensores Desnecessários**
+```python
+# Se não precisa de LIDAR indoor
+robot.lidar.disable()  # Economiza 8W
+
+# Reduzir framerate de câmeras
+robot.camera_front.set_fps(15)  # Default: 30fps
+# Economiza ~3W
+
+# Modo de IA econômico
+robot.set_ai_mode('power_save')
+# Usa GPU apenas quando necessário
+# Economiza ~10W em média
+```
+
+**2. Otimizar Trajetórias**
+```python
+# Preferir caminhos retos (menos correções)
+path = planner.plan(start, goal, optimize='energy')
+
+# Velocidade ótima: 0.8-1.2 m/s
+robot.set_walk_speed(1.0)  # Sweet spot eficiência
+
+# Evitar acelerações bruscas
+robot.set_acceleration(0.5)  # m/s² (default: 1.0)
+```
+
+**3. Modo de Hibernação**
+```python
+# Durante pausas longas (&lt;5min)
+robot.hibernate()
+# - Desliga motores
+# - Senta no chão
+# - Mantém apenas sistemas vitais
+# Consumo: 15W (vs 80W em pé)
+
+# Despertar
+robot.wake_up()  # 10s para ficar em pé novamente
+```
+
+</TabItem>
+
+<TabItem value="hardware" label="Otimizações de Hardware">
+
+**1. Bateria Extra (Hot-Swap)**
+```
+Adquirir 2-3 baterias adicionais:
+├─ Custo: $800 cada
+├─ Permite operação contínua
+└─ Troca em &lt;60 segundos
+
+Workflow:
+┌─ Bateria 1 (operando) ─── 4h ───┐
+│                                   ↓
+└─ Bateria 2 (carregando) ← Swap ←┘
+```
+
+**2. Upgrade para Bateria 12Ah**
+```
+Bateria maior (opcional):
+├─ 12Ah vs 9Ah padrão (+33%)
+├─ Peso: +700g (2.8kg total)
+├─ Autonomia: 6h (caminhada lenta)
+└─ Custo: $1,200
+```
+
+**3. Painel Solar Portátil**
+```
+Para operações externas prolongadas:
+├─ Painel 100W dobrável
+├─ Controlador MPPT
+├─ Carga: ~2A (slow charge durante operação)
+├─ Adiciona 1-2h autonomia/dia
+└─ Custo: $400
+
+⚠️ Não substitui bateria, apenas estende
+```
+
+</TabItem>
+
+<TabItem value="thermal" label="Gestão Térmica">
+
+**Temperatura afeta autonomia:**
+
+```python
+# Eficiência da bateria vs temperatura
+def battery_efficiency(temp_celsius):
+    if temp_celsius < 0:
+        return 0.70  # 70% capacidade (frio extremo)
+    elif temp_celsius < 10:
+        return 0.85  # 85%
+    elif 15 <= temp_celsius <= 30:
+        return 1.00  # 100% (ideal)
+    elif temp_celsius <= 40:
+        return 0.95  # 95% (quente)
+    else:
+        return 0.85  # 85% (muito quente + throttle)
+
+# Exemplo
+temp = robot.get_battery_temp()
+eff = battery_efficiency(temp)
+real_capacity = 9.0 * eff
+
+print(f"Temperatura: {temp}°C")
+print(f"Capacidade efetiva: {real_capacity:.2f}Ah")
+```
+
+**Dicas:**
+- ❄️ Frio (&lt;10°C): Pré-aquecer bateria antes de missão
+- 🔥 Calor (&gt;35°C): Pausas mais frequentes, evitar sol direto
+- 🎯 Ideal: 20-25°C
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔥 Segurança e Manutenção
+
+### Armazenamento de Longo Prazo
+
+**Se não vai usar o G1 por &lt;1 semana:**
+
+1. **Carregar até 50-60%** (não 100%!)
+   ```bash
+   # Verificar SOC
+   robot.get_battery_soc()  # Deve estar em 50-60%
+
+   # Se &lt;60%, descarregar operando até 55%
+   # Se &lt;50%, carregar
+   ```
+
+2. **Desconectar Bateria**
+   - Pressione clipes laterais
+   - Remova bateria do quadril
+   - Armazene separadamente
+
+3. **Condições de Armazenamento**
+   - Temperatura: 15-25°C (ideal: 20°C)
+   - Umidade: &lt;60%
+   - Local seco, sem sol direto
+   - Check a cada 3 meses, recarregar se &lt;40%
+
+**Por que 50-60% e não 100%?**
+- Células cheias degradam mais rápido
+- Estresse químico menor em 50%
+- Pode durar 6+ meses sem recarga
+
+---
+
+### Descarte Seguro
+
+**Bateria LiPo fim de vida (&lt;60% health):**
+
+1. **Descarregar Completamente**
+   ```bash
+   # Conectar resistor de carga até 0V
+   # OU submergir em água salgada por 24h (terminals isolados)
+   ```
+
+2. **Levar para Reciclagem**
+   - Lojas de eletrônicos aceitam LiPo
+   - Não jogar no lixo comum
+   - Risco de incêndio em aterros
+
+3. **Substituir por Nova**
+   - Unitree vende baterias: support@unitree.com
+   - Entrega: 2-4 semanas
+   - Custo: $800
+
+---
+
+### Troubleshooting
+
+**Problemas Comuns:**
+
+<Tabs>
+<TabItem value="no-charge" label="Não Carrega">
+
+**Sintoma**: LED carregador não acende
+
+**Checklist**:
+1. ✅ Tomada tem energia? (testar outro aparelho)
+2. ✅ Carregador conectado corretamente? (click audível)
+3. ✅ Bateria não está muito quente/fria? (tocar para sentir)
+4. ✅ BMS não está em proteção? (LEDs bateria piscando?)
+
+**Solução**:
+```bash
+# Reset BMS
+1. Desconectar bateria do robô
+2. Pressionar botão bateria por 10s
+3. Aguardar 30s
+4. Reconectar e tentar carregar
+
+# Se não resolver
+Contatar suporte Unitree
+```
+
+</TabItem>
+
+<TabItem value="fast-drain" label="Descarga Rápida">
+
+**Sintoma**: Autonomia menor que esperado
+
+**Causas Possíveis**:
+1. Bateria degradada (checar `battery.health`)
+   ```python
+   if robot.get_battery_health() < 80:
+       print("Bateria degradada, considerar substituição")
+   ```
+
+2. Células desbalanceadas
+   ```python
+   cells = robot.get_cell_voltages()
+   if max(cells) - min(cells) > 0.15:
+       print("Fazer carga completa para balancear")
+   ```
+
+3. Consumo anormal (motor com problema)
+   ```python
+   power = robot.get_power_consumption()
+   if power > 500 and robot.is_idle():
+       print("Consumo anormal! Verificar motores.")
+   ```
+
+</TabItem>
+
+<TabItem value="swollen" label="Bateria Inchada">
+
+**⚠️ PERIGO CRÍTICO ⚠️**
+
+**Sintoma**: Bateria está expandida/inchada
+
+**Ação Imediata**:
+1. 🛑 **PARE DE USAR** imediatamente
+2. 🔌 Desconecte do robô
+3. 🏃 Mova para área aberta (risco de fogo)
+4. 📧 Contate Unitree para descarte seguro
+
+**Causas**:
+- Sobre-carga repetida
+- Dano físico (queda)
+- Temperatura excessiva
+- Fim natural de vida (&gt;1000 ciclos)
+
+**Prevenção**:
+- Inspeção visual mensal
+- Nunca carregar sem supervisão primeiros 6 meses
+- Usar apenas carregador oficial
+
+</TabItem>
+</Tabs>
+
+---
+
+## ✅ Checklist de Conhecimento
+
+Após este módulo, você deve saber:
+
+- [ ] Especificações da bateria (48V, 9Ah, 432Wh)
+- [ ] Diferença entre LiPo e Li-Ion
+- [ ] Funções do BMS (proteção, balanceamento)
+- [ ] Tempo de carga (2h padrão, ~1h rápido)
+- [ ] Autonomia por atividade (4.5h caminhada lenta)
+- [ ] Como armazenar bateria longo prazo (50-60% SOC)
+- [ ] Quando substituir bateria (&lt;60% health)
+
+---
+
+## 🔗 Próximos Passos
+
+:::tip Próximo Módulo
+**[🖥️ Sistema Computacional →](./sistema-computacional)**
+
+Deep dive no Jetson Orin NX: processamento, IA, ROS2 e otimizações.
+:::
+
+---
+
+**⏱️ Tempo de estudo:** 40-50 minutos
+**📊 Nível:** Intermediário
+**🔋 Hands-on:** Praticar leitura de BMS via API
