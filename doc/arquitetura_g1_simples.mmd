@@ -1,0 +1,24 @@
+graph TB
+    Cloud["☁️ Cloud Services<br/>MQTT, HTTP, WebRTC"]
+    
+    G1["🤖 Unitree G1"]
+    PC1["PC1<br/>Motion Control"]
+    PC2["PC2<br/>Developer Access<br/>192.168.123.164"]
+    Hardware["Hardware<br/>Motors, Sensors<br/>LiDAR, Cameras, IMU"]
+    
+    DDS["DDS Middleware<br/>ROS2 Compatible"]
+    
+    Dev["👨‍💻 Developer<br/>unitree_sdk2<br/>Python/C++"]
+    
+    App["📱 Mobile App<br/>User Control"]
+    
+    Cloud -->|OTA, Signaling| G1
+    G1 --> PC1
+    G1 --> PC2
+    PC1 --> Hardware
+    PC2 --> DDS
+    DDS --> Hardware
+    DDS --> PC1
+    
+    Dev -->|DDS/ROS2| PC2
+    App -->|WebRTC, BLE| G1

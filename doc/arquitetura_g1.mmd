@@ -1,0 +1,91 @@
+graph TB
+    subgraph Cloud["Cloud Services"]
+        MQTT["MQTT IoT"]
+        HTTP["HTTP API"]
+        TURN["TURN/STUN Server"]
+        WebRTC_Cloud["WebRTC Signaling"]
+    end
+
+    subgraph G1["Unitree G1 - Hardware & Software"]
+        subgraph PC1["PC1 (Locomotion Control)"]
+            MotionCtrl["Motion Control Program"]
+            WalkEngine["Walk Engine"]
+        end
+
+        subgraph PC2["PC2 (Developer Environment)"]
+            DDS_Middleware["DDS Middleware"]
+            ROS2["ROS2 Interface"]
+            
+            subgraph Modules["Software Modules"]
+                Perception["Perception Module"]
+                Planning["Motion Planning"]
+                Control["Joint Control"]
+                Navigation["Navigation/SLAM"]
+            end
+        end
+
+        subgraph Hardware["Hardware"]
+            Motors["Joint Motors"]
+            Sensors["Sensors"]
+            LiDAR["LiDAR (LIVOX-MID360)"]
+            Cameras["Cameras"]
+            IMU["IMU"]
+            Microphones["Microphones"]
+        end
+
+        OTA["OTA Module"]
+        BLE["Bluetooth (BLE)"]
+        WebRTC_G1["WebRTC Module"]
+    end
+
+    subgraph App["Mobile/Web App"]
+        UserMgmt["User Management"]
+        BLE_Config["BLE Network Config"]
+        WebRTC_App["WebRTC Client"]
+    end
+
+    subgraph Developer["Developer Environment"]
+        SDK["unitree_sdk2"]
+        Python["Python Wrapper"]
+        ROS2_Dev["ROS2 Nodes"]
+        Custom["Custom Applications"]
+    end
+
+    %% Cloud connections
+    OTA -->|MQTT| MQTT
+    HTTP -->|HTTP| Cloud
+    WebRTC_G1 -->|Signaling| WebRTC_Cloud
+    WebRTC_G1 -->|Data Stream| TURN
+
+    %% App connections
+    App -->|HTTP| HTTP
+    App -->|BLE| BLE
+    App -->|WebRTC| WebRTC_G1
+
+    %% Internal G1 connections
+    PC1 --> Motors
+    PC1 --> Sensors
+    PC2 --> DDS_Middleware
+    DDS_Middleware --> Modules
+    Modules --> Motors
+    Modules --> Sensors
+    DDS_Middleware --> ROS2
+    
+    Hardware --> LiDAR
+    Hardware --> Cameras
+    Hardware --> IMU
+    Hardware --> Microphones
+
+    %% Developer connections
+    Developer -->|DDS/ROS2| PC2
+    SDK --> Python
+    SDK --> ROS2_Dev
+    Python --> Custom
+    ROS2_Dev --> Custom
+
+    style Cloud fill:#e1f5ff
+    style G1 fill:#f3e5f5
+    style PC1 fill:#fff3e0
+    style PC2 fill:#e8f5e9
+    style Developer fill:#fce4ec
+    style App fill:#f1f8e9
