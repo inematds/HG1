@@ -9,30 +9,15 @@ export default function Home(): JSX.Element {
 
   const quizQuestions = [
     {
-      question: 'Qual é seu nível de conhecimento sobre robôs humanoides?',
+      question: 'Qual é seu objetivo principal com robótica humanoide?',
       options: [
-        { text: 'Nunca vi um robô humanóide', tier: 1 },
-        { text: 'Já ouvi falar mas não sei como funcionam', tier: 1 },
-        { text: 'Conheço o básico e quero aprender a operar', tier: 2 },
-        { text: 'Quero programar e desenvolver para humanoides', tier: 3 },
-      ],
-    },
-    {
-      question: 'O que você quer fazer com robôs humanoides?',
-      options: [
-        { text: 'Entender o que são e como funcionam', tier: 1 },
-        { text: 'Operar e controlar robôs', tier: 2 },
-        { text: 'Programar e criar aplicações', tier: 3 },
-        { text: 'Ainda não sei, quero explorar', tier: 1 },
-      ],
-    },
-    {
-      question: 'Você tem experiência com programação?',
-      options: [
-        { text: 'Nenhuma experiência', tier: 1 },
-        { text: 'Básico (já fiz algum curso)', tier: 2 },
-        { text: 'Intermediário (já programo regularmente)', tier: 3 },
-        { text: 'Avançado (trabalho com desenvolvimento)', tier: 3 },
+        { text: 'Entender conceitos gerais de humanoides', tier: 1.0 },
+        { text: 'Conhecer especificamente o Unitree G1', tier: 1.1 },
+        { text: 'Operar robôs humanoides', tier: 2.0 },
+        { text: 'Operar o Unitree G1', tier: 2.1 },
+        { text: 'Programar humanoides em geral', tier: 3.0 },
+        { text: 'Programar o Unitree G1', tier: 3.1 },
+        { text: 'Desenvolver com plataforma MindOn', tier: 4.0 },
       ],
     },
   ];
@@ -49,10 +34,7 @@ export default function Home(): JSX.Element {
   };
 
   const getRecommendedTier = () => {
-    const avg = answers.reduce((a, b) => a + b, 0) / answers.length;
-    if (avg <= 1.5) return 1;
-    if (avg <= 2.5) return 2;
-    return 3;
+    return answers[0] || 1.0;
   };
 
   const resetQuiz = () => {
@@ -62,20 +44,32 @@ export default function Home(): JSX.Element {
   };
 
   const tierInfo = {
-    1: {
-      title: 'Tier 1: Conhecendo Humanoides',
+    1.0: {
+      title: 'Tier 1.0: Conhecendo Humanoides',
       color: '#3B82F6',
       link: '/docs/tier1/introducao',
       slogan: '"Descubra o futuro da robótica"',
       benefits: [
-        'O que são robôs humanoides',
-        'História e evolução',
+        'História e evolução dos humanoides',
         'Principais modelos (Unitree, Tesla, Figure)',
-        'Aplicações práticas'
+        'Sensores, atuadores e computação',
+        'Aplicações práticas no mundo real'
       ],
     },
-    2: {
-      title: 'Tier 2: Operando Humanoides',
+    1.1: {
+      title: 'Tier 1.1: Conhecendo Unitree G1',
+      color: '#2563EB',
+      link: '#',
+      slogan: '"Mergulhe no G1"',
+      benefits: [
+        'Hardware detalhado do G1',
+        'Especificações técnicas completas',
+        'Anatomia e componentes',
+        'G1 vs competidores'
+      ],
+    },
+    2.0: {
+      title: 'Tier 2.0: Operando Humanoides',
       color: '#9b59b6',
       link: '/docs/tier2/introducao-operacao',
       slogan: '"Do controle à maestria"',
@@ -83,21 +77,67 @@ export default function Home(): JSX.Element {
         'Interfaces de controle',
         'Segurança e melhores práticas',
         'Calibração e manutenção',
-        'Simuladores virtuais'
+        'Simuladores (Gazebo, Isaac Sim)'
       ],
     },
-    3: {
-      title: 'Tier 3: Programando Humanoides',
+    2.1: {
+      title: 'Tier 2.1: Operando Unitree G1',
+      color: '#8B5CF6',
+      link: '#',
+      slogan: '"Domine o G1 na prática"',
+      benefits: [
+        'Startup e primeiros passos',
+        'Controle remoto e app móvel',
+        'Caminhada e manipulação',
+        'Troubleshooting específico'
+      ],
+    },
+    3.0: {
+      title: 'Tier 3.0: Programando Humanoides',
       color: '#10B981',
       link: '/docs/tier3/introducao-programacao',
       slogan: '"Code o futuro"',
       benefits: [
-        'Python para robótica',
-        'ROS2 e frameworks',
+        'Python e ROS2 avançado',
         'Visão computacional e IA',
-        'Navegação autônoma'
+        'Navegação autônoma (Nav2)',
+        'Manipulação (MoveIt)'
       ],
     },
+    3.1: {
+      title: 'Tier 3.1: Programando Unitree G1',
+      color: '#059669',
+      link: '#',
+      slogan: '"Desenvolva para o G1"',
+      benefits: [
+        'SDK e API do G1',
+        'Controle de baixo nível',
+        'Integração ROS2',
+        'Projetos customizados'
+      ],
+    },
+    4.0: {
+      title: 'Tier 4: Plataforma MindOn',
+      color: '#F59E0B',
+      link: '#',
+      slogan: '"IA autônoma de verdade"',
+      benefits: [
+        'Autonomia completa sem controle',
+        'LLM e compreensão de linguagem',
+        'Aprendizado contínuo',
+        'Integração casa inteligente'
+      ],
+    },
+  };
+
+  const getTierKey = (tier: number): string => {
+    if (tier === 1.0) return '1.0';
+    if (tier === 1.1) return '1.1';
+    if (tier === 2.0) return '2.0';
+    if (tier === 2.1) return '2.1';
+    if (tier === 3.0) return '3.0';
+    if (tier === 3.1) return '3.1';
+    return '4.0';
   };
 
   return (
@@ -106,13 +146,16 @@ export default function Home(): JSX.Element {
       description="Democratizando o conhecimento sobre robôs humanoides"
     >
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-purple-600 py-20 text-white">
+      <section className="bg-gradient-to-r from-blue-600 via-purple-600 to-orange-500 py-20 text-white">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold mb-4">
             🤖 Academia de Humanoides
           </h1>
-          <p className="text-2xl mb-8 text-white/90">
+          <p className="text-2xl mb-2 text-white/90">
             Domine Robôs Humanoides do Zero ao Avançado
+          </p>
+          <p className="text-xl mb-8 text-white/80">
+            7 Tiers Progressivos • 70+ Módulos • 100% Gratuito
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
             <a
@@ -131,37 +174,25 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-16 bg-neutral-50 dark:bg-neutral-900">
+      {/* Stats Section */}
+      <section className="py-12 bg-neutral-50 dark:bg-neutral-900">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-4xl mb-4">🎯</div>
-              <h3 className="text-xl font-bold mb-2">100% Gratuito</h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Todo conteúdo livre e acessível
-              </p>
+          <div className="grid md:grid-cols-4 gap-6 text-center max-w-5xl mx-auto">
+            <div>
+              <div className="text-4xl font-bold text-blue-600 mb-2">7</div>
+              <div className="text-neutral-600 dark:text-neutral-400">Tiers Completos</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl mb-4">🚀</div>
-              <h3 className="text-xl font-bold mb-2">Open Source</h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Código aberto no GitHub
-              </p>
+            <div>
+              <div className="text-4xl font-bold text-purple-600 mb-2">70+</div>
+              <div className="text-neutral-600 dark:text-neutral-400">Módulos</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl mb-4">📚</div>
-              <h3 className="text-xl font-bold mb-2">Progressivo</h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Do básico ao avançado
-              </p>
+            <div>
+              <div className="text-4xl font-bold text-green-600 mb-2">100%</div>
+              <div className="text-neutral-600 dark:text-neutral-400">Gratuito</div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl mb-4">🛠️</div>
-              <h3 className="text-xl font-bold mb-2">Prático</h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Aplicações reais e simuladores
-              </p>
+            <div>
+              <div className="text-4xl font-bold text-orange-600 mb-2">Open</div>
+              <div className="text-neutral-600 dark:text-neutral-400">Código Aberto</div>
             </div>
           </div>
         </div>
@@ -176,19 +207,6 @@ export default function Home(): JSX.Element {
 
           {!showResult ? (
             <div className="bg-neutral-50 dark:bg-neutral-900 rounded-2xl p-8">
-              <div className="mb-6">
-                <div className="flex justify-between text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-                  <span>Pergunta {currentQuestion + 1} de {quizQuestions.length}</span>
-                  <span>{Math.round(((currentQuestion) / quizQuestions.length) * 100)}%</span>
-                </div>
-                <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentQuestion) / quizQuestions.length) * 100}%` }}
-                  />
-                </div>
-              </div>
-
               <h3 className="text-xl font-bold mb-6">
                 {quizQuestions[currentQuestion].question}
               </h3>
@@ -204,31 +222,19 @@ export default function Home(): JSX.Element {
                   </button>
                 ))}
               </div>
-
-              {currentQuestion > 0 && (
-                <button
-                  onClick={() => {
-                    setCurrentQuestion(currentQuestion - 1);
-                    setAnswers(answers.slice(0, -1));
-                  }}
-                  className="mt-6 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
-                >
-                  ← Voltar
-                </button>
-              )}
             </div>
           ) : (
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white text-center">
               <div className="text-6xl mb-4">🎉</div>
               <h3 className="text-2xl font-bold mb-4">
-                Recomendamos: {tierInfo[getRecommendedTier()].title}
+                Recomendamos: {tierInfo[getTierKey(getRecommendedTier())].title}
               </h3>
               <p className="text-xl mb-6 text-white/90">
-                {tierInfo[getRecommendedTier()].slogan}
+                {tierInfo[getTierKey(getRecommendedTier())].slogan}
               </p>
               <div className="flex justify-center gap-4 flex-wrap">
                 <Link
-                  to={tierInfo[getRecommendedTier()].link}
+                  to={tierInfo[getTierKey(getRecommendedTier())].link}
                   className="px-8 py-4 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-all"
                 >
                   Começar Agora →
@@ -248,36 +254,44 @@ export default function Home(): JSX.Element {
       {/* Tiers Section */}
       <section id="tiers" className="py-16 bg-neutral-50 dark:bg-neutral-900">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">
-            Escolha Seu Tier
+          <h2 className="text-3xl font-bold text-center mb-4">
+            7 Tiers Progressivos
           </h2>
+          <p className="text-center text-neutral-600 dark:text-neutral-400 mb-12 max-w-2xl mx-auto">
+            Do conhecimento teórico até IA autônoma com MindOn
+          </p>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {Object.entries(tierInfo).map(([tier, info]) => (
               <div
                 key={tier}
-                className="bg-white dark:bg-neutral-800 rounded-2xl p-8 shadow-lg border-2 border-transparent hover:border-current transition-all"
+                className="bg-white dark:bg-neutral-800 rounded-xl p-6 shadow-lg border-2 border-transparent hover:border-current transition-all"
                 style={{ color: info.color }}
               >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-4"
-                  style={{ backgroundColor: `${info.color}20` }}
-                >
-                  {tier === '1' ? '🤖' : tier === '2' ? '🎮' : '💻'}
+                <div className="flex items-center mb-4">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-2xl mr-3"
+                    style={{ backgroundColor: `${info.color}20` }}
+                  >
+                    {tier.startsWith('1') ? '🤖' : tier.startsWith('2') ? '🎮' : tier.startsWith('3') ? '💻' : '🧠'}
+                  </div>
+                  <div className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
+                    Tier {tier}
+                  </div>
                 </div>
 
-                <h3 className="text-2xl font-bold mb-2 text-neutral-900 dark:text-neutral-100">
-                  {info.title}
+                <h3 className="text-lg font-bold mb-2 text-neutral-900 dark:text-neutral-100">
+                  {info.title.replace(`Tier ${tier}: `, '')}
                 </h3>
 
-                <p className="italic text-neutral-600 dark:text-neutral-400 mb-6">
+                <p className="text-sm italic text-neutral-600 dark:text-neutral-400 mb-4">
                   {info.slogan}
                 </p>
 
-                <ul className="space-y-3 mb-8">
+                <ul className="space-y-2 mb-6 text-sm">
                   {info.benefits.map((benefit, idx) => (
                     <li key={idx} className="flex items-start">
-                      <span className="mr-2" style={{ color: info.color }}>✓</span>
+                      <span className="mr-2 mt-0.5" style={{ color: info.color }}>✓</span>
                       <span className="text-neutral-700 dark:text-neutral-300">{benefit}</span>
                     </li>
                   ))}
@@ -285,10 +299,10 @@ export default function Home(): JSX.Element {
 
                 <Link
                   to={info.link}
-                  className="block w-full text-center px-6 py-3 rounded-lg font-semibold transition-all text-white"
+                  className="block w-full text-center px-4 py-2.5 rounded-lg font-semibold transition-all text-white text-sm"
                   style={{ backgroundColor: info.color }}
                 >
-                  Começar Tier {tier} →
+                  {info.link === '#' ? 'Em Breve' : 'Começar →'}
                 </Link>
               </div>
             ))}
@@ -296,23 +310,57 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Features Section */}
       <section className="py-16 bg-white dark:bg-neutral-800">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-8 text-center max-w-4xl mx-auto">
-            <div>
-              <div className="text-5xl font-bold text-blue-600 mb-2">15+</div>
-              <div className="text-neutral-600 dark:text-neutral-400">Módulos</div>
+          <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
+            <div className="text-center">
+              <div className="text-4xl mb-4">🎯</div>
+              <h3 className="text-xl font-bold mb-2">100% Gratuito</h3>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                Todo conteúdo livre e acessível
+              </p>
             </div>
-            <div>
-              <div className="text-5xl font-bold text-purple-600 mb-2">100%</div>
-              <div className="text-neutral-600 dark:text-neutral-400">Gratuito</div>
+            <div className="text-center">
+              <div className="text-4xl mb-4">🚀</div>
+              <h3 className="text-xl font-bold mb-2">Open Source</h3>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                Código aberto no GitHub
+              </p>
             </div>
-            <div>
-              <div className="text-5xl font-bold text-green-600 mb-2">Open</div>
-              <div className="text-neutral-600 dark:text-neutral-400">Código Aberto</div>
+            <div className="text-center">
+              <div className="text-4xl mb-4">📚</div>
+              <h3 className="text-xl font-bold mb-2">Progressivo</h3>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                Do básico ao avançado, passo a passo
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl mb-4">🛠️</div>
+              <h3 className="text-xl font-bold mb-2">Prático</h3>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                Aplicações reais e simuladores
+              </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-4">
+            Comece Sua Jornada Hoje
+          </h2>
+          <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
+            De conceitos básicos até IA autônoma com MindOn. 7 tiers completos esperando por você.
+          </p>
+          <a
+            href="#quiz"
+            className="inline-block px-8 py-4 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-all"
+          >
+            Descobrir Meu Tier →
+          </a>
         </div>
       </section>
     </Layout>
