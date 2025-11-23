@@ -1,0 +1,939 @@
+---
+id: software
+title: 🧠 Software e Inteligência Artificial
+description: Os sistemas inteligentes que fazem humanoides pensar, ver e aprender
+tier: 1
+module_number: 8
+estimated_time: 22
+sidebar_position: 8
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🧠 Software e Inteligência Artificial
+
+<div className="hero-badges">
+  <span className="badge badge-tier1">Tier 1 - Módulo 8</span>
+  <span className="badge badge-time">⏱️ 22 minutos</span>
+  <span className="badge badge-level">📊 Fundamentos</span>
+</div>
+
+## 🎯 O que você vai aprender
+
+Neste módulo, você vai descobrir o cérebro digital dos humanoides: ROS2, visão computacional, aprendizado por reforço, modelos de linguagem e como IA está revolucionando robótica.
+
+---
+
+## 🏗️ Stack de Software
+
+### Arquitetura em Camadas
+
+```
+┌─────────────────────────────────────┐
+│ CAMADA 5: Aplicação                 │
+│ - Missões/Tarefas (pegar caixa)     │
+│ - Interface com humano              │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│ CAMADA 4: Cognição/IA               │
+│ - GPT-4 (linguagem natural)         │
+│ - YOLO (detecção de objetos)        │
+│ - Planejamento de trajetória        │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│ CAMADA 3: Middleware (ROS2)         │
+│ - Pub/Sub de dados                  │
+│ - SLAM, navegação                   │
+│ - Controle de movimentos            │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│ CAMADA 2: Drivers                   │
+│ - Interface com sensores/motores    │
+│ - RealSense, LIDAR, CANbus          │
+└──────────────┬──────────────────────┘
+               ↓
+┌─────────────────────────────────────┐
+│ CAMADA 1: Sistema Operacional       │
+│ - Ubuntu 22.04                      │
+│ - Kernel Linux (drivers)            │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 🤖 ROS2 (Robot Operating System 2)
+
+### O que é ROS2?
+
+**Definição:** Framework open-source para desenvolvimento de software de robôs
+
+**NÃO é um sistema operacional**, é uma camada de middleware sobre Linux.
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">📡</div>
+<h3>Comunicação</h3>
+<p>Publish/Subscribe entre processos</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">📦</div>
+<h3>Pacotes</h3>
+<p>Milhares de bibliotecas prontas (SLAM, navegação, etc)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🛠️</div>
+<h3>Ferramentas</h3>
+<p>Visualização (RViz), simulação (Gazebo), debug</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🌐</div>
+<h3>Ecossistema</h3>
+<p>Comunidade gigantesca, suporte industrial</p>
+</div>
+
+</div>
+
+---
+
+### Conceitos Fundamentais
+
+<Tabs>
+<TabItem value="nodes" label="Nodes (Nós)" default>
+
+### Nodes - Processos Independentes
+
+**O que é:** Programa que executa uma tarefa específica
+
+**Exemplo de arquitetura:**
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ camera_node  │───▶│ vision_node  │───▶│ planner_node │
+│ (publica     │    │ (detecta     │    │ (decide onde │
+│  imagens)    │    │  objetos)    │    │  ir)         │
+└──────────────┘    └──────────────┘    └──────────────┘
+        │                                        │
+        ▼                                        ▼
+┌──────────────┐                        ┌──────────────┐
+│  imu_node    │                        │ control_node │
+│ (orientação) │───────────────────────▶│ (move robô)  │
+└──────────────┘                        └──────────────┘
+```
+
+**Vantagens:**
+- ✅ Cada node pode crashar sem derrubar sistema todo
+- ✅ Desenvolvimento paralelo (times diferentes trabalham em nodes diferentes)
+- ✅ Reutilização (node de câmera funciona em qualquer robô)
+
+</TabItem>
+
+<TabItem value="topics" label="Topics (Tópicos)">
+
+### Topics - Canais de Comunicação
+
+**Publish/Subscribe Pattern:**
+```python
+# Node 1: Publica posição da junta
+import rclpy
+from sensor_msgs.msg import JointState
+
+publisher = node.create_publisher(JointState, '/joint_states', 10)
+
+joint_msg = JointState()
+joint_msg.name = ['knee_left', 'knee_right']
+joint_msg.position = [1.57, 1.57]  # 90 graus em radianos
+
+publisher.publish(joint_msg)
+
+
+# Node 2: Subscreve posição
+def joint_callback(msg):
+    print(f"Joelho esquerdo: {msg.position[0]} rad")
+
+subscription = node.create_subscription(
+    JointState,
+    '/joint_states',
+    joint_callback,
+    10
+)
+```
+
+**Topics típicos em humanoide:**
+```
+/camera/image_raw         (sensor_msgs/Image)
+/imu/data                 (sensor_msgs/Imu)
+/joint_states             (sensor_msgs/JointState)
+/cmd_vel                  (geometry_msgs/Twist)
+/tf                       (Transformações 3D)
+/odometry                 (nav_msgs/Odometry)
+```
+
+</TabItem>
+
+<TabItem value="services" label="Services (Serviços)">
+
+### Services - Requisição/Resposta
+
+**Diferença de Topic:**
+- **Topic:** Streaming contínuo (câmera publicando imagens)
+- **Service:** Chamada única (ex: "calcule trajetória para X")
+
+**Exemplo:**
+```python
+# Servidor: Calcula cinemática inversa
+from robot_interfaces.srv import InverseKinematics
+
+def handle_ik_request(request, response):
+    # request.target_position = [x, y, z]
+    joint_angles = calculate_ik(request.target_position)
+    response.joint_angles = joint_angles
+    return response
+
+service = node.create_service(
+    InverseKinematics,
+    'inverse_kinematics',
+    handle_ik_request
+)
+
+
+# Cliente: Solicita cinemática
+client = node.create_client(InverseKinematics, 'inverse_kinematics')
+request = InverseKinematics.Request()
+request.target_position = [0.5, 0.2, 0.8]  # x, y, z em metros
+
+future = client.call_async(request)
+# Quando retornar: future.result().joint_angles
+```
+
+</TabItem>
+
+<TabItem value="actions" label="Actions (Ações)">
+
+### Actions - Tarefas Longas com Feedback
+
+**Para quê:** Operações que levam tempo e você quer progresso
+
+**Exemplo - Caminhar até ponto:**
+```python
+# Action definition (walk_to_point.action)
+# Goal
+geometry_msgs/Point target
+---
+# Result
+bool success
+---
+# Feedback
+float32 distance_remaining
+float32 percent_complete
+
+
+# Cliente
+action_client = ActionClient(node, WalkToPoint, 'walk_to_point')
+
+goal = WalkToPoint.Goal()
+goal.target = Point(x=2.0, y=1.0, z=0.0)
+
+send_goal_future = action_client.send_goal_async(
+    goal,
+    feedback_callback=lambda fb: print(f"{fb.percent_complete}% done")
+)
+
+# Feedback aparece durante execução:
+# "25% done"
+# "50% done"
+# "75% done"
+# "100% done"
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### ROS2 vs ROS1
+
+<div className="comparison-table">
+
+| Característica | ROS1 (2007-2020) | ROS2 (2017-hoje) |
+|---------------|------------------|------------------|
+| **Comunicação** | Custom TCP | DDS (padrão industrial) |
+| **Tempo-real** | ❌ Não | ✅ Sim (com RTOS) |
+| **Segurança** | ❌ Nenhuma | ✅ Encriptação, autenticação |
+| **Multiplataforma** | Só Linux | Linux, Windows, macOS, RTOS |
+| **Python** | 2.7 | 3.6+ |
+| **Status** | Fim de vida 2025 | Ativo |
+
+</div>
+
+**Todos os humanoides novos usam ROS2** (Unitree, Figure, Apollo, etc.)
+
+---
+
+## 👁️ Visão Computacional
+
+### Pipeline de Visão
+
+```
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│ Câmera   │──▶│ Pré-     │──▶│ Detecção │──▶│ Decisão  │
+│ (1080p   │   │ processa-│   │ (IA)     │   │ (o que   │
+│  30 FPS) │   │ mento    │   │          │   │  fazer)  │
+└──────────┘   └──────────┘   └──────────┘   └──────────┘
+                    │              │
+                    ▼              ▼
+              [Resize,       [YOLO, SAM,
+               Denoise,       Depth Est]
+               Calibração]
+```
+
+### Tarefas Comuns
+
+<Tabs>
+<TabItem value="detection" label="Detecção de Objetos" default>
+
+### Object Detection - YOLO
+
+**O que faz:** Identifica e localiza objetos em imagem
+
+**Modelo popular: YOLOv8**
+```python
+from ultralytics import YOLO
+
+model = YOLO('yolov8n.pt')  # Nano (rápido)
+results = model(image)
+
+for detection in results[0].boxes:
+    class_id = detection.cls
+    confidence = detection.conf
+    bbox = detection.xyxy  # [x1, y1, x2, y2]
+
+    if class_id == 39:  # Classe "garrafa"
+        print(f"Garrafa detectada em {bbox} com {confidence:.2f}")
+```
+
+**Performance no Jetson Orin:**
+```
+YOLOv8n (Nano): 120 FPS @ 640x480
+YOLOv8s (Small): 80 FPS
+YOLOv8m (Medium): 45 FPS
+YOLOv8l (Large): 25 FPS
+```
+
+**Uso em humanoide:**
+- "Pegue a garrafa azul na mesa" → YOLO detecta garrafa
+
+</TabItem>
+
+<TabItem value="segmentation" label="Segmentação">
+
+### Semantic Segmentation
+
+**O que faz:** Classifica cada pixel da imagem
+
+**Exemplo - Segment Anything (Meta SAM):**
+```python
+from segment_anything import SamPredictor, sam_model_registry
+
+sam = sam_model_registry["vit_b"](checkpoint="sam_vit_b.pth")
+predictor = SamPredictor(sam)
+
+predictor.set_image(image)
+
+# Clicar em ponto para segmentar objeto
+masks = predictor.predict(point_coords=[[320, 240]])
+# masks[0] = pixels do objeto clicado
+```
+
+**Uso:**
+- Identificar superfícies andar (chão vs parede vs escada)
+- Segmentar objeto para pegar (qual parte é a alça?)
+
+</TabItem>
+
+<TabItem value="depth" label="Estimativa de Profundidade">
+
+### Depth Estimation
+
+**Opções:**
+
+**1. Câmera de profundidade (hardware):**
+```python
+import pyrealsense2 as rs
+
+pipeline = rs.pipeline()
+config = rs.config()
+config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+
+pipeline.start(config)
+frames = pipeline.wait_for_frames()
+depth_frame = frames.get_depth_frame()
+
+distance = depth_frame.get_distance(320, 240)  # Centro da imagem
+print(f"Objeto a {distance}m")
+```
+
+**2. IA (monocular depth):**
+```python
+from transformers import DPTForDepthEstimation
+
+model = DPTForDepthEstimation.from_pretrained("Intel/dpt-large")
+depth_map = model(image)
+
+# depth_map: Matriz com profundidade estimada por pixel
+```
+
+**Trade-off:**
+- Hardware (RealSense): Preciso, rápido, mas sensor extra
+- IA: Só câmera RGB, menos preciso, mais processamento
+
+</TabItem>
+
+<TabItem value="pose" label="Pose Estimation">
+
+### Human Pose Estimation
+
+**O que faz:** Detecta esqueleto humano (17-21 keypoints)
+
+**Modelo: OpenPose / MediaPipe:**
+```python
+import mediapipe as mp
+
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose()
+
+results = pose.process(image)
+
+if results.pose_landmarks:
+    for landmark in results.pose_landmarks.landmark:
+        # landmark.x, landmark.y, landmark.z
+        print(f"Joelho: ({landmark.x}, {landmark.y})")
+```
+
+**Uso em humanoide:**
+- Imitar movimentos humanos (motion capture)
+- Detectar gestos ("acenar com mão" = comando)
+- Evitar colisão com pessoa (saber onde estão membros)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🧠 Inteligência Artificial
+
+### Tipos de IA em Humanoides
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">🎯</div>
+<h3>Supervised Learning</h3>
+<p>Treina com exemplos rotulados</p>
+<p><strong>Uso:</strong> Classificação de objetos</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🎮</div>
+<h3>Reinforcement Learning</h3>
+<p>Aprende por tentativa/erro</p>
+<p><strong>Uso:</strong> Locomoção, manipulação</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🤝</div>
+<h3>Imitation Learning</h3>
+<p>Copia demonstrações humanas</p>
+<p><strong>Uso:</strong> Tarefas complexas</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">💬</div>
+<h3>Large Language Models</h3>
+<p>Entende linguagem natural</p>
+<p><strong>Uso:</strong> Interface com humano</p>
+</div>
+
+</div>
+
+---
+
+### Reinforcement Learning (RL)
+
+<Tabs>
+<TabItem value="concept" label="Conceito" default>
+
+### Como Funciona
+
+**Analogia:** Ensinar cachorro com petiscos
+
+```
+Estado (State):
+  - Posição de todas as juntas
+  - Velocidades
+  - Orientação do tronco (IMU)
+  - Alvo a alcançar
+
+Ação (Action):
+  - Torque aplicado em cada junta
+  - Exemplo: [10, -5, 20, ...] N·m
+
+Recompensa (Reward):
+  - +1: Se robô andou para frente
+  - -10: Se robô caiu
+  - +100: Se alcançou objetivo
+
+Objetivo:
+  Maximizar recompensa acumulada
+```
+
+**Processo:**
+```
+1. Robô tenta andar (ação aleatória)
+2. Cai (recompensa -10)
+3. IA ajusta: "Torque no tornozelo deve ser maior"
+4. Tenta novamente...
+5. Após milhões de tentativas: Aprende a andar
+```
+
+</TabItem>
+
+<TabItem value="ppo" label="PPO (Algoritmo)">
+
+### Proximal Policy Optimization
+
+**O mais usado em robótica (2024)**
+
+**Por quê:**
+- ✅ Estável (não diverge facilmente)
+- ✅ Sample-efficient (aprende rápido)
+- ✅ Funciona bem em simulação → mundo real
+
+**Código simplificado:**
+```python
+import torch
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv
+
+# Criar múltiplos ambientes em paralelo (simuladores)
+env = SubprocVecEnv([lambda: HumanoidEnv() for _ in range(16)])
+
+# Treinar
+model = PPO(
+    'MlpPolicy',
+    env,
+    learning_rate=3e-4,
+    n_steps=2048,
+    batch_size=64,
+    n_epochs=10,
+    verbose=1
+)
+
+model.learn(total_timesteps=10_000_000)  # 10M passos (~24h em GPU)
+model.save("humanoid_walk")
+
+
+# Usar modelo treinado
+obs = env.reset()
+for _ in range(1000):
+    action, _ = model.predict(obs, deterministic=True)
+    obs, reward, done, info = env.step(action)
+```
+
+**Sucesso real:**
+- Boston Dynamics Atlas: Aprendeu parkour com RL
+- Unitree H1: Locomoção dinâmica
+
+</TabItem>
+
+<TabItem value="sim2real" label="Sim-to-Real">
+
+### Transferência Simulação → Real
+
+**Problema:**
+```
+RL precisa de milhões de tentativas
+  ↓
+Se treinar em robô real:
+  - Levaria meses
+  - Robô quebraria 1000x
+  - Perigo para humanos
+```
+
+**Solução: Treinar em simulador**
+
+**Simuladores populares:**
+- **Isaac Sim (NVIDIA):** GPU-accelerated, fotorrealista
+- **MuJoCo (DeepMind):** Física precisa, rápido
+- **Gazebo (Open Robotics):** Integrado com ROS2
+- **PyBullet (Google):** Python-friendly
+
+**Desafio: Reality Gap**
+```
+Simulador é perfeito demais:
+  - Física ideal (sem atrito variável)
+  - Sem ruído de sensores
+  - Sem atrasos
+
+Robô real:
+  - Atrito muda com temperatura
+  - Sensores ruidosos
+  - Latência de comunicação
+```
+
+**Técnica: Domain Randomization**
+```python
+# Randomizar parâmetros na simulação
+for episode in training:
+    # Aleatorizar física
+    sim.set_friction(random.uniform(0.5, 1.5))
+    sim.set_mass(random.uniform(45, 50))  # kg
+
+    # Aleatorizar sensores
+    imu_noise = random.normal(0, 0.1)
+    encoder_delay = random.randint(1, 5)  # ms
+
+    # Aleatorizar ambiente
+    ground_texture = random.choice(['concrete', 'grass', 'carpet'])
+
+# Resultado: Política robusta que funciona no mundo real
+```
+
+**Sucesso comprovado:**
+- OpenAI: Cubo de Rubik resolvido por robô (treinado 100% em sim)
+- Tesla: Optimus aprende tarefas em Isaac Sim
+
+</TabItem>
+</Tabs>
+
+---
+
+### Foundation Models (LLMs + VLMs)
+
+<Tabs>
+<TabItem value="llm" label="Language Models" default>
+
+### GPT-4, Claude, etc. em Humanoides
+
+**Como integram:**
+```
+Humano: "Robô, pegue a garrafa azul que está na mesa e traga para mim"
+         ↓
+┌────────────────────────────┐
+│ LLM (GPT-4)                │
+│ Entende intenção:          │
+│ 1. Localizar mesa          │
+│ 2. Identificar garrafa azul│
+│ 3. Planejar caminho        │
+│ 4. Executar pick & place   │
+│ 5. Navegar até humano      │
+└────────┬───────────────────┘
+         ↓
+    ROS2 Actions
+    (walk_to, pick_object, etc.)
+```
+
+**Exemplo real - Figure 02 + OpenAI:**
+```python
+# Integração via API
+import openai
+
+def process_command(speech_text, image):
+    prompt = f"""
+    Você é um robô humanoide. O humano disse: "{speech_text}"
+    Imagem atual: [imagem da câmera]
+
+    Gere uma sequência de ações ROS2 para executar.
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4-vision",
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": image}
+            ]
+        }]
+    )
+
+    actions = parse_actions(response['choices'][0]['message']['content'])
+    execute_actions(actions)
+```
+
+**Vantagens:**
+- ✅ Interface natural (fala, não código)
+- ✅ Raciocínio complexo (LLM planeja passos)
+- ✅ Contexto (lembra conversas anteriores)
+
+**Desafios:**
+- ❌ Latência (API call = 1-3s)
+- ❌ Alucinação (LLM pode gerar ação impossível)
+- ⚠️ Requer validação de segurança
+
+</TabItem>
+
+<TabItem value="vlm" label="Vision-Language Models">
+
+### VLMs (GPT-4V, Gemini, etc.)
+
+**O que fazem:** Entendem imagem + texto juntos
+
+**Exemplo de prompt:**
+```
+Imagem: [Foto da cozinha]
+Pergunta: "Onde está a caneca?"
+
+VLM: "A caneca está na mesa, à esquerda do laptop,
+      próximo à janela. É uma caneca branca com
+      alça voltada para a direita."
+```
+
+**Uso em robótica:**
+```python
+def find_object(object_name, camera_image):
+    prompt = f"Localize {object_name} nesta imagem e me dê coordenadas (x, y) aproximadas."
+
+    vlm_response = vlm.query(prompt, camera_image)
+    # "O objeto está aproximadamente em (320, 240) pixels, centro-esquerda"
+
+    # Converter pixel → coordenadas 3D (com depth camera)
+    x_pixel, y_pixel = extract_coordinates(vlm_response)
+    depth = depth_camera.get_distance(x_pixel, y_pixel)
+
+    world_coords = pixel_to_world(x_pixel, y_pixel, depth)
+    return world_coords
+```
+
+**Modelos open-source:**
+- **LLaVA:** 7B-13B params, roda em Jetson Orin
+- **CLIP:** Associa imagem ↔ texto
+- **BLIP-2:** Image captioning
+
+</TabItem>
+
+<TabItem value="embodied" label="Embodied AI">
+
+### IA Embodied (Incorporada)
+
+**Conceito:** IA que aprende através de interação física
+
+**Diferença:**
+```
+IA tradicional (GPT):
+  Treina com texto da internet
+  Não tem corpo
+  Não entende física
+
+IA Embodied:
+  Treina controlando robô
+  Aprende "peso", "atrito", "equilíbrio"
+  Conhecimento sensoriomotor
+```
+
+**Exemplo - RT-2 (Google):**
+```
+Modelo treinado com:
+  - 13 robôs diferentes
+  - 100,000 horas de demonstrações
+  - Visão + linguagem + ações
+
+Capacidade:
+  "Pegue a fruta com maior vitamina C"
+  → Robô identifica laranja (não banana)
+  → Pega a laranja
+  (Combinou conhecimento de LLM + visão + controle motor)
+```
+
+**Tendência 2024-2025:**
+- Modelos foundation para robótica (tipo "GPT para robôs")
+- Treinamento com dados de milhões de robôs
+- Transfer learning entre diferentes humanoides
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🗺️ SLAM e Navegação
+
+### SLAM (Simultaneous Localization and Mapping)
+
+**Problema:** Robô em ambiente desconhecido precisa:
+1. Saber onde está (localização)
+2. Construir mapa (mapeamento)
+
+**Paradoxo:** Para mapear, precisa saber posição. Para saber posição, precisa ter mapa!
+
+**Solução:** SLAM faz ambos simultaneamente
+
+### Tipos de SLAM
+
+<Tabs>
+<TabItem value="lidar" label="LIDAR SLAM" default>
+
+**Entrada:** Scans de LIDAR 2D/3D
+
+**Algoritmos populares:**
+- **Cartographer (Google):** Usado em robôs do Alphabet
+- **SLAM Toolbox:** ROS2 nativo
+- **LIO-SAM:** LIDAR + IMU fusion
+
+**Output:**
+- Mapa 2D (occupancy grid)
+- Posição do robô (x, y, θ)
+
+**Precisão:** 1-5 cm
+
+</TabItem>
+
+<TabItem value="visual" label="Visual SLAM">
+
+**Entrada:** Câmeras RGB ou RGB-D
+
+**Algoritmos:**
+- **ORB-SLAM3:** Monocular/Estéreo/RGB-D
+- **RTAB-Map:** ROS2, RGB-D
+- **OpenVSLAM:** Open-source
+
+**Vantagem:**
+- ✅ Não precisa de LIDAR (mais barato)
+- ✅ Informação semântica (cor, textura)
+
+**Desvantagem:**
+- ❌ Falha em ambientes sem features (parede branca)
+- ❌ Sensível a iluminação
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🛠️ Ferramentas de Desenvolvimento
+
+### Simuladores
+
+<div className="comparison-table">
+
+| Simulador | Física | Gráficos | ROS2 | GPU | Ideal para |
+|-----------|--------|----------|------|-----|------------|
+| **Isaac Sim** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | NVIDIA | RL, visão |
+| **Gazebo** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | Opcional | ROS dev |
+| **MuJoCo** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⚠️ | Sim | RL research |
+| **PyBullet** | ⭐⭐⭐ | ⭐⭐ | ⚠️ | Sim | Prototipagem |
+| **Webots** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ✅ | Não | Educação |
+
+</div>
+
+---
+
+### Visualização - RViz2
+
+**O que é:** Ferramenta ROS2 para visualizar dados do robô em 3D
+
+**Mostra:**
+- Modelo 3D do robô (URDF)
+- Nuvem de pontos (LIDAR)
+- Câmeras
+- Trajetórias planejadas
+- Mapa (SLAM)
+
+**Screenshot típico:**
+```
+┌─────────────────────────────────────┐
+│ [Modelo 3D do H1]  [Nuvem LIDAR]   │
+│                                     │
+│ Juntas coloridas   Obstáculos em   │
+│ por torque         vermelho         │
+│                                     │
+│ [Mapa 2D]          [Trajetória]    │
+│ Grid ocupado       Caminho planejado│
+└─────────────────────────────────────┘
+```
+
+---
+
+## 💡 Tendências Futuras
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">🌐</div>
+<h3>Modelos Foundation para Robótica</h3>
+<p>"ChatGPT para robôs" - Um modelo que controla qualquer humanoide</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🔄</div>
+<h3>Fleet Learning</h3>
+<p>Milhares de robôs compartilham aprendizado (como Tesla FSD)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🧬</div>
+<h3>IA Neuromórfica</h3>
+<p>Chips que imitam cérebro (1000x mais eficiente)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🤖</div>
+<h3>End-to-End Learning</h3>
+<p>Câmera → IA → Controle de motor (sem programação manual)</p>
+</div>
+
+</div>
+
+---
+
+## 🎓 Conceitos-Chave
+
+:::tip Lembre-se
+1. **ROS2 é padrão da indústria** - Aprenda se quiser trabalhar com humanoides
+2. **RL domina locomoção** - Milhões de tentativas em simulador
+3. **LLMs são o futuro da interface** - "Fale com o robô" ao invés de programar
+4. **Sim-to-Real funciona** - Domain randomization é chave
+:::
+
+:::info Você Sabia?
+O **Boston Dynamics Atlas aprendeu a fazer backflip com RL**! Mas levou 100 milhões de iterações em simulação (equivalente a 278 anos de tentativas contínuas se fosse no robô real).
+:::
+
+---
+
+## 🔗 Próximo Módulo
+
+Agora vamos ver onde tudo isso é aplicado no mundo real:
+
+<div className="next-module-cta">
+  <a href="/HG1/docs/tier1/aplicacoes" className="cta-button">
+    🏭 Módulo 9: Aplicações Práticas →
+  </a>
+</div>
+
+---
+
+<div className="module-footer">
+  <div className="footer-section">
+    <h4>🎯 Teste Seus Conhecimentos</h4>
+    <p>Por que treinar RL em simulação ao invés do robô real?</p>
+    <details>
+      <summary>Ver Resposta</summary>
+      <p><strong>3 razões:</strong> 1) Velocidade - simulador roda 100-1000x mais rápido que tempo real, 2) Segurança - robô não quebra/machuca ninguém, 3) Custo - não precisa de hardware físico.</p>
+    </details>
+  </div>
+
+  <div className="footer-section">
+    <h4>📚 Recursos</h4>
+    <ul>
+      <li><a href="https://docs.ros.org/en/humble/" target="_blank">ROS2 Documentation</a></li>
+      <li><a href="https://docs.omniverse.nvidia.com/isaacsim/" target="_blank">NVIDIA Isaac Sim</a></li>
+      <li><a href="https://stable-baselines3.readthedocs.io/" target="_blank">Stable Baselines3 (RL)</a></li>
+    </ul>
+  </div>
+</div>

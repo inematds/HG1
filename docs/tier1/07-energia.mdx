@@ -1,0 +1,687 @@
+---
+id: energia
+title: 🔋 Energia e Bateria
+description: Sistemas de potência que mantêm humanoides funcionando - baterias, gerenciamento de energia e autonomia
+tier: 1
+module_number: 7
+estimated_time: 14
+sidebar_position: 7
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🔋 Energia e Bateria
+
+<div className="hero-badges">
+  <span className="badge badge-tier1">Tier 1 - Módulo 7</span>
+  <span className="badge badge-time">⏱️ 14 minutos</span>
+  <span className="badge badge-level">📊 Fundamentos</span>
+</div>
+
+## 🎯 O que você vai aprender
+
+Neste módulo, você vai entender como humanoides são alimentados: química de baterias, voltagem, capacidade, BMS (Battery Management System) e por que autonomia ainda é um desafio.
+
+---
+
+## ⚡ Fundamentos de Energia
+
+### Conceitos Básicos
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">⚡</div>
+<h3>Voltagem (V)</h3>
+<p>Pressão elétrica</p>
+<p><strong>Típico:</strong> 24V, 48V, 72V</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🔌</div>
+<h3>Corrente (A)</h3>
+<p>Fluxo de elétrons</p>
+<p><strong>Pico:</strong> 100-300A</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">⚙️</div>
+<h3>Potência (W)</h3>
+<p>P = V × A</p>
+<p><strong>Exemplo:</strong> 48V × 20A = 960W</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">📦</div>
+<h3>Capacidade (Wh)</h3>
+<p>Energia armazenada</p>
+<p><strong>Típico:</strong> 500-1500 Wh</p>
+</div>
+
+</div>
+
+**Analogia hidráulica:**
+```
+Voltagem = Pressão da água (PSI)
+Corrente = Vazão (litros/min)
+Potência = Trabalho realizado
+Capacidade = Tamanho do tanque
+```
+
+---
+
+## 🔬 Química de Baterias
+
+### Tipos de Bateria
+
+<Tabs>
+<TabItem value="liion" label="Li-Ion (Lítion-Íon)" default>
+
+### Lítio-Íon - O Padrão Atual
+
+**O que é:** Célula recarregável com ânodo de grafite e cátodo de óxido metálico
+
+**Tipos de Li-Ion:**
+
+<div className="comparison-table">
+
+| Química | Densidade (Wh/kg) | Ciclos | Custo | Uso em Humanoides |
+|---------|------------------|--------|-------|-------------------|
+| **NMC (Níquel-Manganês-Cobalto)** | 200-250 | 1000-2000 | $$$ | ✅ Tesla, Figure |
+| **LFP (Litio-Ferro-Fosfato)** | 150-180 | 3000-5000 | $$ | ✅ Unitree, aplicações comerciais |
+| **NCM (Níquel-Cobalto-Manganês)** | 240-270 | 800-1500 | $$$ | ⚠️ Alta performance |
+| **LCO (Lítio-Cobalto)** | 180-200 | 500-1000 | $$$ | ❌ (celulares, não robótica) |
+
+</div>
+
+**NMC vs LFP:**
+
+**NMC (Tesla Powerwall style):**
+```
+Vantagens:
+  ✅ Densidade energética alta (mais Wh por kg)
+  ✅ Potência de descarga alta (picos de corrente)
+
+Desvantagens:
+  ❌ Mais caro ($200-300/kWh)
+  ❌ Menos ciclos (1000-2000)
+  ❌ Risco de fogo maior (thermal runaway)
+```
+
+**LFP (BYD Blade Battery style):**
+```
+Vantagens:
+  ✅ Muito seguro (não pega fogo facilmente)
+  ✅ Longa vida útil (3000-5000 ciclos)
+  ✅ Mais barato ($100-150/kWh)
+
+Desvantagens:
+  ❌ Densidade menor (~30% menos Wh/kg)
+  ❌ Pior em frio (< 0°C)
+```
+
+**Escolha típica:**
+- **Performance (Tesla Optimus):** NMC - Precisa de densidade máxima
+- **Comercial (Unitree H1):** LFP - Confiabilidade + custo
+
+</TabItem>
+
+<TabItem value="lipo" label="LiPo (Polímero)">
+
+### Lítio-Polímero - Drones e RC
+
+**Características:**
+```
+Formato: Pouch (bolsa macia, não cilindro)
+Densidade: 150-200 Wh/kg
+Descarga: Muito alta (50C-100C)
+Voltagem: 3.7V por célula
+Ciclos: 300-500
+```
+
+**Vantagens:**
+- ✅ Forma flexível (cabe em qualquer espaço)
+- ✅ Corrente de pico altíssima (100A+ por célula)
+
+**Desvantagens:**
+- ❌ Vida útil curta (300-500 ciclos)
+- ❌ **Muito perigoso** se perfurado (incêndio)
+- ❌ Incha com tempo (swelling)
+
+**Uso em humanoides:** ⚠️ Apenas protótipos/hobby - Não comercial
+
+**Exemplo - Hobby:**
+```
+Turnigy 6S 5000mAh 20C:
+  Voltagem: 22.2V (6 células × 3.7V)
+  Capacidade: 5 Ah = 111 Wh
+  Corrente max: 100A (20C × 5A)
+  Peso: 680g
+  Preço: $60
+  Uso: Robô bípede pequeno (< 5 kg)
+```
+
+</TabItem>
+
+<TabItem value="future" label="Futuro (Estado Sólido)">
+
+### Baterias de Estado Sólido - O Futuro
+
+**O que são:** Eletrólito líquido → Eletrólito sólido (cerâmica/polímero)
+
+**Promessas:**
+```
+Densidade: 400-500 Wh/kg (2x atual!)
+Segurança: Não inflamável
+Vida útil: 10,000+ ciclos
+Temperatura: -40°C a 100°C
+```
+
+**Status (2024):**
+- Toyota: Produção piloto prevista 2027
+- QuantumScape: Protótipos funcionais
+- Samsung SDI: Testes com carros elétricos
+
+**Quando em humanoides:** Provavelmente 2028-2030
+
+**Impacto esperado:**
+```
+Humanoide atual:
+  Bateria 720 Wh (48V 15Ah), 6 kg
+  Autonomia: 2h caminhando
+
+Com estado sólido:
+  Mesma bateria → 1440 Wh, 4 kg
+  Autonomia: 4-5h caminhando
+  OU: Mesma autonomia, robô 2 kg mais leve
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔌 Configuração de Bateria
+
+### Células em Série vs Paralelo
+
+**Conceitos:**
+
+```
+Série (S): Aumenta voltagem
+  3.7V → 3.7V → 3.7V = 11.1V (3S)
+  Capacidade: Mesma (se uma célula é 3000mAh, total é 3000mAh)
+
+Paralelo (P): Aumenta capacidade
+  3.7V
+  3.7V  → 3.7V total
+  3.7V
+  Capacidade: 3x (se cada 3000mAh, total 9000mAh)
+
+Série + Paralelo (SxP):
+  12S2P = 12 células em série, 2 em paralelo
+  Voltagem: 12 × 3.7V = 44.4V nominal
+  Capacidade: 2x a célula individual
+```
+
+### Configurações Típicas em Humanoides
+
+<div className="comparison-table">
+
+| Modelo | Config | Voltagem | Capacidade | Energia Total | Peso |
+|--------|--------|----------|------------|---------------|------|
+| **Unitree H1** | 13S5P | 48V nom | 15 Ah | 720 Wh | ~6 kg |
+| **Tesla Optimus** | 20S?P | 72V est | 20 Ah | 1440 Wh | ~8 kg |
+| **Figure 02** | 16S?P | 60V est | 15 Ah | 900 Wh | ~7 kg |
+| **NAO (pequeno)** | 6S2P | 22.2V | 3.6 Ah | 80 Wh | 0.8 kg |
+
+</div>
+
+**Por que voltagens diferentes:**
+
+```
+24V: Hobby, robôs pequenos
+  + Seguro, componentes baratos
+  - Corrente alta (I = P/V), cabos grossos
+
+48V: Padrão industrial
+  + Equilíbrio custo/performance
+  + Muitos componentes disponíveis
+
+72V+: Alta performance
+  + Motores mais eficientes
+  + Cabos mais finos (mesma potência, menos corrente)
+  - Mais perigoso (choque)
+  - Componentes mais caros
+```
+
+---
+
+## 🛡️ BMS (Battery Management System)
+
+### O que é BMS
+
+**Definição:** Sistema eletrônico que monitora e protege a bateria
+
+**Componentes:**
+```
+┌─────────────────────────────────┐
+│ BMS (Battery Management System) │
+│                                 │
+│ 1. Monitoramento de Células     │
+│    - Voltagem individual        │
+│    - Temperatura                │
+│    - Corrente total             │
+│                                 │
+│ 2. Balanceamento                │
+│    - Equaliza carga entre células│
+│                                 │
+│ 3. Proteções                    │
+│    - Sobrevoltagem              │
+│    - Subvoltagem                │
+│    - Sobrecorrente              │
+│    - Sobretemperatura           │
+│    - Curto-circuito             │
+│                                 │
+│ 4. Comunicação                  │
+│    - CANbus / UART              │
+│    - Estado de carga (SOC)      │
+│    - Estado de saúde (SOH)      │
+└─────────────────────────────────┘
+```
+
+### Proteções Críticas
+
+<Tabs>
+<TabItem value="overvoltage" label="Sobrevoltagem" default>
+
+**O que é:** Célula carregada além do limite (> 4.2V para Li-Ion típico)
+
+**Perigo:**
+- Degradação permanente
+- Risco de fogo/explosão
+
+**Proteção BMS:**
+```python
+for cell in battery.cells:
+    if cell.voltage > 4.25:  # Limite com margem
+        stop_charging()
+        alert("Sobrevoltagem detectada!")
+```
+
+</TabItem>
+
+<TabItem value="undervoltage" label="Subvoltagem">
+
+**O que é:** Célula descarregada demais (< 2.5V)
+
+**Perigo:**
+- Dano irreversível (célula "morre")
+- Formação de dendritos (curto interno)
+
+**Proteção BMS:**
+```python
+if cell.voltage < 3.0:  # Limite seguro
+    cut_power()  # Desliga saída
+    enter_sleep_mode()
+```
+
+</TabItem>
+
+<TabItem value="overcurrent" label="Sobrecorrente">
+
+**O que é:** Corrente acima do limite (> 3C típico)
+
+**Cenário:**
+```
+Bateria 15 Ah, limite 3C = 45A contínuo
+
+Cenário normal (caminhando):
+  Corrente: 10-20A ✅
+
+Cenário pico (salto):
+  Corrente: 100A por 0.5s
+  BMS permite pico curto ✅
+
+Cenário curto-circuito:
+  Corrente: 500A+
+  BMS desliga em < 10ms ❌ EMERGÊNCIA
+```
+
+**Proteção:**
+- MOSFET de potência que corta circuito
+- Tempo de resposta: < 10 microsegundos
+
+</TabItem>
+
+<TabItem value="temperature" label="Temperatura">
+
+**Limites seguros (Li-Ion):**
+```
+Descarga:
+  Ideal: 15-35°C
+  OK: 0-50°C
+  Perigo: > 60°C (thermal runaway)
+
+Carga:
+  Ideal: 15-35°C
+  OK: 5-45°C
+  NÃO CARREGAR: < 0°C (forma lítio metálico = perigo)
+```
+
+**Sensores:**
+- NTC thermistor em cada célula (ou grupo)
+- BMS corta carga/descarga se fora da faixa
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Autonomia e Consumo
+
+### Cálculo de Autonomia
+
+**Fórmula básica:**
+```
+Autonomia (h) = Capacidade (Wh) / Consumo (W)
+```
+
+**Exemplo - Unitree H1:**
+
+```
+Cenário 1: Em pé parado
+  Bateria: 720 Wh
+  Consumo: 50W (manter torque)
+  Autonomia: 720 / 50 = 14.4 horas ✅
+
+Cenário 2: Caminhando (2 km/h)
+  Consumo: 300W
+  Autonomia: 720 / 300 = 2.4 horas ✅
+
+Cenário 3: Correndo (5 km/h)
+  Consumo: 1000W
+  Autonomia: 720 / 1000 = 0.72 horas = 43 minutos ⚠️
+
+Cenário 4: Carregando caixa 10kg
+  Consumo: 500W
+  Autonomia: 720 / 500 = 1.4 horas
+```
+
+### Comparação com Humanos
+
+**Eficiência energética:**
+
+<div className="comparison-table">
+
+| Ser | Massa | Potência Caminhando | Wh/kg/km |
+|-----|-------|---------------------|----------|
+| **Humano** | 70 kg | 70W | 0.05 |
+| **Unitree H1** | 47 kg | 300W | 0.32 |
+| **Tesla Optimus** | 56 kg | 400W (est) | 0.36 |
+| **Boston Dynamics Atlas** | 89 kg | 500W (est) | 0.28 |
+
+</div>
+
+**Por que robôs são piores:**
+- ❌ Motores elétricos: 70-90% eficientes vs músculos: 25% (mas músculos são 100% naturais)
+- ❌ Controle ativo constante (gasta energia para ficar parado)
+- ❌ Peso da bateria (~10-15% do peso total)
+
+**Tendências:**
+- ✅ Controle preditivo (planeja trajetória mais eficiente)
+- ✅ Recuperação de energia (freio regenerativo ao descer)
+- ✅ Baterias melhores (densidade aumentando 5% ao ano)
+
+---
+
+## 🔄 Carregamento
+
+### Métodos de Carga
+
+<Tabs>
+<TabItem value="standard" label="Carga Padrão" default>
+
+### Carga CC/CV (Constant Current / Constant Voltage)
+
+**Como funciona:**
+```
+Fase 1: Corrente Constante (CC)
+  - Carregador aplica corrente fixa (ex: 15A)
+  - Voltagem sobe gradualmente
+  - Até atingir 4.2V por célula
+
+Fase 2: Voltagem Constante (CV)
+  - Mantém 4.2V
+  - Corrente diminui gradualmente
+  - Até corrente < 0.1A (bateria cheia)
+
+Tempo típico:
+  Carga 1C (15A para bateria 15Ah): ~1.5-2 horas
+```
+
+**Taxa de carga:**
+```
+0.5C: Lenta, mais saudável (3-4h)
+1C: Padrão (1.5-2h)
+2C: Rápida, estressa bateria (1h)
+5C+: Ultra-rápida, apenas se BMS suportar (<30min)
+```
+
+</TabItem>
+
+<TabItem value="fast" label="Carga Rápida">
+
+### Fast Charging (80% em 30min)
+
+**Técnica:**
+```
+1. Pré-aquecimento (se < 10°C)
+2. Carga 3C até 80% SOC (State of Charge)
+3. Reduzir para 0.5C até 100%
+```
+
+**Exemplo - Tesla Optimus (estimado):**
+```
+Bateria: 1440 Wh (72V 20Ah)
+Carregador: 5kW (70A @ 72V)
+
+Tempo:
+  0-80%: 20 minutos (alta corrente)
+  80-100%: 40 minutos (baixa corrente)
+  Total: ~1 hora
+```
+
+**Trade-off:**
+- ✅ Conveniência
+- ❌ Reduz vida útil da bateria (~20-30%)
+
+</TabItem>
+
+<TabItem value="wireless" label="Sem Fio (Futuro)">
+
+### Carga por Indução
+
+**O que é:** Bobinas transmitem energia sem contato físico
+
+**Status atual:**
+- ✅ Comercial em celulares (Qi: 15W)
+- ⚠️ Protótipos em robótica (100-500W)
+- ❌ Não comercial em humanoides ainda
+
+**Desafio:**
+```
+Potência necessária: 500-1000W
+Eficiência indutiva: 85-90%
+Perda de calor: 50-100W
+Alinhamento: Precisa ser preciso (± 5mm)
+```
+
+**Vantagem para humanoides:**
+- ✅ Robô se posiciona automaticamente em estação
+- ✅ Sem necessidade de manipular cabo
+- ✅ Carga oportunística (em pé em estação de espera)
+
+**Previsão:** 2026-2028 para modelos comerciais
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🏗️ Distribuição de Potência
+
+### Arquitetura Elétrica
+
+```
+┌─────────────┐
+│  Bateria    │ 48V Main Bus
+│  (48V 15Ah) │
+└──────┬──────┘
+       │
+   ┌───┴──────────────────┬────────────┬──────────┐
+   │                      │            │          │
+   ▼                      ▼            ▼          ▼
+┌──────┐            ┌──────────┐  ┌───────┐  ┌──────┐
+│BMS   │            │DC/DC 24V │  │DC/DC  │  │Motors│
+│Logic │            │(Jetson)  │  │12V    │  │48V   │
+│(5V)  │            └──────────┘  │(MCU)  │  │Direct│
+└──────┘                          └───────┘  └──────┘
+                                  ┌───────┐
+                                  │DC/DC  │
+                                  │5V     │
+                                  │(Sens.)│
+                                  └───────┘
+```
+
+**Conversores DC-DC:**
+- **48V → 24V** (100W): Jetson Orin, câmeras
+- **48V → 12V** (50W): MCU, periféricos
+- **48V → 5V** (20W): Sensores, lógica
+- **48V direto**: Motores (mais eficiente)
+
+**Eficiência:**
+```
+Conversor Buck (step-down): 90-95%
+Perda: 50W em conversão (dos 720Wh, ~50Wh são perdidos)
+```
+
+---
+
+## 🛠️ Montando Sistema de Energia DIY
+
+### Opção Hobbyista ($150)
+
+```
+6S LiPo (22.2V 5000mAh): $60
+BMS 6S 30A: $25
+Carregador IMAX B6: $40
+Conversor 24V→12V (10A): $15
+Conversor 24V→5V (5A): $10
+
+Total: ~$150
+
+Energia: 111 Wh
+Autonomia: 30-60min (robô pequeno)
+```
+
+---
+
+### Opção Profissional ($800)
+
+```
+13S5P LFP (48V 15Ah):
+  - 65x 32650 LFP células: $400
+  - BMS 13S 100A com CANbus: $150
+  - Soldagem por pontos + case: $100
+
+Carregador 48V 10A: $120
+Conversor 48V→24V 150W: $30
+
+Total: ~$800
+
+Energia: 720 Wh (mesma que H1!)
+Autonomia: 2h caminhando
+```
+
+---
+
+## 💡 Inovações Futuras
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">⚡</div>
+<h3>Supercapacitores Híbridos</h3>
+<p>Bateria para autonomia + supercap para picos (saltos)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">☀️</div>
+<h3>Células Solares Integradas</h3>
+<p>Pele com painel solar flexível (+10-20% autonomia)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🔄</div>
+<h3>Troca de Bateria Rápida</h3>
+<p>Swap em 30 segundos (como carros NIO)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🧪</div>
+<h3>Células de Combustível H2</h3>
+<p>Hidrogênio para autonomia 8h+ (muito futuro)</p>
+</div>
+
+</div>
+
+---
+
+## 🎓 Conceitos-Chave
+
+:::tip Lembre-se
+1. **LFP para comercial, NMC para performance** - Trade-off segurança vs densidade
+2. **BMS é obrigatório** - Nunca use bateria Li-Ion sem proteção
+3. **Voltagem alta = eficiência** - Por isso 48-72V domina
+4. **Autonomia é o gargalo #1** - Baterias melhoram só 5% ao ano
+:::
+
+:::info Você Sabia?
+O **Tesla Optimus usa a mesma célula 4680 dos carros Model Y**! Isso reduz custo massivamente (economia de escala) e permite aproveitar inovações da indústria automotiva.
+:::
+
+---
+
+## 🔗 Próximo Módulo
+
+Hardware pronto! Agora vamos ao software e inteligência artificial:
+
+<div className="next-module-cta">
+  <a href="/HG1/docs/tier1/software" className="cta-button">
+    🧠 Módulo 8: Software e IA →
+  </a>
+</div>
+
+---
+
+<div className="module-footer">
+  <div className="footer-section">
+    <h4>🎯 Teste Seus Conhecimentos</h4>
+    <p>Por que Unitree escolheu LFP ao invés de NMC?</p>
+    <details>
+      <summary>Ver Resposta</summary>
+      <p><strong>Segurança + Ciclos:</strong> LFP aguenta 3000-5000 ciclos vs 1000-2000 do NMC, crucial para uso comercial diário. E risco de fogo é muito menor (importante para certificação).</p>
+    </details>
+  </div>
+
+  <div className="footer-section">
+    <h4>📚 Recursos</h4>
+    <ul>
+      <li><a href="https://batteryuniversity.com/" target="_blank">Battery University (guia completo)</a></li>
+      <li><a href="https://www.diybms.com/" target="_blank">DIY BMS (open-source)</a></li>
+      <li><a href="https://www.youtube.com/watch?v=gcJtqm5G5lE" target="_blank">How Lithium Batteries Work (vídeo)</a></li>
+    </ul>
+  </div>
+</div>

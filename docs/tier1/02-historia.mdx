@@ -1,0 +1,381 @@
+---
+id: historia
+title: 📜 História e Evolução dos Humanoides
+description: Da ficção científica à realidade - a jornada dos robôs humanoides
+tier: 1
+module_number: 2
+estimated_time: 15
+sidebar_position: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 📜 História e Evolução dos Humanoides
+
+<div className="hero-badges">
+  <span className="badge badge-tier1">Tier 1 - Módulo 2</span>
+  <span className="badge badge-time">⏱️ 15 minutos</span>
+  <span className="badge badge-level">📊 Fundamentos</span>
+</div>
+
+## 🎯 O que você vai aprender
+
+Neste módulo, você vai descobrir como os robôs humanoides evoluíram desde os primeiros conceitos até os modelos avançados de hoje, entendendo os marcos históricos e as tecnologias que tornaram isso possível.
+
+---
+
+## 🕰️ Linha do Tempo da Robótica Humanoide
+
+### **Era Pré-Digital (Antes de 1960)**
+
+<div className="timeline-card">
+
+#### 🎭 **Autômatos Mecânicos**
+- **Século 18**: Primeiros autômatos na Europa
+- **1770**: "O Turco" - autômato jogador de xadrez (na verdade controlado por humano)
+- **1893**: Elektro - robô humanoide mecânico na Feira Mundial
+- **Limitação**: Puramente mecânico, sem inteligência real
+
+</div>
+
+### **Era dos Pioneiros (1960-1990)**
+
+<div className="timeline-card">
+
+#### 🤖 **Primeiros Robôs Reais**
+- **1973**: WABOT-1 (Universidade de Waseda, Japão)
+  - Primeiro robô humanoide funcional
+  - Podia caminhar, falar e manipular objetos
+  - Visão artificial básica
+
+- **1984**: WABOT-2
+  - Tocava órgão eletrônico
+  - Lia partituras musicais
+  - Demonstrou coordenação olho-mão
+
+</div>
+
+### **Era Honda (1990-2000)**
+
+<div className="timeline-card">
+
+#### 🚶 **A Revolução da Locomoção**
+- **1986-1993**: Protótipos E0 a E6 (secretos)
+  - Honda desenvolve tecnologia de caminhada bípede
+  - Controle dinâmico de equilíbrio
+
+- **1996**: P2 (Prototype 2)
+  - Primeiro robô humanoide independente
+  - 180 cm, 210 kg
+  - Subia escadas autonomamente
+
+- **2000**: ASIMO (Advanced Step in Innovative Mobility)
+  - **Marco histórico**: Primeiro humanoide comercial viável
+  - 130 cm, 54 kg
+  - Velocidade de caminhada: 1.6 km/h
+  - Reconhecimento de voz e faces
+
+</div>
+
+### **Era da Competição (2000-2010)**
+
+<div className="timeline-card">
+
+#### 🏆 **Explosão de Projetos**
+- **2000**: Sony QRIO
+  - Corria a 23 m/min
+  - Dançava e reconhecia rostos
+
+- **2004**: HRP-2 (Japão)
+  - Trabalhava em ambientes perigosos
+  - Primeiro foco em aplicações práticas
+
+- **2005**: HUBO (Coréia do Sul - KAIST)
+  - Mãos com 5 dedos
+  - Caminhada em terrenos irregulares
+
+- **2009**: CHARLI (EUA - Virginia Tech)
+  - Primeiro humanoide de código aberto
+  - RoboCup Soccer
+
+</div>
+
+### **Era Moderna (2010-Presente)**
+
+<div className="timeline-card">
+
+#### 🚀 **Humanoides Avançados**
+
+**2013-2015: Boston Dynamics Atlas**
+- Desenvolvido com DARPA
+- DARPA Robotics Challenge (2015)
+- Navegação em terrenos extremos
+- Manipulação de objetos
+
+**2016: Sophia (Hanson Robotics)**
+- Primeiro robô com "cidadania" (Arábia Saudita)
+- Foco em interação social
+- Expressões faciais realistas
+
+**2021-2024: Nova Geração**
+- **Tesla Optimus** (2022): Foco em manufatura
+- **Unitree H1** (2023): Acessível ($90k)
+- **Figure 01** (2023): Trabalho industrial
+- **Sanctuary Phoenix** (2024): Tarefas gerais
+
+</div>
+
+---
+
+## 🔬 Tecnologias que Viabilizaram a Evolução
+
+<Tabs>
+<TabItem value="hardware" label="⚙️ Hardware" default>
+
+### Avanços em Hardware
+
+| Década | Tecnologia | Impacto |
+|--------|-----------|---------|
+| **1960-1980** | Motores elétricos + Hidráulica | Movimentos básicos |
+| **1980-2000** | Servomotores + Sensores IMU | Equilíbrio dinâmico |
+| **2000-2010** | Atuadores elétricos compactos | Redução de peso/tamanho |
+| **2010-2020** | Baterias Li-Ion + Materiais leves | Autonomia 2-4h |
+| **2020-hoje** | Atuadores quasi-direct drive | Precisão + força |
+
+**Exemplo prático:**
+- **ASIMO (2000)**: 54 kg, autonomia 30 min
+- **Unitree H1 (2023)**: 47 kg, autonomia 2h+
+
+</TabItem>
+
+<TabItem value="software" label="💻 Software">
+
+### Evolução do Software
+
+**1. Controle de Movimento (1970-2000)**
+```
+Técnica: ZMP (Zero Moment Point)
+- Cálculo de onde colocar o pé
+- Garantia de estabilidade
+- Movimentos lentos e planejados
+```
+
+**2. Aprendizado de Máquina (2000-2015)**
+```
+Técnica: Reinforcement Learning
+- Robô aprende a caminhar por tentativa/erro
+- Simulação em ambiente virtual
+- Transferência para robô real
+```
+
+**3. Deep Learning (2015-hoje)**
+```
+Técnica: Redes Neurais Profundas
+- Visão computacional (detectar objetos)
+- Processamento de linguagem natural
+- Imitação de movimentos humanos
+```
+
+**Frameworks Modernos:**
+- **ROS/ROS2**: Sistema operacional para robôs
+- **Isaac Sim**: Simulador da NVIDIA
+- **MuJoCo**: Motor de física para ML
+
+</TabItem>
+
+<TabItem value="sensors" label="🎯 Sensores">
+
+### Sensoriamento ao Longo do Tempo
+
+**Gerações de Sensores:**
+
+**1ª Geração (1970-1990)**
+- Encoders de posição
+- Sensores de contato (switches)
+- Giroscópios mecânicos
+
+**2ª Geração (1990-2010)**
+- Câmeras RGB
+- IMUs digitais (acelerômetro + giroscópio)
+- Sensores de força (pés, mãos)
+
+**3ª Geração (2010-2020)**
+- Câmeras estéreo
+- LIDAR 2D/3D
+- Sensores táteis distribuídos
+
+**4ª Geração (2020-hoje)**
+- Câmeras de profundidade (RealSense, OAK-D)
+- LIDAR de estado sólido
+- Sensores de torque em todas juntas
+- Pele eletrônica (e-skin)
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Comparação: ASIMO vs Humanoides Modernos
+
+<div className="comparison-grid">
+
+<div className="comparison-card">
+
+### 🤖 ASIMO (2000-2018)
+**Honda - Era Clássica**
+
+**Especificações:**
+- Altura: 130 cm
+- Peso: 48 kg (versão final)
+- Velocidade: 9 km/h (corrida)
+- Autonomia: 1 hora
+- Graus de liberdade: 57
+
+**Capacidades:**
+- ✅ Subir escadas
+- ✅ Correr
+- ✅ Reconhecer faces
+- ✅ Servir bebidas
+- ❌ Manipulação complexa
+- ❌ Terrenos irregulares
+
+**Preço:** Não comercializado
+**Status:** Aposentado em 2018
+
+</div>
+
+<div className="comparison-card">
+
+### 🚀 Unitree H1 (2023)
+**China - Era Moderna**
+
+**Especificações:**
+- Altura: 180 cm
+- Peso: 47 kg
+- Velocidade: 5 km/h (estável)
+- Autonomia: 2+ horas
+- Graus de liberdade: 21
+
+**Capacidades:**
+- ✅ Caminhar em terrenos variados
+- ✅ Manipulação com mãos
+- ✅ Visão 3D (profundidade)
+- ✅ ROS2 nativo
+- ✅ SDK completo
+- ✅ Código parcialmente aberto
+
+**Preço:** ~$90,000 USD
+**Status:** Comercializado
+
+</div>
+
+<div className="comparison-card">
+
+### ⚡ Tesla Optimus (2024)
+**EUA - Era Industrial**
+
+**Especificações:**
+- Altura: 173 cm
+- Peso: 56 kg
+- Velocidade: 8 km/h
+- Autonomia: ~8 horas (estimado)
+- Graus de liberdade: 28
+
+**Capacidades:**
+- ✅ Manipulação precisa (11 DoF mãos)
+- ✅ IA integrada (visão + decisão)
+- ✅ Tarefas repetitivas (fábrica)
+- ✅ Aprendizado contínuo
+- ⏳ Terrenos complexos (em dev)
+- ❌ Não comercializado ainda
+
+**Preço:** Meta < $30,000 USD
+**Status:** Protótipo avançado
+
+</div>
+
+</div>
+
+---
+
+## 💡 Por que a Evolução Acelerou Agora?
+
+### 🔥 Fatores da Explosão 2020-2024
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">🧠</div>
+<h3>IA Generativa</h3>
+<p>GPT-4, Claude, Gemini permitiram humanoides que entendem linguagem natural e geram comportamentos complexos.</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">💰</div>
+<h3>Investimento Massivo</h3>
+<p>Bilhões de dólares de Tesla, OpenAI, Google, startups chinesas aceleraram P&D.</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🏭</div>
+<h3>Aplicação Clara</h3>
+<p>Escassez de mão de obra + automação de fábricas = mercado real (não mais apenas pesquisa).</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🔋</div>
+<h3>Componentes Acessíveis</h3>
+<p>Baterias de veículos elétricos, processadores ARM, câmeras de celular = custo menor.</p>
+</div>
+
+</div>
+
+---
+
+## 🎓 Lições da História
+
+:::tip Princípios que se Mantêm
+1. **Locomoção bípede é difícil** - Levou 30 anos de WABOT-1 a ASIMO
+2. **Simulação é crucial** - Atlas aprendeu a correr em simulador antes do mundo real
+3. **Código aberto acelera** - ROS democratizou a robótica
+4. **Aplicação puxa inovação** - DARPA Challenge impulsionou Atlas
+:::
+
+:::info Você Sabia?
+O ASIMO foi aposentado em 2018, mas suas patentes inspiraram toda a geração moderna de humanoides. Muitos engenheiros da Honda agora trabalham em startups de robótica!
+:::
+
+---
+
+## 🔗 Próximos Passos
+
+Agora que você conhece a história, vamos explorar os **modelos específicos** que estão revolucionando o mercado hoje:
+
+<div className="next-module-cta">
+  <a href="/HG1/docs/tier1/modelos" className="cta-button">
+    📱 Módulo 3: Principais Modelos →
+  </a>
+</div>
+
+---
+
+<div className="module-footer">
+  <div className="footer-section">
+    <h4>📚 Fontes Recomendadas</h4>
+    <ul>
+      <li><a href="https://global.honda/en/robotics/ASIMO/" target="_blank">Honda ASIMO Archive</a></li>
+      <li><a href="https://www.bostondynamics.com/atlas" target="_blank">Boston Dynamics Atlas</a></li>
+      <li><a href="https://youtu.be/cpraXaw7dyc" target="_blank">History of Humanoid Robots (IEEE)</a></li>
+    </ul>
+  </div>
+
+  <div className="footer-section">
+    <h4>🎯 Teste Seus Conhecimentos</h4>
+    <p>Qual foi o primeiro robô humanoide independente?</p>
+    <details>
+      <summary>Ver Resposta</summary>
+      <p>Honda P2 (1996) - Foi o primeiro a caminhar de forma totalmente autônoma sem cabos externos.</p>
+    </details>
+  </div>
+</div>

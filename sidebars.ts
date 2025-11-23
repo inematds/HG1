@@ -18,7 +18,15 @@ const sidebars: SidebarsConfig = {
       label: 'Tier 1: Conhecendo Humanoides',
       items: [
         'tier1/introducao',
-        // Additional modules will be added as content is created
+        'tier1/historia',
+        'tier1/modelos',
+        'tier1/sensores',
+        'tier1/atuadores',
+        'tier1/computacao',
+        'tier1/energia',
+        'tier1/software',
+        'tier1/aplicacoes',
+        'tier1/futuro',
       ],
     },
   ],

@@ -1,0 +1,743 @@
+---
+id: computacao
+title: 💻 Computação Embarcada
+description: Os cérebros computacionais que coordenam sensores, motores e inteligência artificial
+tier: 1
+module_number: 6
+estimated_time: 16
+sidebar_position: 6
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 💻 Computação Embarcada
+
+<div className="hero-badges">
+  <span className="badge badge-tier1">Tier 1 - Módulo 6</span>
+  <span className="badge badge-time">⏱️ 16 minutos</span>
+  <span className="badge badge-level">📊 Fundamentos</span>
+</div>
+
+## 🎯 O que você vai aprender
+
+Neste módulo, você vai entender os computadores dentro dos robôs humanoides: desde microcontroladores que controlam motores até GPUs que processam visão computacional e IA.
+
+---
+
+## 🧠 A Arquitetura Computacional de um Humanoide
+
+### Analogia com o Cérebro Humano
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">🧠</div>
+<h3>Córtex (GPU/CPU Principal)</h3>
+<p>Raciocínio, visão, planejamento</p>
+<p><strong>Exemplo:</strong> NVIDIA Jetson Orin</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🏃</div>
+<h3>Cerebelo (MCU de Controle)</h3>
+<p>Coordenação motora, equilíbrio</p>
+<p><strong>Exemplo:</strong> STM32, Cortex-M7</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🦴</div>
+<h3>Nervos Periféricos (Drivers)</h3>
+<p>Controle direto de motores</p>
+<p><strong>Exemplo:</strong> ODrive, SimpleFOC</p>
+</div>
+
+</div>
+
+---
+
+## 🏗️ Arquitetura Hierárquica
+
+### Modelo de 3 Camadas
+
+```
+┌─────────────────────────────────────┐
+│ CAMADA 1: Computação de Alto Nível  │
+│ (High-Level Computer)               │
+│ • Visão computacional (IA)          │
+│ • Planejamento de trajetória        │
+│ • Tomada de decisão                 │
+│ • Interface com usuário             │
+│                                     │
+│ Hardware: Jetson Orin, PC embarcado │
+│ OS: Ubuntu + ROS2                   │
+│ Frequência: 10-60 Hz                │
+└──────────────┬──────────────────────┘
+               │ Ethernet/USB
+┌──────────────▼──────────────────────┐
+│ CAMADA 2: Controle de Baixo Nível   │
+│ (Real-Time Controller)              │
+│ • Controle de equilíbrio            │
+│ • Geração de torque                 │
+│ • Leitura de sensores (IMU, encoders)│
+│ • Segurança (emergency stop)        │
+│                                     │
+│ Hardware: MCU ARM Cortex-M7         │
+│ OS: FreeRTOS ou bare-metal          │
+│ Frequência: 1000 Hz (1 kHz)         │
+└──────────────┬──────────────────────┘
+               │ CANbus/UART
+┌──────────────▼──────────────────────┐
+│ CAMADA 3: Drivers de Motor          │
+│ (Motor Controllers)                 │
+│ • PWM para motores                  │
+│ • Leitura de encoder local          │
+│ • FOC (Field-Oriented Control)      │
+│                                     │
+│ Hardware: ESC, ODrive, driver integrado│
+│ Frequência: 20-50 kHz               │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 💪 Camada 1: Computação de Alto Nível
+
+### Opções de Hardware
+
+<Tabs>
+<TabItem value="jetson" label="NVIDIA Jetson" default>
+
+### NVIDIA Jetson - O Padrão da Indústria
+
+**Por que Jetson domina em robótica:**
+- ✅ GPU integrada (aceleração de IA)
+- ✅ Baixo consumo (10-30W)
+- ✅ Compacto (cartão de crédito)
+- ✅ Ecossistema maduro (JetPack SDK)
+
+**Modelos Disponíveis (2024):**
+
+<div className="comparison-table">
+
+| Modelo | GPU | RAM | Preço | Uso |
+|--------|-----|-----|-------|-----|
+| **Nano** | 128 CUDA | 4 GB | $99 | Hobby, protótipos |
+| **Xavier NX** | 384 CUDA | 8 GB | $399 | Projetos médios |
+| **Orin Nano** | 1024 CUDA | 8 GB | $499 | Entry profissional |
+| **Orin NX** | 1024 CUDA | 16 GB | $799 | Profissional |
+| **Orin AGX** | 2048 CUDA | 64 GB | $1,999 | Top de linha |
+
+</div>
+
+**Unitree H1 usa:** Jetson Orin (NX ou AGX, dependendo da configuração)
+
+**Capacidades:**
+```python
+# Performance em tarefas típicas (Orin AGX)
+YOLOv8 (detecção de objetos): 120 FPS @ 1080p
+Depth estimation: 60 FPS
+SLAM (mapeamento): 30 FPS simultâneo
+
+Consumo: 15-25W (modo performance)
+```
+
+</TabItem>
+
+<TabItem value="raspberry" label="Raspberry Pi">
+
+### Raspberry Pi - Econômico
+
+**Vantagens:**
+- ✅ Muito barato ($35-75)
+- ✅ Comunidade gigantesca
+- ✅ GPIO para prototipagem
+
+**Limitações:**
+- ❌ Sem GPU dedicada (IA lenta)
+- ❌ CPU ARM fraca
+- ❌ Não é tempo-real
+
+**Modelos:**
+```
+Raspberry Pi 4 (8GB): $75
+  CPU: Quad-core ARM A72 @ 1.5 GHz
+  RAM: 8 GB
+  GPU: VideoCore VI (fraca para IA)
+
+Raspberry Pi 5 (8GB): $80
+  CPU: Quad-core ARM A76 @ 2.4 GHz
+  Melhor, mas ainda sem GPU para IA
+```
+
+**Uso recomendado:**
+- ✅ Projetos educacionais pequenos
+- ✅ Interface/dashboard
+- ❌ NÃO para visão + IA em tempo real
+
+</TabItem>
+
+<TabItem value="pc" label="Mini PC x86">
+
+### Mini PC Embarcado
+
+**Quando usar:**
+- Precisa rodar software x86 (não ARM)
+- Quer máximo poder computacional
+- Peso/tamanho não são críticos
+
+**Exemplos:**
+```
+Intel NUC 13 Pro:
+  CPU: Core i7-1360P (12 cores)
+  RAM: 64 GB DDR4
+  GPU: Iris Xe (iGPU)
+  Consumo: 28W típico
+  Preço: $800
+
++ GPU externa (opcional):
+  NVIDIA RTX 4060 Mobile (eGPU via Thunderbolt)
+  Consumo: +80W
+```
+
+**Uso:** Boston Dynamics Atlas (nova versão elétrica provavelmente usa algo assim)
+
+</TabItem>
+
+<TabItem value="custom" label="Custom SoM">
+
+### System-on-Module Customizado
+
+**O que empresas fazem:**
+- Tesla Optimus: SoC custom (mesmo chip FSD dos carros)
+- Figure 02: Likely Qualcomm Snapdragon (não confirmado)
+
+**Vantagens de custom:**
+- ✅ Otimizado para tarefa específica
+- ✅ Integração total (hardware + software)
+- ❌ Caro desenvolver ($$$M em P&D)
+
+**Tesla FSD Chip:**
+```
+2x Neural Network Accelerators (72 TOPS cada)
+CPU: 12-core ARM A72
+GPU: Não divulgado
+Consumo: ~70W
+Projetado para: Processamento de 8 câmeras simultâneas
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## ⚡ Camada 2: Controlador Tempo-Real
+
+### Por que MCU Separado?
+
+**Problema do Linux:**
+```
+Linux não é tempo-real:
+  - Pode ter latência de 1-10ms imprevisível
+  - Garbage collector pode pausar programa
+  - Multitasking não garante prioridade
+
+Controle de equilíbrio precisa:
+  - Loop de 1 kHz (1ms exato)
+  - Zero jitter (variação)
+  - Prioridade absoluta
+```
+
+**Solução:** Microcontrolador dedicado (MCU)
+
+---
+
+### Opções de MCU
+
+<Tabs>
+<TabItem value="stm32" label="STM32" default>
+
+### STM32 - O Mais Popular
+
+**Família:** ARM Cortex-M (ST Microelectronics)
+
+**Modelos Comuns:**
+
+```
+STM32F4 (Entry):
+  CPU: Cortex-M4 @ 168 MHz
+  RAM: 192 KB
+  Flash: 1 MB
+  FPU: Sim (single precision)
+  Preço: $5-10
+
+STM32H7 (High-performance):
+  CPU: Cortex-M7 @ 480 MHz
+  RAM: 1 MB
+  Flash: 2 MB
+  FPU: Sim (double precision)
+  Preço: $15-25
+```
+
+**Por que é popular:**
+- ✅ FPU (cálculos de ponto flutuante rápidos)
+- ✅ Muitos timers (PWM)
+- ✅ CANbus integrado
+- ✅ DMA (transferência sem CPU)
+
+**Exemplo de uso:**
+```c
+// Loop de controle a 1 kHz
+void TIM2_IRQHandler() {  // Interrupção do timer
+    // Ler IMU (via SPI)
+    imu_data_t imu = read_imu();
+
+    // Ler encoders (via GPIO)
+    for (int i = 0; i < 21; i++) {
+        joint_pos[i] = read_encoder(i);
+    }
+
+    // Calcular torque (controle de equilíbrio)
+    compute_balance_control(imu, joint_pos, torque_output);
+
+    // Enviar comandos via CANbus
+    for (int i = 0; i < 21; i++) {
+        can_send_torque(i, torque_output[i]);
+    }
+}
+```
+
+</TabItem>
+
+<TabItem value="teensy" label="Teensy">
+
+### Teensy - Arduino Turbinado
+
+**O que é:** Placa ARM com Arduino IDE
+
+**Modelo popular:**
+```
+Teensy 4.1:
+  CPU: ARM Cortex-M7 @ 600 MHz
+  RAM: 1 MB
+  Flash: 8 MB
+  FPU: Sim
+  Ethernet: Sim (integrado)
+  Preço: $30
+```
+
+**Vantagens:**
+- ✅ Fácil de programar (Arduino IDE)
+- ✅ Rápido (600 MHz!)
+- ✅ Comunidade ativa
+
+**Limitações:**
+- ⚠️ Menos periféricos que STM32
+- ⚠️ CANbus precisa de módulo externo
+
+**Uso:** Projetos DIY, protótipos rápidos
+
+</TabItem>
+
+<TabItem value="esp32" label="ESP32">
+
+### ESP32 - Com WiFi
+
+**Especificações:**
+```
+ESP32-S3:
+  CPU: Dual-core Xtensa @ 240 MHz
+  RAM: 512 KB
+  WiFi: 802.11n
+  Bluetooth: 5.0
+  Preço: $3-8
+```
+
+**Vantagens:**
+- ✅ Baratíssimo
+- ✅ WiFi integrado (telemetria wireless)
+
+**Desvantagens:**
+- ❌ Sem FPU (cálculos lentos)
+- ❌ Não é ARM (menos suporte em robótica)
+
+**Uso:** Sensores auxiliares, telemetria, não para controle crítico
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🚗 Camada 3: Drivers de Motor
+
+### Controladores de Motor
+
+<Tabs>
+<TabItem value="odrive" label="ODrive" default>
+
+### ODrive - O Favorito Open-Source
+
+**O que é:** Driver de motor brushless (BLDC) com FOC
+
+**Modelos:**
+```
+ODrive v3.6 (Original):
+  Canais: 2 motores
+  Corrente: 60A contínuo por canal
+  Tensão: 12-56V
+  Interface: USB, UART, CANbus
+  Encoder: Incremental, absoluto, Hall
+  Preço: $120
+
+ODrive Pro:
+  Canais: 1 motor (mais compacto)
+  Corrente: 90A contínuo
+  Tensão: 12-56V
+  CANbus isolado
+  Preço: $200
+```
+
+**Por que é ótimo:**
+- ✅ Open-source (firmware e hardware)
+- ✅ FOC (controle suave e eficiente)
+- ✅ Controle de posição/velocidade/torque
+- ✅ Documentação excelente
+
+**Exemplo de comando:**
+```python
+import odrive
+odrv = odrive.find_any()
+
+# Configurar modo torque
+odrv.axis0.controller.config.control_mode = 1  # Torque
+
+# Aplicar 2 N·m
+odrv.axis0.controller.input_torque = 2.0
+```
+
+</TabItem>
+
+<TabItem value="vesc" label="VESC">
+
+### VESC - De Skates Elétricos
+
+**O que é:** Electronic Speed Controller com FOC
+
+**Especificações:**
+```
+VESC 6 MkVI:
+  Corrente: 50A contínuo, 240A pico
+  Tensão: 8-60V
+  Interface: UART, CANbus
+  Preço: $150
+```
+
+**Vantagens:**
+- ✅ Open-source
+- ✅ Muito robusto
+- ✅ Software maduro (VESC Tool)
+
+**Limitação:**
+- ⚠️ Otimizado para velocidade (skates), não torque
+
+</TabItem>
+
+<TabItem value="integrated" label="Drivers Integrados">
+
+### Drivers Integrados no Motor
+
+**Exemplo:** Dynamixel, Tmotor AK-series
+
+**Conceito:**
+```
+Motor tradicional:
+  Motor → Cabo → Driver (separado) → Cabo → MCU
+
+Motor integrado:
+  Motor + Driver + Encoder (tudo em um)
+    ↓
+  Cabo CANbus → MCU
+```
+
+**Vantagens:**
+- ✅ Menos cabos (mais limpo)
+- ✅ Plug-and-play
+- ✅ Calibração de fábrica
+
+**Desvantagens:**
+- ❌ Mais caro
+- ❌ Menos flexível
+
+**Tmotor AK80-9:**
+```
+Driver FOC integrado
+Interface: CANbus (1 Mbps)
+Controle: Posição, Velocidade, Torque
+Protocolo: MIT Mini-Cheetah
+Preço: $400 (motor + driver)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🔌 Comunicação Entre Camadas
+
+### Protocolos
+
+<div className="comparison-table">
+
+| Protocolo | Velocidade | Distância | Uso | Robustez |
+|-----------|-----------|-----------|-----|----------|
+| **CANbus** | 1 Mbps | 40m | Motores ↔ MCU | ⭐⭐⭐⭐⭐ |
+| **Ethernet** | 1 Gbps | 100m | Jetson ↔ MCU | ⭐⭐⭐⭐ |
+| **USB** | 480 Mbps | 5m | Câmeras, geral | ⭐⭐⭐ |
+| **UART/Serial** | 115 kbps | 15m | Debug, sensores simples | ⭐⭐ |
+| **SPI** | 10+ Mbps | 0.3m | IMU, encoder local | ⭐⭐⭐ |
+| **I2C** | 400 kbps | 1m | Sensores auxiliares | ⭐⭐ |
+
+</div>
+
+### CANbus em Detalhes
+
+**Por que CANbus domina em robótica:**
+
+```
+Características:
+✅ Diferencial (imune a ruído elétrico)
+✅ Multi-master (qualquer nó pode iniciar)
+✅ Arbitração (sem colisões)
+✅ CRC integrado (detecção de erro)
+✅ Cabos longos (até 40m)
+
+Topologia:
+  MCU ←→ Motor1 ←→ Motor2 ←→ ... ←→ Motor21
+  (Daisy-chain, não estrela)
+
+Velocidades típicas:
+  250 kbps: Aplicações automotivas
+  500 kbps: Robótica moderada
+  1 Mbps: Robótica de alta performance (Unitree)
+```
+
+**Exemplo de mensagem CAN:**
+```python
+# Enviar comando de torque para motor ID=5
+can_message = {
+    'id': 0x05,  # Motor ID
+    'data': [
+        0x01,  # Comando: Set torque
+        0x00, 0x64,  # Torque: 100 (0x0064) em escala
+        0x00, 0x00, 0x00, 0x00, 0x00  # Padding
+    ],
+    'dlc': 8  # Data length
+}
+can.send(can_message)
+```
+
+---
+
+## 📊 Arquiteturas Reais
+
+### Unitree H1 (Estimado)
+
+```
+┌─────────────────────────────────┐
+│ Jetson Orin NX (16GB)           │ ← Visão, IA, ROS2
+│ - RealSense D435i (USB)         │   30-60 Hz
+│ - LIDAR (Ethernet)              │
+└──────────┬──────────────────────┘
+           │ Ethernet (UDP)
+┌──────────▼──────────────────────┐
+│ MCU Cortex-M7 (STM32H7 likely) │ ← Controle de equilíbrio
+│ - IMU (SPI)                     │   1000 Hz
+│ - Foot sensors (GPIO/ADC)       │
+└──────────┬──────────────────────┘
+           │ CANbus @ 1 Mbps
+     ┌─────┴─────┬─────┬───── ... ─┬─────┐
+     ▼           ▼     ▼            ▼     ▼
+  [Motor1]   [Motor2] ...      [Motor21]
+  Drivers integrados (QDD)
+```
+
+---
+
+### Tesla Optimus (Especulado)
+
+```
+┌─────────────────────────────────┐
+│ Tesla FSD Chip (Custom SoC)     │ ← IA, visão, tudo
+│ - 8x Câmeras                    │   Processamento
+│ - Áudio                         │   integrado
+└──────────┬──────────────────────┘   30-120 Hz
+           │ Ethernet/Custom bus
+┌──────────▼──────────────────────┐
+│ MCU Secundário (backup/safety)  │ ← Emergency stop
+└──────────┬──────────────────────┘   Watchdog
+           │ CANbus
+     ┌─────┴─────┬───── ... ─┐
+     ▼           ▼            ▼
+  [Motor1]   [Motor28]   [Torque sensors]
+  Drivers custom Tesla
+```
+
+**Diferencial:** Chip único faz tudo (reduz latência Jetson↔MCU)
+
+---
+
+## 🔋 Consumo de Energia
+
+### Budget de Potência
+
+<div className="comparison-table">
+
+| Componente | Potência (W) | % do Total |
+|------------|-------------|------------|
+| **Motores (movimento)** | 200-1000 | 60-80% |
+| **Jetson Orin** | 15-25 | 5-10% |
+| **MCU + Periféricos** | 5-10 | 2-5% |
+| **Sensores (câmeras, LIDAR)** | 10-20 | 3-8% |
+| **Perdas (conversão DC/DC)** | 20-50 | 5-10% |
+| **Total** | 250-1105 | 100% |
+
+</div>
+
+**Exemplo - H1 caminhando:**
+```
+Bateria: 48V × 15Ah = 720 Wh
+Consumo médio: 350W
+Autonomia: 720 Wh / 350W = 2 horas
+```
+
+**Otimizações:**
+- ✅ Desligar Jetson quando parado (só MCU ativo)
+- ✅ Undervolt GPU se IA não está rodando
+- ✅ Power gating de sensores não usados
+
+---
+
+## 🛠️ Montando Stack Computacional DIY
+
+### Opção Econômica ($200)
+
+```
+Raspberry Pi 4 (8GB): $75
+STM32F4 Discovery: $25
+Câmera USB: $30
+IMU MPU-6050: $5
+CANbus transceiver MCP2515: $10
+Fonte de alimentação 12V: $30
+Cabos e proto-board: $25
+
+Total: ~$200
+
+O que dá para fazer:
+  ✅ Controle de 6-10 servos
+  ✅ Visão básica (OpenCV)
+  ✅ ROS2 no Pi
+  ❌ IA pesada
+```
+
+---
+
+### Opção Profissional ($1,500)
+
+```
+Jetson Orin Nano (8GB): $500
+STM32H7 Nucleo: $50
+RealSense D435i: $300
+RpLidar A1: $100
+ODrive v3.6 (x2): $240
+Bateria 48V 10Ah: $200
+Cabos, conectores, case: $110
+
+Total: ~$1,500
+
+O que dá para fazer:
+  ✅ SLAM em tempo real
+  ✅ Detecção de objetos (YOLO)
+  ✅ Controle de 4 motores BLDC
+  ✅ Publicar papers!
+```
+
+---
+
+## 💡 Tendências Futuras
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">🧠</div>
+<h3>SoCs Integrados</h3>
+<p>Chips únicos com CPU+GPU+NPU eliminando Jetson separado</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">⚡</div>
+<h3>Edge AI</h3>
+<p>Modelos de IA otimizados rodando em MCUs (TinyML)</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">📡</div>
+<h3>TSN (Time-Sensitive Networking)</h3>
+<p>Ethernet determinístico substituindo CANbus</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🔋</div>
+<h3>Neuromorphic Chips</h3>
+<p>Intel Loihi, IBM TrueNorth - 1000x mais eficiente</p>
+</div>
+
+</div>
+
+---
+
+## 🎓 Conceitos-Chave
+
+:::tip Lembre-se
+1. **Hierarquia é essencial:** Linux para IA, MCU para controle, driver para PWM
+2. **Tempo-real importa:** 1ms de atraso = robô cai
+3. **CANbus reina:** Protocolo padrão para motores
+4. **Jetson domina:** NVIDIA tem ecossistema imbatível em robótica
+:::
+
+:::info Você Sabia?
+O **Tesla Optimus não usa ROS**! Eles usam stack próprio (mesma do carro). Mas 90% dos humanoides usam ROS2 por ser open-source e maduro.
+:::
+
+---
+
+## 🔗 Próximo Módulo
+
+Computadores precisam de energia. Vamos aprender sobre baterias e sistemas de potência:
+
+<div className="next-module-cta">
+  <a href="/HG1/docs/tier1/energia" className="cta-button">
+    🔋 Módulo 7: Energia e Bateria →
+  </a>
+</div>
+
+---
+
+<div className="module-footer">
+  <div className="footer-section">
+    <h4>🎯 Teste Seus Conhecimentos</h4>
+    <p>Por que humanoides usam MCU separado ao invés de fazer tudo no Jetson?</p>
+    <details>
+      <summary>Ver Resposta</summary>
+      <p><strong>Tempo-real!</strong> Linux no Jetson tem latência imprevisível (1-10ms). Controle de equilíbrio precisa de loop exato a 1kHz (1ms). MCU dedicado garante isso.</p>
+    </details>
+  </div>
+
+  <div className="footer-section">
+    <h4>📚 Recursos</h4>
+    <ul>
+      <li><a href="https://developer.nvidia.com/embedded/jetson-orin" target="_blank">NVIDIA Jetson Orin</a></li>
+      <li><a href="https://odriverobotics.com/" target="_blank">ODrive Documentation</a></li>
+      <li><a href="https://www.st.com/en/microcontrollers-microprocessors/stm32h7-series.html" target="_blank">STM32H7 Datasheet</a></li>
+    </ul>
+  </div>
+</div>

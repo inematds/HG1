@@ -1,0 +1,607 @@
+---
+id: sensores
+title: 🎯 Sensores em Humanoides
+description: Como robôs humanoides percebem e entendem o mundo ao seu redor
+tier: 1
+module_number: 4
+estimated_time: 18
+sidebar_position: 4
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# 🎯 Sensores em Humanoides
+
+<div className="hero-badges">
+  <span className="badge badge-tier1">Tier 1 - Módulo 4</span>
+  <span className="badge badge-time">⏱️ 18 minutos</span>
+  <span className="badge badge-level">📊 Fundamentos</span>
+</div>
+
+## 🎯 O que você vai aprender
+
+Neste módulo, você vai entender como robôs humanoides "sentem" o mundo: desde sensores básicos de posição até câmeras 3D e sistemas táteis, descobrindo o que cada tipo de sensor faz e por que são essenciais.
+
+---
+
+## 🧠 Os Sentidos de um Humanoide
+
+Assim como humanos têm 5 sentidos, humanoides precisam de sistemas sensoriais para:
+
+<div className="feature-grid">
+
+<div className="feature-card">
+<div className="feature-icon">👁️</div>
+<h3>Visão</h3>
+<p>Câmeras RGB, profundidade, LIDAR</p>
+<p><strong>Função:</strong> Ver obstáculos, reconhecer objetos, navegar</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🦵</div>
+<h3>Propriocepção</h3>
+<p>Encoders, IMU, sensores de torque</p>
+<p><strong>Função:</strong> Saber posição de juntas e orientação do corpo</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🤲</div>
+<h3>Tato</h3>
+<p>Sensores de força, pressão, táteis</p>
+<p><strong>Função:</strong> Detectar contato, força de aperto</p>
+</div>
+
+<div className="feature-card">
+<div className="feature-icon">🎧</div>
+<h3>Audição</h3>
+<p>Microfones array</p>
+<p><strong>Função:</strong> Comandos de voz, localização de som</p>
+</div>
+
+</div>
+
+:::tip Analogia
+Se o **cérebro** do robô é o computador e os **músculos** são os motores, os **sensores** são os olhos, ouvidos e nervos que permitem perceber e reagir ao ambiente.
+:::
+
+---
+
+## 📷 Sensores de Visão
+
+### 1. Câmeras RGB (Coloridas)
+
+<div className="sensor-card">
+
+**O que é:** Câmera normal como a do seu celular
+
+**Como funciona:**
+- Captura imagens em cores (Red, Green, Blue)
+- Resolução típica: 1080p (1920x1080) a 4K
+- Taxa de quadros: 30-60 FPS
+
+**Aplicações em Humanoides:**
+- ✅ Reconhecimento de objetos (via deep learning)
+- ✅ Leitura de texto/códigos QR
+- ✅ Detecção de pessoas
+- ❌ NÃO mede distância diretamente
+
+**Modelos Comuns:**
+- Câmeras USB genéricas
+- Raspberry Pi Camera Module
+- Câmeras industriais (Basler, FLIR)
+
+</div>
+
+**Exemplo de uso:**
+```python
+# Detectar uma pessoa na imagem
+import cv2
+
+camera = cv2.VideoCapture(0)
+detector = cv2.CascadeClassifier('haarcascade_frontalface.xml')
+
+ret, frame = camera.read()
+faces = detector.detectMultiScale(frame)
+# faces contém coordenadas (x, y, largura, altura) de cada rosto
+```
+
+---
+
+### 2. Câmeras de Profundidade (Depth Cameras)
+
+<div className="sensor-card featured">
+
+**O que é:** Câmera que mede distância de cada pixel
+
+**Tecnologias:**
+
+#### **Estéreo (2 câmeras)**
+- Funciona como olhos humanos
+- Calcula profundidade por triangulação
+- Exemplo: OAK-D, ZED 2
+
+#### **Tempo de Voo (ToF)**
+- Emite luz infravermelha e mede tempo de retorno
+- Exemplo: Kinect Azure, Intel RealSense D455
+
+#### **Luz Estruturada**
+- Projeta padrão de luz e analisa distorção
+- Exemplo: Intel RealSense D435i (mais comum em humanoides)
+
+</div>
+
+**Especificações Intel RealSense D435i:**
+```
+Resolução profundidade: 1280x720
+Alcance: 0.3m - 10m
+FPS: Até 90
+Campo de visão: 87° x 58°
+IMU integrada: Sim (acelerômetro + giroscópio)
+Preço: ~$300 USD
+```
+
+**Output:**
+- **RGB**: Imagem colorida normal
+- **Depth**: Mapa de profundidade (cada pixel = distância em metros)
+- **Point Cloud**: Nuvem de pontos 3D (x, y, z)
+
+**Por que é essencial:**
+- ✅ Navegar sem bater em obstáculos
+- ✅ Pegar objetos (saber distância)
+- ✅ Subir escadas (detectar degraus)
+
+---
+
+### 3. LIDAR (Light Detection and Ranging)
+
+<div className="sensor-card">
+
+**O que é:** Laser que gira 360° medindo distâncias
+
+**Como funciona:**
+1. Emite pulsos de laser
+2. Mede tempo que luz leva para voltar
+3. Calcula distância: `d = (velocidade_da_luz × tempo) / 2`
+
+**Tipos:**
+
+| Tipo | Alcance | FPS | Preço | Uso em Humanoides |
+|------|---------|-----|-------|-------------------|
+| **2D** | 0.1-30m | 10-20 Hz | $100-500 | Navegação plana |
+| **3D** | 0.1-100m | 10-30 Hz | $1k-10k | Mapeamento 3D |
+| **Estado Sólido** | 0.1-200m | 30+ Hz | $500-5k | Futuro (sem partes móveis) |
+
+**Modelos Populares:**
+- **RPLidar A1** ($100): 2D, 12m, hobby
+- **Ouster OS1** ($5k): 3D, 128 canais, profissional
+- **Livox Mid-360** ($500): 3D, estado sólido
+
+</div>
+
+**Vantagens vs Câmera de Profundidade:**
+- ✅ Alcance maior (até 100m vs 10m)
+- ✅ Funciona em qualquer iluminação
+- ✅ Precisão milimétrica
+- ❌ Mais caro
+- ❌ Mais pesado/volumoso
+
+**Unitree H1 usa:** LIDAR 3D (provavelmente Livox Mid-360)
+
+---
+
+## 🦾 Sensores Proprioceptivos (Posição e Movimento)
+
+### 4. Encoders (Sensores de Posição Angular)
+
+<div className="sensor-card">
+
+**O que é:** Mede ângulo de rotação de cada junta
+
+**Tipos:**
+
+#### **Encoder Absoluto**
+- Sabe posição exata mesmo após desligar
+- Mais caro
+- Usado em juntas críticas
+
+#### **Encoder Incremental**
+- Conta pulsos de rotação
+- Perde posição ao desligar (precisa "home position")
+- Mais barato
+- Mais comum
+
+**Especificações Típicas:**
+```
+Resolução: 4096-65536 pulsos/revolução
+Precisão: 0.01° - 0.001°
+Interface: SPI, I2C, RS-485
+```
+
+</div>
+
+**Por que é crucial:**
+- Sem encoder, o robô **não sabe onde suas pernas estão**
+- Controle de posição depende 100% disso
+- Exemplo: Para dobrar joelho a 90°, precisa ler encoder
+
+**Exemplo de leitura:**
+```python
+# Pseudocódigo
+encoder_value = read_encoder(joint_id=3)  # Joelho direito
+angle_degrees = (encoder_value / 4096) * 360
+print(f"Joelho está em {angle_degrees}°")
+```
+
+---
+
+### 5. IMU (Inertial Measurement Unit)
+
+<div className="sensor-card featured">
+
+**O que é:** Chip que mede aceleração e rotação do corpo
+
+**Componentes:**
+- **Acelerômetro (3 eixos):** Mede aceleração linear (m/s²)
+- **Giroscópio (3 eixos):** Mede velocidade angular (°/s)
+- **Magnetômetro (3 eixos - opcional):** Bússola digital
+
+**IMU de 6 DoF vs 9 DoF:**
+- **6 DoF**: Acelerômetro + Giroscópio
+- **9 DoF**: 6 DoF + Magnetômetro
+
+</div>
+
+**Aplicações:**
+- ✅ Detectar se robô está caindo (inclinação > 30°)
+- ✅ Estimar orientação (roll, pitch, yaw)
+- ✅ Controle de equilíbrio dinâmico
+- ✅ Fusão sensorial (junto com encoders)
+
+**Modelos Comuns:**
+- **MPU-6050** ($2): Hobby, 6 DoF
+- **BNO055** ($20): 9 DoF com fusão onboard
+- **VectorNav VN-100** ($500): IMU industrial, precisão alta
+
+**Dados fornecidos:**
+```python
+imu_data = {
+    'accel': [0.05, -0.02, 9.81],  # m/s² (x, y, z)
+    'gyro': [0.1, 0.0, -0.5],      # °/s (roll, pitch, yaw)
+    'orientation': [0, 5, 180]     # Graus (calculado por fusão)
+}
+```
+
+**Unitree H1:** IMU de 6 eixos no tronco + IMU na RealSense D435i
+
+---
+
+### 6. Sensores de Força/Torque
+
+<div className="sensor-card">
+
+**O que é:** Mede força aplicada em uma junta ou superfície
+
+**Localizações Típicas:**
+
+#### **1. Pés (Força de Contato)**
+- 4 células de carga por pé (uma em cada canto)
+- Mede força vertical (N) e centro de pressão
+- **Uso:** Detectar se pé está no chão, ZMP control
+
+#### **2. Juntas (Torque)**
+- Mede torque (N·m) aplicado no motor
+- **Uso:** Controle de impedância, detecção de colisão
+
+#### **3. Punhos (Force/Torque Sensor)**
+- Mede força em 3 eixos + torque em 3 eixos (6 DoF)
+- **Uso:** Manipulação delicada, montagem
+
+</div>
+
+**Exemplo - Sensor de Pé:**
+```
+Leitura:
+  Frente-Esquerda: 15 N
+  Frente-Direita:  18 N
+  Trás-Esquerda:   12 N
+  Trás-Direita:    14 N
+
+Conclusão:
+  Força total: 59 N (~6 kg apoiado nesse pé)
+  Centro de pressão: Levemente à frente e direita
+```
+
+**Tesla Optimus:** Sensores de torque em **todas as 28 juntas**
+
+---
+
+## 🤲 Sensores Táteis (Mãos)
+
+### 7. Sensores de Pressão
+
+<div className="sensor-card">
+
+**O que é:** Mede pressão de contato na pele/superfície
+
+**Tipos:**
+
+#### **Resistivos (FSR - Force Sensitive Resistor)**
+- Resistência muda com pressão
+- Barato ($1-5 por sensor)
+- Precisão moderada
+
+#### **Capacitivos**
+- Capacitância muda com proximidade/toque
+- Detecta toque leve
+- Usado em touchscreens
+
+#### **Piezoresistivos**
+- Alta precisão
+- Caro ($50-500)
+- Usado em grippers industriais
+
+</div>
+
+**Aplicações:**
+- ✅ Detectar contato com objeto
+- ✅ Controlar força de aperto (não esmagar ovo)
+- ✅ Feedback tátil
+
+**Exemplo - Gripper com FSR:**
+```python
+pressure = read_fsr(finger=1)  # 0-1023 (10 bits)
+
+if pressure > 800:
+    print("Aperto muito forte! Reduzir força")
+    motor_force -= 10
+elif pressure < 200:
+    print("Objeto escorregando! Aumentar força")
+    motor_force += 5
+```
+
+---
+
+### 8. Pele Eletrônica (E-Skin)
+
+<div className="sensor-card">
+
+**O que é:** Matriz de sensores táteis distribuídos
+
+**Tecnologia:**
+- Centenas de sensores em filme fino
+- Cobre toda a mão/braço
+- Mede pressão, temperatura, proximidade
+
+**Exemplo:** Sanctuary Phoenix Gen 7
+- 20,000+ pontos de contato nas mãos
+- Resolução espacial: 1mm
+- Feedback em tempo real
+
+</div>
+
+**Vantagens:**
+- ✅ Manipulação de objetos frágeis (frutas, vidro)
+- ✅ Detecção precoce de deslizamento
+- ✅ Interação segura com humanos
+
+**Desafio:** Processamento de dados (20k sensores a 100 Hz = 2M leituras/segundo)
+
+---
+
+## 🎧 Sensores de Áudio
+
+### 9. Microfone Array
+
+<div className="sensor-card">
+
+**O que é:** Múltiplos microfones para localizar som
+
+**Configurações:**
+- **2 microfones:** Estéreo básico
+- **4 microfones:** Localização 2D (ângulo horizontal)
+- **6+ microfones:** Localização 3D
+
+**Aplicações:**
+- ✅ Reconhecimento de voz (Alexa, Siri)
+- ✅ Localização de pessoa falando (girar cabeça para quem fala)
+- ✅ Cancelamento de ruído
+
+</div>
+
+**Exemplo - ReSpeaker Mic Array v2.0:**
+```
+- 4 microfones
+- Alcance: 5 metros
+- Algoritmo: Beamforming (foco direcional)
+- Interface: USB
+- Preço: $50
+```
+
+**Processamento:**
+```python
+# Detecção de direção do som
+angle = mic_array.get_sound_direction()
+print(f"Som vindo de {angle}° (0° = frente)")
+
+# Comando de voz
+if "robô, venha aqui" in speech_recognition():
+    navigate_to(angle)
+```
+
+---
+
+## 🔄 Fusão Sensorial
+
+### Por que Combinar Sensores?
+
+**Problema:** Nenhum sensor é perfeito
+
+| Sensor | Vantagem | Limitação |
+|--------|----------|-----------|
+| **Câmera** | Rico em informação | Ruim em baixa luz |
+| **LIDAR** | Preciso, qualquer luz | Não vê cores/texturas |
+| **IMU** | Rápido (1000 Hz) | Deriva ao longo do tempo |
+| **Encoder** | Preciso | Não detecta deslizamento |
+
+**Solução:** Fusão sensorial (combinar dados)
+
+<Tabs>
+<TabItem value="example1" label="Exemplo 1: Odometria" default>
+
+### Estimativa de Posição
+
+**Dados de entrada:**
+- Encoders: "Perna moveu 30 cm"
+- IMU: "Inclinação de 5° para frente"
+- Câmera: "Parede a 2 metros à direita"
+
+**Fusão (Extended Kalman Filter):**
+```python
+position_estimate = kalman_filter.update(
+    encoder_data=leg_position,
+    imu_data=orientation,
+    vision_data=landmark_position
+)
+
+# Resultado: Posição (x, y, θ) com incerteza reduzida
+print(f"Robô está em ({position_estimate.x}, {position_estimate.y})")
+```
+
+**Precisão:**
+- Só encoder: ±10 cm (acumula erro)
+- Encoder + IMU + Câmera: ±2 cm
+
+</TabItem>
+
+<TabItem value="example2" label="Exemplo 2: Equilíbrio">
+
+### Controle de Estabilidade
+
+**Sensores:**
+- IMU: Orientação do tronco
+- Encoders: Posição de pernas
+- Sensores de pé: Forças de contato
+
+**Controlador:**
+```python
+# A cada 1ms (1000 Hz)
+def balance_controller():
+    # Ler sensores
+    tilt = imu.get_pitch()  # Inclinação
+    foot_forces = [left_foot.force, right_foot.force]
+
+    # Detectar queda
+    if abs(tilt) > 30:
+        emergency_stop()
+
+    # Ajustar torque das juntas
+    for joint in leg_joints:
+        torque = pid_controller.compute(
+            target=0,  # Tronco vertical
+            current=tilt,
+            foot_contact=foot_forces
+        )
+        joint.set_torque(torque)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Stack Sensorial por Modelo
+
+<div className="comparison-table">
+
+| Sensor | Unitree H1 | Tesla Optimus | Figure 02 | Sanctuary Phoenix |
+|--------|-----------|--------------|-----------|-------------------|
+| **Câmera RGB** | 1x (D435i) | 8x (surround) | 2x (estéreo) | 4x |
+| **Câmera Depth** | 1x (D435i) | ❌ (só RGB) | 2x (estéreo) | 2x ToF |
+| **LIDAR** | ✅ 3D | ❌ | ❌ | ❌ |
+| **IMU** | 1x (6 DoF) | 1x (9 DoF) | 1x (6 DoF) | 2x (corpo+cabeça) |
+| **Encoders** | Todas juntas | Todas juntas | Todas juntas | Todas juntas |
+| **Força (Pés)** | ✅ | ✅ | ✅ | ✅ |
+| **Torque (Juntas)** | ⚠️ Principais | ✅ Todas | ⚠️ Principais | ✅ Todas |
+| **Tátil (Mãos)** | ❌ | ⚠️ Básico | ⚠️ FSR | ✅✅ E-Skin |
+| **Microfone** | ❌ | ✅ Array | ✅ 2x | ✅ Array |
+
+</div>
+
+**Tendência:** Menos sensores caros (LIDAR), mais câmeras + IA (Tesla approach)
+
+---
+
+## 🛠️ Construindo um Sistema Sensorial Básico
+
+### Kit de Entrada ($500)
+
+Para experimentar em projeto DIY:
+
+```
+1. Câmera RGB: Raspberry Pi Camera v2 ($25)
+2. IMU: BNO055 ($20)
+3. LIDAR 2D: RPLidar A1 ($100)
+4. Encoders: AS5600 x 6 ($30)
+5. FSR: 10 sensores ($20)
+6. Microfone: ReSpeaker 2-Mic ($15)
+7. Computador: Raspberry Pi 4 8GB ($75)
+8. Cabos e estrutura ($100)
+
+Total: ~$385 (resto para impressão 3D)
+```
+
+**O que você consegue fazer:**
+- Navegação básica indoor
+- Detecção de obstáculos
+- Reconhecimento de voz
+- Controle de juntas
+
+---
+
+## 💡 Conceitos-Chave
+
+:::tip Lembre-se
+1. **Redundância é boa:** Múltiplos sensores para mesma função (backup)
+2. **Taxa de atualização importa:** IMU precisa ser rápido (1000 Hz), câmera pode ser lenta (30 Hz)
+3. **Fusão > Sensor isolado:** Combinar dados reduz incerteza
+4. **Custo vs Benefício:** LIDAR é ótimo, mas câmera depth é 10x mais barata
+:::
+
+:::info Você Sabia?
+O **Tesla Optimus usa apenas câmeras** (sem LIDAR) seguindo a filosofia dos carros Tesla. A ideia é que IA pode aprender a estimar profundidade só com imagens, igual humanos fazem com 2 olhos.
+:::
+
+---
+
+## 🔗 Próximo Módulo
+
+Sensores **detectam** o mundo. Agora vamos aprender sobre **atuadores** - os motores que fazem o robô se mover:
+
+<div className="next-module-cta">
+  <a href="/HG1/docs/tier1/atuadores" className="cta-button">
+    🦾 Módulo 5: Atuadores e Controle →
+  </a>
+</div>
+
+---
+
+<div className="module-footer">
+  <div className="footer-section">
+    <h4>🎯 Teste Seus Conhecimentos</h4>
+    <p>Por que Unitree H1 usa LIDAR e Tesla Optimus não?</p>
+    <details>
+      <summary>Ver Resposta</summary>
+      <p><strong>Filosofias diferentes:</strong> Unitree prioriza precisão máxima (LIDAR), Tesla aposta em visão computacional pura com IA (mais barato, escalável). Ambas são válidas!</p>
+    </details>
+  </div>
+
+  <div className="footer-section">
+    <h4>📚 Recursos</h4>
+    <ul>
+      <li><a href="https://www.intelrealsense.com/depth-camera-d435i/" target="_blank">Intel RealSense D435i Specs</a></li>
+      <li><a href="https://www.slamtec.com/en/Lidar/A1" target="_blank">RPLidar A1 Documentation</a></li>
+      <li><a href="https://www.bosch-sensortec.com/products/smart-sensors/bno055/" target="_blank">BNO055 IMU Datasheet</a></li>
+    </ul>
+  </div>
+</div>
