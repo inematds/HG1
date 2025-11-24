@@ -7,42 +7,386 @@ description: Operação segura do G1
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 📚 Segurança e Boas Práticas
+# 🛡️ Segurança e Boas Práticas
 
 :::tip Objetivo
-Operação segura do G1 do Unitree G1.
+Dominar protocolos de segurança para operação responsável do Unitree G1, protegendo pessoas, ambiente e o próprio robô.
 :::
 
 ---
 
-## 🎯 Conteúdo Principal
+## ⚠️ Regras Fundamentais de Segurança
 
-[Conteúdo detalhado será expandido em futuras versões]
+### Os 5 Princípios Invioláveis
 
-### Tópico 1
+```
+REGRAS DE OURO - NUNCA VIOLE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Informações práticas sobre operação do G1.
+1️⃣ EMERGENCY STOP sempre acessível
+   → Botão físico ou comando remoto a 1 segundo
 
-### Tópico 2
+2️⃣ NUNCA operar perto de escadas sem supervisão
+   → Quedas podem causar danos irreparáveis
 
-Exemplos e exercícios hands-on.
+3️⃣ SEMPRE manter zona de segurança de 2 metros
+   → G1 pode se mover inesperadamente
+
+4️⃣ DESLIGAR antes de manutenção física
+   → Motores podem ativar sem aviso
+
+5️⃣ MONITORAR bateria continuamente
+   → < 15% pode causar shutdown abrupto e queda
+```
 
 ---
 
-## ✅ Checklist
+## 🚨 Sistema de Emergency Stop
 
-- [ ] Completou leitura do módulo
-- [ ] Praticou com G1 físico
-- [ ] Dominou conceitos principais
+### Hardware E-Stop
+
+<Tabs>
+<TabItem value="button" label="Botão Físico">
+
+**Localização:** Base do pescoço (costas do G1)
+
+```python
+from unitree_sdk import G1Safety
+
+safety = G1Safety()
+
+# Verificar status do E-Stop
+if safety.is_estop_pressed():
+    print("🚨 E-Stop ativado!")
+    # G1 está em modo seguro, motores desligados
+
+# Para reativar após E-Stop:
+# 1. Soltar botão físico
+# 2. Executar:
+safety.release_estop()
+safety.reinitialize_motors()
+```
+
+**IMPORTANTE:** E-Stop corta energia dos motores IMEDIATAMENTE. G1 pode cair se estiver em pé!
+
+</TabItem>
+
+<TabItem value="software" label="Software E-Stop">
+
+```python
+# E-Stop via software (app/código)
+safety.emergency_stop()
+
+# Ou via ROS2
+ros2 topic pub /emergency_stop std_msgs/Bool "data: true"
+
+# Status
+status = safety.get_safety_status()
+print(f"E-Stop ativo: {status.estop_active}")
+print(f"Motores habilitados: {status.motors_enabled}")
+print(f"Último erro: {status.last_error}")
+```
+
+### Programar E-Stop Automático
+
+```python
+# Parar se detectar colisão iminente
+safety.enable_auto_estop(
+    conditions=[
+        "obstacle_too_close",  # Obstáculo < 30cm
+        "high_motor_temp",     # Temp > 75°C
+        "low_battery",         # < 10%
+        "fall_detected",       # Inclinação > 35°
+        "joint_limit_exceeded" # Junta fora do range
+    ]
+)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 👥 Segurança em Torno de Pessoas
+
+### Zonas de Proteção
+
+```
+ZONAS DE SEGURANÇA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        ┌─────────────────┐
+        │   Zona Crítica  │ ← 0.5m
+        │     (PARAR)     │
+        │    ╔═══════╗    │
+        │    ║       ║    │
+        └────║  G1   ║────┘
+        ┌────║       ║────┐
+        │    ╚═══════╝    │
+        │   Zona Aviso    │ ← 1.5m
+        │   (DESACELERAR) │
+        └─────────────────┘
+```
+
+```python
+# Configurar proteção de pessoa
+safety.enable_human_detection(
+    critical_distance=0.5,  # metros - PARAR
+    warning_distance=1.5,   # metros - REDUZIR 50%
+    detection_method="lidar+camera",  # Fusão sensores
+    tracking=True          # Rastrear movimento
+)
+
+# Modo colaborativo (trabalhar próximo a humanos)
+safety.set_collaborative_mode(
+    max_speed=0.3,         # m/s (muito lento)
+    max_force=20,          # N (baixa força)
+    soft_padding=True      # Ativar padding virtual
+)
+```
+
+### Detecção de Crianças e Pets
+
+```python
+# Perfil especial para crianças/pets (mais conservador)
+safety.enable_child_pet_detection(
+    stop_distance=1.0,      # Maior distância
+    height_range=(0.3, 1.2),  # Detectar altura criança
+    sound_alerts=True,      # Emitir som de aviso
+    gentle_stop=True        # Parar suavemente
+)
+```
+
+---
+
+## 🏠 Segurança Ambiental
+
+### Superfícies Seguras
+
+<Tabs>
+<TabItem value="safe" label="Superfícies OK">
+
+**✅ SEGURAS para G1:**
+- Piso de madeira (seco)
+- Cerâmica/porcelanato (seco)
+- Carpete de pelo baixo (< 2cm)
+- Concreto liso
+- Asfalto plano
+
+```python
+# Verificar tipo de superfície
+surface = safety.detect_surface_type()
+print(f"Superfície: {surface.type}")
+print(f"Tração estimada: {surface.friction:.2f}")
+print(f"Seguro: {surface.is_safe}")
+```
+
+</TabItem>
+
+<TabItem value="unsafe" label="Superfícies PERIGO">
+
+**❌ PERIGOSAS para G1:**
+- Piso molhado/escorregadio
+- Carpete de pelo alto (> 3cm)
+- Grama molhada
+- Terra/areia solta
+- Gelo/neve
+- Superfícies inclinadas > 15°
+
+```python
+# Detectar superfície insegura
+if not safety.is_surface_safe():
+    print("⚠️ Superfície insegura detectada!")
+    safety.reduce_speed(factor=0.3)
+    safety.enable_extra_caution_mode()
+
+# Alertar sobre líquidos
+if safety.detect_liquid_on_floor():
+    print("💧 LÍQUIDO DETECTADO! Parando.")
+    g1.emergency_stop()
+```
+
+</TabItem>
+</Tabs>
+
+### Obstáculos e Escadas
+
+```python
+# Detecção de borda de escada
+safety.enable_cliff_detection(
+    threshold=0.15,  # metros de desnível
+    action="stop"    # ou "backup"
+)
+
+# Zona de exclusão (keep-out zone)
+safety.add_keepout_zone(
+    name="escada_principal",
+    polygon=[
+        (2.0, 3.0),
+        (2.5, 3.0),
+        (2.5, 4.0),
+        (2.0, 4.0)
+    ],
+    action="stop_before"  # Parar 50cm antes
+)
+```
+
+---
+
+## 🔋 Gestão de Bateria
+
+### Monitoramento Crítico
+
+```python
+from unitree_sdk import G1Battery
+
+battery = G1Battery()
+
+# Status completo
+status = battery.get_status()
+print(f"Carga: {status.percentage}%")
+print(f"Voltagem: {status.voltage}V")
+print(f"Corrente: {status.current}A")
+print(f"Temperatura: {status.temperature}°C")
+print(f"Tempo restante: {status.time_remaining} min")
+
+# ALERTAS CRÍTICOS
+if status.percentage < 15:
+    print("🔴 BATERIA CRÍTICA! Retornar à base.")
+    g1.navigate_to("charging_station")
+
+elif status.percentage < 30:
+    print("🟡 Bateria baixa. Concluir tarefas.")
+
+# Auto-shutdown preventivo
+battery.enable_safe_shutdown(
+    trigger_level=10,  # %
+    action="return_home_and_sit"
+)
+```
+
+### Ciclos de Carga
+
+```
+BOAS PRÁTICAS DE BATERIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Carregar quando < 20%
+✅ Descarregar até ~10% (não 0%)
+✅ Armazenar em 50-60% se não usar > 1 mês
+✅ Temperatura ideal carga: 15-25°C
+
+❌ NUNCA carregar se temp > 45°C
+❌ NUNCA descarregar completamente (0%)
+❌ NUNCA deixar em 100% por > 24h sem usar
+```
+
+---
+
+## 🔧 Segurança em Manutenção
+
+### Procedimento Seguro
+
+```python
+# Antes de tocar em G1:
+safety.enter_maintenance_mode()
+# ↓
+# 1. Desliga motores
+# 2. Desabilita reações automáticas
+# 3. Trava juntas
+
+# Verificar se seguro tocar
+if safety.is_safe_to_touch():
+    print("✅ Seguro para manutenção")
+else:
+    print("⚠️ AGUARDE! Ainda há energia nos capacitores")
+    time.sleep(5)
+
+# Após manutenção
+safety.exit_maintenance_mode()
+safety.run_system_check()  # Verificar integridade
+```
+
+---
+
+## 📊 Monitoramento de Saúde
+
+```python
+# Health check completo
+health = safety.get_system_health()
+
+for system, status in health.items():
+    icon = "✅" if status.ok else "⚠️"
+    print(f"{icon} {system}: {status.message}")
+
+# Exemplo de saída:
+# ✅ Motors: All nominal
+# ✅ Sensors: All online
+# ⚠️ Left_ankle: Temperature 68°C (high)
+# ✅ Battery: 85% - Good
+# ✅ Network: Connected
+
+# Log de segurança
+safety.enable_safety_logging(
+    log_level="warning",
+    save_to="/var/log/g1/safety.log"
+)
+```
+
+---
+
+## ✅ Checklist Pré-Operação
+
+```markdown
+ANTES DE CADA USO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[ ] Bateria > 20%
+[ ] Ambiente livre de obstáculos perigosos
+[ ] Botão E-Stop acessível
+[ ] Superfície seca e plana
+[ ] Sensores limpos (LIDAR, câmeras)
+[ ] Sistema de conectividade OK
+[ ] Zona de segurança demarcada
+[ ] Pessoas avisadas da operação
+[ ] Plano de emergência definido
+[ ] Logs de erro revisados
+```
+
+---
+
+## 🚑 Procedimentos de Emergência
+
+### Se G1 Cair
+
+```
+1. PRESSIONAR E-STOP IMEDIATAMENTE
+2. NÃO TENTAR LEVANTAR SOZINHO (13kg)
+3. Desligar bateria (switch na base)
+4. Verificar danos visíveis
+5. Contactar suporte Unitree
+6. NÃO religar sem inspeção
+```
+
+### Se G1 Colidir com Pessoa
+
+```
+1. E-STOP + verificar pessoa
+2. Se lesão: chamar emergência
+3. Desligar G1 completamente
+4. Documentar incidente (fotos, relato)
+5. Reportar para Unitree
+6. Revisar configurações de segurança
+```
 
 ---
 
 ## 🔗 Próximos Passos
 
 :::tip Próximo Módulo
-Continuar para próximo módulo →
+**[🔧 Manutenção Básica →](./manutencao-basica)**
+
+Aprenda a manter G1 em condições ideais de operação.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-45 min | **🎮 Hands-on:** Recomendado
+**⏱️ Tempo:** 30-45 min | **⚠️ Criticidade:** ALTA | **📋 Certificação:** Obrigatória

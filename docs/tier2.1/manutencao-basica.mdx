@@ -7,42 +7,398 @@ description: Limpeza e cuidados
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 📚 Manutenção Básica
+# 🔧 Manutenção Básica
 
 :::tip Objetivo
-Limpeza e cuidados do Unitree G1.
+Aprender procedimentos essenciais de manutenção para manter o Unitree G1 funcionando perfeitamente e prolongar sua vida útil.
 :::
 
 ---
 
-## 🎯 Conteúdo Principal
+## 📅 Cronograma de Manutenção
 
-[Conteúdo detalhado será expandido em futuras versões]
+```
+FREQUÊNCIA DE MANUTENÇÃO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Tópico 1
+DIÁRIA (após cada uso):
+├─ Limpeza superficial de sensores
+├─ Inspeção visual de danos
+└─ Verificação de bateria
 
-Informações práticas sobre operação do G1.
+SEMANAL:
+├─ Limpeza profunda de sensores
+├─ Lubrificação de juntas móveis
+├─ Teste de calibração
+└─ Verificação de parafusos soltos
 
-### Tópico 2
+MENSAL:
+├─ Calibração completa de sensores
+├─ Inspeção de cabos internos
+├─ Teste de stress dos motores
+└─ Backup de configurações
 
-Exemplos e exercícios hands-on.
+ANUAL (ou a cada 500h):
+├─ Manutenção preventiva profissional
+├─ Substituição de peças de desgaste
+└─ Upgrade de firmware
+```
 
 ---
 
-## ✅ Checklist
+## 🧼 Limpeza de Sensores
 
-- [ ] Completou leitura do módulo
-- [ ] Praticou com G1 físico
-- [ ] Dominou conceitos principais
+### LIDAR (Diariamente)
+
+```python
+# Verificar se LIDAR precisa limpeza
+from unitree_sdk import G1Maintenance
+
+maint = G1Maintenance()
+
+lidar_status = maint.check_lidar_cleanliness()
+print(f"Limpeza LIDAR: {lidar_status.score}/100")
+
+if lidar_status.score < 80:
+    print("⚠️ LIDAR sujo! Limpar antes do próximo uso.")
+```
+
+**Procedimento manual:**
+1. Desligar G1 completamente
+2. Usar pano microfibra SECO
+3. Limpar cúpula giratória em movimento circular suave
+4. Não usar líquidos ou produtos químicos
+5. Verificar se não há arranhões
+
+### Câmeras (Semanalmente)
+
+```bash
+# Limpeza automática (se disponível)
+g1_maintenance clean_cameras
+
+# Ou via Python
+maint.clean_cameras_automated()
+```
+
+**Limpeza manual:**
+- **RGB-D Camera (cabeça):** Pano microfibra + soprador de ar
+- **Stereo Cameras (laterais):** Cotonete + álcool isopropílico 70%
+- **NUNCA** tocar lentes diretamente com dedos
+
+---
+
+## 🔩 Inspeção Mecânica
+
+### Parafusos e Fixações
+
+```python
+# Detector de parafusos soltos (via vibração)
+loose_parts = maint.detect_loose_parts()
+
+if loose_parts:
+    print("⚠️ Parafusos soltos detectados:")
+    for part in loose_parts:
+        print(f"  - {part.location}: Torque {part.current_torque}Nm (esperado: {part.expected_torque}Nm)")
+```
+
+**Inspeção manual (MENSAL):**
+
+| Componente | Torque Correto | Ferramenta |
+|------------|----------------|------------|
+| Ombro (shoulder) | 8 Nm | Allen 4mm |
+| Cotovelo (elbow) | 6 Nm | Allen 3mm |
+| Pulso (wrist) | 4 Nm | Allen 2.5mm |
+| Quadril (hip) | 12 Nm | Allen 5mm |
+| Joelho (knee) | 10 Nm | Allen 4mm |
+
+---
+
+## 🛢️ Lubrificação
+
+### Juntas que Precisam Lubrificação
+
+```
+JUNTAS PARA LUBRIFICAR (A CADA 3 MESES):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Ombro (Shoulder pitch/roll/yaw) - 3 gotas
+2. Quadril (Hip pitch/roll/yaw) - 3 gotas
+3. Pulso (Wrist pitch/roll/yaw) - 2 gotas
+
+LUBRIFICANTE: Óleo sintético leve (10W-40) ou específico Unitree
+```
+
+```python
+# Registrar lubrificação
+maint.log_lubrication(
+    joint="left_shoulder",
+    lubricant_type="unitree_synthetic",
+    drops=3
+)
+
+# Ver histórico
+history = maint.get_lubrication_history()
+for record in history[-5:]:
+    print(f"{record.date}: {record.joint} - {record.drops} gotas")
+```
+
+---
+
+## 🔋 Manutenção de Bateria
+
+### Calibração de Bateria
+
+```python
+from unitree_sdk import G1Battery
+
+battery = G1Battery()
+
+# Calibrar bateria (a cada 30 ciclos de carga)
+print("Iniciando calibração de bateria (2-3 horas)...")
+battery.calibrate(
+    method="full_cycle",  # Descarrega até 5%, depois carga até 100%
+    notify_when_done=True
+)
+
+# Verificar saúde da bateria
+health = battery.get_health()
+print(f"Saúde: {health.percentage}%")
+print(f"Ciclos: {health.cycles}")
+print(f"Capacidade real: {health.capacity_mah}mAh (original: 5000mAh)")
+
+if health.percentage < 80:
+    print("⚠️ Bateria degradada! Considerar substituição.")
+```
+
+### Armazenamento de Longo Prazo
+
+```python
+# Se não for usar G1 por > 1 mês
+battery.prepare_for_storage(
+    target_charge=60,  # %
+    power_off=True
+)
+
+# Quando voltar a usar
+battery.wake_from_storage()
+battery.run_health_check()
+```
+
+---
+
+## 🧪 Calibração de Sensores
+
+### Calibração Completa (MENSAL)
+
+```python
+# Calibrar todos os sensores
+calibration = maint.run_full_calibration(
+    sensors=["imu", "encoders", "force_sensors", "cameras"],
+    duration="comprehensive"  # ou "quick"
+)
+
+for sensor, result in calibration.items():
+    status = "✅" if result.success else "❌"
+    print(f"{status} {sensor}: {result.message}")
+
+# Exemplo de saída:
+# ✅ imu: Calibração bem-sucedida (erro: 0.02°)
+# ✅ encoders: Todos dentro da tolerância
+# ⚠️ force_sensors: Left foot precisa recalibração
+# ✅ cameras: Intrínsecos e extrínsecos atualizados
+```
+
+### Calibração Individual
+
+<Tabs>
+<TabItem value="imu" label="IMU">
+
+```python
+# G1 deve estar PARADO em superfície PLANA
+imu = maint.calibrate_imu(duration=30)  # 30 segundos
+
+print(f"Bias acelerômetro: {imu.accel_bias}")
+print(f"Bias giroscópio: {imu.gyro_bias}")
+print(f"Qualidade: {imu.quality}%")
+```
+
+</TabItem>
+
+<TabItem value="encoders" label="Encoders">
+
+```python
+# Calibrar encoders das juntas
+maint.calibrate_joint_encoders(
+    method="zero_position",  # Posição neutra
+    joints="all"  # ou lista específica
+)
+
+# Verificar precisão
+accuracy = maint.test_encoder_accuracy(num_samples=100)
+for joint, error in accuracy.items():
+    if error > 0.5:  # graus
+        print(f"⚠️ {joint}: Erro de {error:.2f}°")
+```
+
+</TabItem>
+
+<TabItem value="force" label="Sensores de Força">
+
+```python
+# Calibrar sensores de força nos pés
+# G1 deve estar em pé, distribuindo peso uniformemente
+maint.calibrate_force_sensors(
+    duration=10,
+    expected_weight=13.0  # kg (peso do G1)
+)
+
+# Teste
+left_force = maint.get_foot_force("left")
+right_force = maint.get_foot_force("right")
+total = left_force + right_force
+
+print(f"Peso total detectado: {total:.1f}kg")
+if abs(total - 13.0) > 0.5:
+    print("⚠️ Recalibrar sensores de força!")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 💾 Backup e Restore
+
+### Backup de Configurações
+
+```python
+# Fazer backup completo
+backup_file = maint.create_backup(
+    include=[
+        "calibrations",
+        "user_configs",
+        "maps",
+        "learned_behaviors",
+        "logs"
+    ],
+    destination="/backup/g1_backup_2025-01-15.tar.gz"
+)
+
+print(f"✅ Backup criado: {backup_file}")
+print(f"Tamanho: {backup_file.size_mb}MB")
+
+# Backup automático (diário)
+maint.enable_auto_backup(
+    frequency="daily",
+    time="03:00",
+    keep_last_n=7  # Manter últimos 7 backups
+)
+```
+
+### Restaurar Configurações
+
+```python
+# Restaurar de backup
+maint.restore_from_backup(
+    backup_file="/backup/g1_backup_2025-01-15.tar.gz",
+    items=["calibrations", "user_configs"]  # Selectivo
+)
+
+# Reset de fábrica (se necessário)
+maint.factory_reset(
+    keep_calibrations=True,  # Manter calibrações personalizadas
+    confirm=True
+)
+```
+
+---
+
+## 📊 Relatórios de Saúde
+
+```python
+# Gerar relatório completo
+report = maint.generate_health_report(
+    include_history=True,
+    export_format="pdf"
+)
+
+print(report.summary)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# RELATÓRIO DE SAÚDE - Unitree G1
+# Data: 2025-01-15 14:30
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# GERAL: ✅ Bom (Score: 92/100)
+#
+# SISTEMAS:
+# ├─ Motores: ✅ Excelente (100%)
+# ├─ Sensores: ✅ Bom (95%)
+# ├─ Bateria: ⚠️ Atenção (78% saúde)
+# └─ Estrutura: ✅ Perfeito
+#
+# RECOMENDAÇÕES:
+# 1. Substituir bateria nos próximos 6 meses
+# 2. Lubrificar ombro esquerdo (última vez: 90 dias)
+# 3. Atualizar firmware para v2.5.1
+```
+
+---
+
+## 🔧 Kit de Ferramentas Essencial
+
+```
+FERRAMENTAS RECOMENDADAS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Jogo de chaves Allen (2mm - 6mm)
+✅ Torquímetro (2-15 Nm)
+✅ Panos microfibra (10x)
+✅ Álcool isopropílico 70%
+✅ Soprador de ar comprimido
+✅ Óleo lubrificante sintético
+✅ Multímetro digital
+✅ Lanterna LED pequena
+✅ Cotonetes
+✅ Pinças de precisão
+```
+
+---
+
+## ✅ Checklist de Manutenção
+
+### Diária
+- [ ] Limpar sensores LIDAR e câmeras
+- [ ] Verificar bateria (ciclos, temperatura)
+- [ ] Inspeção visual de danos
+- [ ] Verificar logs de erro
+
+### Semanal
+- [ ] Limpeza profunda de todos os sensores
+- [ ] Teste de calibração rápido
+- [ ] Verificar parafusos principais
+- [ ] Backup de configurações
+
+### Mensal
+- [ ] Calibração completa de sensores
+- [ ] Lubrificação de juntas
+- [ ] Inspeção de cabos e conectores
+- [ ] Teste de stress dos motores
+- [ ] Atualização de firmware (se disponível)
+
+### Anual
+- [ ] Manutenção preventiva profissional
+- [ ] Substituição de peças desgastadas
+- [ ] Revisão completa de segurança
+- [ ] Auditoria de performance
 
 ---
 
 ## 🔗 Próximos Passos
 
 :::tip Próximo Módulo
-Continuar para próximo módulo →
+**[🐛 Troubleshooting →](./troubleshooting)**
+
+Aprenda a diagnosticar e resolver problemas comuns do G1.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-45 min | **🎮 Hands-on:** Recomendado
+**⏱️ Tempo:** 30-45 min | **🔧 Ferramentas:** Allen, Multímetro | **📋 Frequência:** Semanal

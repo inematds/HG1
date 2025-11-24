@@ -7,42 +7,449 @@ description: Técnicas de locomoção
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 📚 Caminhada e Navegação
+# 🚶 Caminhada e Navegação
 
 :::tip Objetivo
-Técnicas de locomoção do Unitree G1.
+Dominar as técnicas de locomoção bípede do Unitree G1, incluindo modos de caminhada, navegação autônoma e controle de equilíbrio.
 :::
 
 ---
 
-## 🎯 Conteúdo Principal
+## 🎯 Fundamentos da Locomoção Bípede
 
-[Conteúdo detalhado será expandido em futuras versões]
+O Unitree G1 utiliza **locomoção bípede dinâmica**, diferente de robôs com rodas ou esteiras. Isso requer controle preciso de 12 motores nas pernas para manter equilíbrio.
 
-### Tópico 1
+### Diferença entre Locomoção Estática vs Dinâmica
 
-Informações práticas sobre operação do G1.
+```
+LOCOMOÇÃO ESTÁTICA (robôs antigos):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Centro de massa sempre dentro da base de suporte
+• Muito lento (< 0.5 m/s)
+• Sem quedas, mas sem agilidade
 
-### Tópico 2
-
-Exemplos e exercícios hands-on.
+LOCOMOÇÃO DINÂMICA (G1):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Centro de massa pode sair da base temporariamente
+• Rápido (até 2 m/s)
+• Usa momento e inércia para eficiência
+• Requer controle avançado (IMU + encoders)
+```
 
 ---
 
-## ✅ Checklist
+## 🚀 Modos de Caminhada
 
-- [ ] Completou leitura do módulo
-- [ ] Praticou com G1 físico
-- [ ] Dominou conceitos principais
+O G1 possui **4 modos de caminhada** otimizados para diferentes cenários:
+
+<Tabs>
+<TabItem value="walk" label="Walk (Padrão)">
+
+### 🚶 Walk Mode - Caminhada Normal
+
+**Velocidade:** 0.2 - 1.0 m/s
+**Energia:** Baixo consumo
+**Uso:** Ambientes internos, proximidade de pessoas
+
+```python
+# Via App móvel:
+g1_controller.set_gait_mode("walk")
+g1_controller.set_velocity(linear_x=0.5, angular_z=0.0)
+
+# Via ROS2 (programação):
+ros2 topic pub /cmd_vel geometry_msgs/Twist \
+  '{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}'
+```
+
+**Características:**
+- ✅ Muito estável
+- ✅ Silencioso
+- ✅ Suave para segurar objetos
+- ❌ Lento para longas distâncias
+
+</TabItem>
+
+<TabItem value="trot" label="Trot (Rápido)">
+
+### 🏃 Trot Mode - Trote Rápido
+
+**Velocidade:** 1.0 - 2.0 m/s
+**Energia:** Médio consumo
+**Uso:** Navegação rápida em espaços abertos
+
+```python
+g1_controller.set_gait_mode("trot")
+g1_controller.set_velocity(linear_x=1.5, angular_z=0.0)
+```
+
+**Características:**
+- ✅ 3x mais rápido que walk
+- ✅ Eficiente energeticamente
+- ⚠️ Mais barulho
+- ❌ Menos estável para manipulação
+
+**Transição segura:**
+```python
+# ERRADO: Mudança abrupta causa queda
+g1.set_gait_mode("trot")  # ❌
+
+# CERTO: Acelerar gradualmente
+g1.set_gait_mode("walk")
+g1.set_velocity(0.5)
+time.sleep(2)
+g1.set_gait_mode("trot")
+g1.ramp_velocity(0.5, 1.5, duration=3)  # ✅
+```
+
+</TabItem>
+
+<TabItem value="climb" label="Climb (Escadas)">
+
+### 🪜 Climb Mode - Subir Escadas
+
+**Altura máxima do degrau:** 18 cm
+**Ângulo máximo:** 35°
+**Energia:** Alto consumo
+
+```python
+# Detecta escada automaticamente (sensores LIDAR)
+g1_controller.enable_auto_climb(True)
+
+# Ou manualmente:
+g1_controller.set_gait_mode("climb")
+g1_controller.climb_stairs(
+    step_height=0.15,  # metros
+    num_steps=10
+)
+```
+
+**Segurança:**
+```python
+# Antes de subir, verificar sensores
+if g1.get_stair_detection_confidence() > 0.85:
+    g1.climb_stairs(...)
+else:
+    print("⚠️ Escada não detectada claramente!")
+```
+
+</TabItem>
+
+<TabItem value="balance" label="Balance (Equilíbrio)">
+
+### ⚖️ Balance Mode - Equilíbrio Parado
+
+**Uso:** Ficar parado sem gastar energia
+**Energia:** Mínimo
+
+```python
+# Parar e manter equilíbrio
+g1_controller.set_gait_mode("balance")
+g1_controller.set_velocity(0, 0)
+
+# Resistir a empurrões (compliance control)
+g1_controller.set_compliance(
+    stiffness=50,  # 0-100, quanto maior mais rígido
+    damping=20
+)
+```
+
+**Teste de estabilidade:**
+```python
+# Aplicar força externa (empurrar levemente)
+# G1 deve auto-corrigir em < 0.5 segundos
+for i in range(10):
+    force = random.uniform(-20, 20)  # Newtons
+    g1.apply_external_force(force, duration=0.2)
+    time.sleep(1)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🗺️ Navegação Autônoma
+
+### Sistema de Navegação
+
+O G1 usa **Nav2** (ROS2 Navigation Stack) para navegação autônoma:
+
+```
+PIPELINE DE NAVEGAÇÃO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Mapping (SLAM)
+   └─> Criar mapa 2D do ambiente
+
+2. Localization (AMCL)
+   └─> "Onde estou no mapa?"
+
+3. Path Planning (NavFn/Smac)
+   └─> "Qual melhor caminho?"
+
+4. Local Planner (DWB)
+   └─> "Como evitar obstáculos dinamicamente?"
+
+5. Recovery Behaviors
+   └─> "Se ficar preso, como sair?"
+```
+
+### Criar Mapa do Ambiente
+
+<Tabs>
+<TabItem value="app" label="Via App">
+
+**Método visual (mais fácil):**
+
+1. Abrir app Unitree → **"Mapping"**
+2. Colocar G1 em ponto inicial
+3. Pressionar **"Start Mapping"**
+4. Controlar G1 manualmente para ele percorrer todos os cômodos
+5. Pressionar **"Save Map"** → Nomear (ex: "casa_andar1")
+
+**Dica:** Caminhe devagar (~0.3 m/s) e passe por todos os cantos!
+
+</TabItem>
+
+<TabItem value="ros2" label="Via ROS2">
+
+**Método programático:**
+
+```bash
+# 1. Iniciar SLAM Toolbox
+ros2 launch slam_toolbox online_async_launch.py
+
+# 2. Visualizar mapa sendo criado
+rviz2 -d $(ros2 pkg prefix unitree_nav)/config/slam.rviz
+
+# 3. Controlar G1 para mapear
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 4. Salvar mapa quando completo
+ros2 run nav2_map_server map_saver_cli -f ~/maps/my_house
+```
+
+**Parâmetros importantes:**
+```yaml
+# slam_params.yaml
+map_update_interval: 5.0  # Atualizar mapa a cada 5s
+resolution: 0.05           # 5cm por pixel
+range_min: 0.15           # Ignorar objetos < 15cm
+range_max: 12.0           # Escanear até 12 metros
+```
+
+</TabItem>
+</Tabs>
+
+### Navegação para Ponto Específico
+
+```python
+from unitree_sdk import G1Navigator
+
+nav = G1Navigator()
+
+# Carregar mapa
+nav.load_map("casa_andar1")
+
+# Setar pose inicial (onde G1 está agora)
+nav.set_initial_pose(x=0.0, y=0.0, theta=0.0)
+
+# Navegar para coordenada
+nav.navigate_to_pose(x=5.0, y=2.0, theta=1.57)  # 1.57 rad = 90°
+
+# Aguardar chegada
+while not nav.is_goal_reached():
+    print(f"Distância restante: {nav.get_distance_to_goal():.2f}m")
+    time.sleep(0.5)
+
+print("✅ Chegou ao destino!")
+```
+
+### Navegação Semântica (Locais Nomeados)
+
+```python
+# Salvar locais importantes
+nav.save_location("cozinha", x=5.0, y=2.0, theta=0.0)
+nav.save_location("sala", x=1.0, y=-1.5, theta=3.14)
+nav.save_location("quarto", x=8.0, y=4.0, theta=1.57)
+
+# Navegar por nome
+nav.go_to("cozinha")  # Muito mais fácil! ✅
+```
+
+---
+
+## ⚠️ Detecção e Desvio de Obstáculos
+
+### Hierarquia de Sensores
+
+```
+PRIORIDADE DE SENSORES (do mais ao menos prioritário):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. LIDAR 3D (peito)      → Obstáculos 0.2m - 10m
+2. Depth Camera (cabeça) → Obstáculos pequenos
+3. IMU (torso)           → Detectar quedas iminentes
+4. Foot Force Sensors    → Terreno irregular
+```
+
+### Configurar Zonas de Segurança
+
+```python
+# Zona de parada imediata
+nav.set_safety_zone(
+    emergency_stop_distance=0.3,  # Parar se obstáculo < 30cm
+    slow_down_distance=1.0,       # Reduzir velocidade se < 1m
+    costmap_inflation=0.5         # "Inflar" obstáculos 50cm
+)
+
+# Exemplo de uso:
+nav.navigate_to_pose(x=5.0, y=2.0)
+
+# Se pessoa aparecer < 30cm:
+# → G1 para IMEDIATAMENTE ✅
+```
+
+### Comportamentos de Recovery
+
+Se G1 ficar preso (ex: canto de parede), ele tenta:
+
+```python
+recovery_behaviors = [
+    "back_up",        # 1. Andar para trás 50cm
+    "spin_in_place",  # 2. Girar 360° buscando saída
+    "clear_costmap",  # 3. Resetar mapa de obstáculos
+    "wait",           # 4. Aguardar 10s (obstáculo pode se mover)
+]
+
+nav.set_recovery_behaviors(recovery_behaviors)
+```
+
+---
+
+## 🎮 Controle Manual Avançado
+
+### Velocidade Diferenciada (Curved Walking)
+
+```python
+# Andar em curva
+g1.set_velocity(
+    linear_x=0.5,   # 0.5 m/s para frente
+    angular_z=0.3   # Girar 0.3 rad/s para esquerda
+)
+
+# Resultado: G1 anda em arco! 🌀
+```
+
+### Modos de Controle
+
+<Tabs>
+<TabItem value="velocity" label="Velocity Control">
+
+**Controle por velocidade** (padrão):
+
+```python
+# Você especifica velocidade, G1 controla posição
+g1.set_velocity_mode()
+g1.set_velocity(linear_x=1.0)  # 1 m/s
+```
+
+Bom para: Navegação contínua, seguir pessoas
+
+</TabItem>
+
+<TabItem value="position" label="Position Control">
+
+**Controle por posição** (preciso):
+
+```python
+# Você especifica destino exato
+g1.set_position_mode()
+g1.move_to_position(x=2.0, y=0.0, tolerance=0.05)
+```
+
+Bom para: Alinhamento preciso, pegar objetos
+
+</TabItem>
+
+<TabItem value="trajectory" label="Trajectory Control">
+
+**Controle por trajetória** (complexo):
+
+```python
+# Especificar caminho completo
+trajectory = [
+    (0.0, 0.0, 0.0),
+    (1.0, 0.5, 0.2),
+    (2.0, 1.0, 0.5),
+]
+
+g1.set_trajectory_mode()
+g1.execute_trajectory(trajectory, duration=10.0)
+```
+
+Bom para: Movimentos coreografados, dança
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📊 Monitoramento de Desempenho
+
+### Métricas Importantes
+
+```python
+# Verificar saúde da locomoção
+metrics = g1.get_locomotion_metrics()
+
+print(f"Velocidade atual: {metrics['velocity_x']:.2f} m/s")
+print(f"Inclinação (pitch): {metrics['pitch']:.2f}°")
+print(f"Temperatura motores: {metrics['motor_temp_avg']:.1f}°C")
+print(f"Energia gasta: {metrics['energy_consumed']:.1f} Wh")
+
+# ⚠️ Alertas
+if metrics['motor_temp_avg'] > 65:
+    print("⚠️ MOTORES QUENTES! Reduzir velocidade.")
+    g1.set_velocity(0.3)
+
+if metrics['pitch'] > 15:
+    print("⚠️ INCLINADO DEMAIS! Risco de queda.")
+    g1.emergency_stop()
+```
+
+---
+
+## ✅ Checklist de Prática
+
+- [ ] Testou todos os 4 modos de caminhada (walk, trot, climb, balance)
+- [ ] Criou mapa completo de um ambiente (casa/escritório)
+- [ ] Fez G1 navegar autonomamente para 3 locais diferentes
+- [ ] Testou desvio de obstáculos (colocar cadeira no caminho)
+- [ ] Configurou zonas de segurança personalizadas
+- [ ] Fez G1 subir/descer escadas com sucesso
+- [ ] Monitorou métricas de desempenho durante operação
+
+---
+
+## 🐛 Troubleshooting Comum
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| G1 não sai do lugar | Modo errado | Verificar `get_gait_mode()`, setar para "walk" |
+| Caminha torto | IMU descalibrada | `g1.calibrate_imu()` (robô parado) |
+| Para frequentemente | Sensores sujos | Limpar LIDAR e câmeras com pano microfibra |
+| Não sobe escadas | Degrau muito alto | Máximo 18cm, verificar com `nav.measure_step_height()` |
+| Navega devagar | Costmap muito conservador | Reduzir `costmap_inflation` de 0.5 para 0.3 |
 
 ---
 
 ## 🔗 Próximos Passos
 
 :::tip Próximo Módulo
-Continuar para próximo módulo →
+**[🦾 Manipulação com Braços →](./manipulacao-bracos)**
+
+Aprenda a usar os braços e garras do G1 para interagir com objetos.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-45 min | **🎮 Hands-on:** Recomendado
+**⏱️ Tempo:** 45-60 min | **🎮 Hands-on:** Essencial | **📍 Espaço:** 3m x 3m mínimo

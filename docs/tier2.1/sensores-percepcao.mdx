@@ -7,42 +7,616 @@ description: LIDAR, câmeras e IMU
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 📚 Sensores e Percepção
+# 📡 Sensores e Percepção
 
 :::tip Objetivo
-LIDAR, câmeras e IMU do Unitree G1.
+Entender como o Unitree G1 "enxerga" e percebe o mundo através de seus sensores: LIDAR 3D, câmeras RGB-D, IMU, encoders e sensores de força.
 :::
 
 ---
 
-## 🎯 Conteúdo Principal
+## 🔍 Visão Geral dos Sensores
 
-[Conteúdo detalhado será expandido em futuras versões]
+O G1 possui **múltiplos sistemas de sensores** trabalhando em conjunto para percepção completa do ambiente.
 
-### Tópico 1
+### Hierarquia de Sensores
 
-Informações práticas sobre operação do G1.
+```
+STACK DE PERCEPÇÃO DO G1:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Tópico 2
+1️⃣ VISÃO (Exteroceptivo)
+   ├─ LIDAR 3D (Ouster OS1-64) → Mapeamento ambiente
+   ├─ RGB-D Camera (Intel RealSense D435) → Detecção objetos
+   └─ Stereo Cameras (2x) → Profundidade e tracking
 
-Exemplos e exercícios hands-on.
+2️⃣ PROPRIOCEPÇÃO (Interoceptivo)
+   ├─ IMU (9-axis) → Orientação e aceleração
+   ├─ Joint Encoders (29x) → Posição das juntas
+   └─ Force/Torque Sensors (pés e mãos) → Contato
+
+3️⃣ OUTROS
+   ├─ Microphones (4x) → Áudio espacial
+   └─ Temperature Sensors → Monitorar motores
+```
 
 ---
 
-## ✅ Checklist
+## 📸 Sistema de Câmeras
 
-- [ ] Completou leitura do módulo
-- [ ] Praticou com G1 físico
-- [ ] Dominou conceitos principais
+### Câmera RGB-D (Cabeça)
+
+<Tabs>
+<TabItem value="specs" label="Especificações">
+
+**Intel RealSense D435:**
+```
+SPECS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Resolução RGB: 1920x1080 @ 30fps
+• Resolução Depth: 1280x720 @ 30fps
+• Range: 0.3m - 10m
+• FOV (H x V): 87° x 58°
+• Precisão depth: ±2% até 4m
+• Framerate: até 90fps (baixa resolução)
+```
+
+**Capacidades:**
+- ✅ Detecção de objetos (YOLO, Mask R-CNN)
+- ✅ Segmentação semântica
+- ✅ Estimação de pose humana
+- ✅ Reconhecimento facial
+- ✅ OCR (ler texto)
+
+</TabItem>
+
+<TabItem value="access" label="Acessar Dados">
+
+### Capturar Imagens
+
+```python
+from unitree_sdk import G1Vision
+
+vision = G1Vision()
+
+# Capturar frame RGB
+rgb_frame = vision.get_rgb_frame()
+print(f"Shape: {rgb_frame.shape}")  # (1080, 1920, 3)
+
+# Capturar mapa de profundidade
+depth_frame = vision.get_depth_frame()
+print(f"Shape: {depth_frame.shape}")  # (720, 1280)
+
+# Capturar ambos sincronizados
+rgb, depth = vision.get_rgbd_frame()
+
+# Salvar imagem
+vision.save_image(rgb_frame, "/tmp/snapshot.jpg")
+```
+
+### Stream de Vídeo
+
+```python
+import cv2
+
+# Stream contínuo
+for frame in vision.stream_rgb(fps=30):
+    # Processar frame
+    cv2.imshow("G1 Vision", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+vision.stop_stream()
+```
+
+</TabItem>
+
+<TabItem value="detection" label="Detecção de Objetos">
+
+### Detectar Objetos (YOLO)
+
+```python
+# Detectar objetos comuns
+detections = vision.detect_objects(
+    model="yolov8",
+    confidence=0.6,      # Mínimo 60% confiança
+    classes=["person", "cup", "bottle", "laptop"]
+)
+
+for obj in detections:
+    print(f"Objeto: {obj.class_name}")
+    print(f"Confiança: {obj.confidence:.2%}")
+    print(f"BBox: {obj.bbox}")  # (x, y, w, h)
+    print(f"Posição 3D: {obj.position_3d}")  # (x, y, z) em metros
+    print(f"Distância: {obj.distance:.2f}m")
+
+# Filtrar por classe
+cups = vision.filter_objects(detections, class_name="cup")
+print(f"Encontrados {len(cups)} copos")
+```
+
+### Segmentação de Instância
+
+```python
+# Segmentar objetos pixel-a-pixel
+segments = vision.segment_instances(
+    model="mask_rcnn",
+    min_area=100  # pixels mínimos
+)
+
+for seg in segments:
+    print(f"Objeto: {seg.class_name}")
+    print(f"Máscara shape: {seg.mask.shape}")
+    print(f"Área: {seg.area} pixels")
+
+    # Extrair submáscara
+    object_only = rgb_frame * seg.mask[:, :, None]
+    vision.save_image(object_only, f"/tmp/{seg.class_name}.jpg")
+```
+
+</TabItem>
+</Tabs>
+
+### Câmeras Estéreo (Laterais)
+
+**2x Câmeras monocromáticas:**
+```python
+# Acessar câmeras esquerda/direita
+left_img = vision.get_stereo_left()
+right_img = vision.get_stereo_right()
+
+# Calcular disparidade (profundidade)
+disparity = vision.compute_stereo_disparity(left_img, right_img)
+
+# Converter para nuvem de pontos
+point_cloud = vision.disparity_to_pointcloud(disparity)
+print(f"Pontos: {len(point_cloud)}")
+```
+
+---
+
+## 🌐 LIDAR 3D
+
+### Ouster OS1-64
+
+<Tabs>
+<TabItem value="specs" label="Especificações">
+
+```
+LIDAR SPECS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Canais: 64 (lasers verticais)
+• Range: 0.5m - 120m
+• Precisão: ±3cm até 50m
+• FOV: 360° H x 45° V
+• Frequência: 10 ou 20 Hz
+• Pontos/segundo: 1.3 milhões
+• Resistência: IP68 (água/poeira)
+```
+
+**Montagem:** Centro do peito do G1
+
+</TabItem>
+
+<TabItem value="pointcloud" label="Nuvem de Pontos">
+
+### Acessar Point Cloud
+
+```python
+from unitree_sdk import G1LIDAR
+
+lidar = G1LIDAR()
+
+# Capturar scan único
+scan = lidar.get_scan()
+print(f"Pontos: {len(scan.points)}")  # ~1.3M pontos
+
+# Acessar pontos (numpy array)
+points = scan.points  # Shape: (N, 3) - (x, y, z)
+intensities = scan.intensities  # Refletividade
+
+# Filtrar por distância
+close_points = points[points[:, 2] < 2.0]  # Apenas < 2m
+print(f"Pontos próximos: {len(close_points)}")
+
+# Salvar para visualização
+lidar.save_pcd(scan, "/tmp/scan.pcd")  # Formato PCD
+```
+
+### Visualizar em Tempo Real
+
+```bash
+# Usando ROS2 + RViz
+ros2 launch unitree_lidar visualize.launch.py
+
+# Ou Python
+import open3d as o3d
+
+pcd = o3d.io.read_point_cloud("/tmp/scan.pcd")
+o3d.visualization.draw_geometries([pcd])
+```
+
+</TabItem>
+
+<TabItem value="processing" label="Processamento">
+
+### Detecção de Obstáculos
+
+```python
+# Detectar obstáculos na frente
+obstacles = lidar.detect_obstacles(
+    min_distance=0.5,     # Mínimo 50cm
+    max_distance=5.0,     # Máximo 5m
+    height_range=(0.1, 2.0),  # Entre 10cm e 2m altura
+    cluster_tolerance=0.1  # Agrupar pontos < 10cm
+)
+
+for obs in obstacles:
+    print(f"Obstáculo em: {obs.centroid}")
+    print(f"Tamanho: {obs.dimensions}")  # (largura, altura, profundidade)
+    print(f"Distância: {obs.distance:.2f}m")
+
+# Ação baseada em obstáculos
+if any(obs.distance < 0.8 for obs in obstacles):
+    print("⚠️ OBSTÁCULO MUITO PERTO!")
+    g1_controller.emergency_stop()
+```
+
+### Segmentação de Chão
+
+```python
+# Identificar chão vs objetos
+ground, non_ground = lidar.segment_ground(
+    angle_threshold=10,  # graus
+    distance_threshold=0.05  # metros
+)
+
+print(f"Pontos do chão: {len(ground)}")
+print(f"Pontos de objetos: {len(non_ground)}")
+
+# Detectar apenas objetos acima do chão
+objects = lidar.cluster_objects(non_ground, eps=0.15)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🧭 IMU (Unidade de Medição Inercial)
+
+### 9-Axis IMU
+
+<Tabs>
+<TabItem value="data" label="Dados do IMU">
+
+```python
+from unitree_sdk import G1IMU
+
+imu = G1IMU()
+
+# Ler dados do IMU
+data = imu.get_data()
+
+# ORIENTAÇÃO (quaternion)
+print(f"Quaternion: {data.orientation}")
+
+# Converter para Euler angles
+roll, pitch, yaw = imu.quaternion_to_euler(data.orientation)
+print(f"Roll: {roll:.2f}°")
+print(f"Pitch: {pitch:.2f}°")
+print(f"Yaw: {yaw:.2f}°")
+
+# ACELERAÇÃO LINEAR (m/s²)
+print(f"Accel: {data.linear_acceleration}")
+
+# VELOCIDADE ANGULAR (rad/s)
+print(f"Gyro: {data.angular_velocity}")
+```
+
+**Frequência:** 200 Hz (5ms por amostra)
+
+</TabItem>
+
+<TabItem value="applications" label="Aplicações">
+
+### Detecção de Queda
+
+```python
+# Monitorar inclinação para prevenir quedas
+def monitor_balance():
+    data = imu.get_data()
+    roll, pitch, _ = imu.quaternion_to_euler(data.orientation)
+
+    # CRÍTICO: Mais de 30° inclinado
+    if abs(roll) > 30 or abs(pitch) > 30:
+        print("🚨 RISCO DE QUEDA IMINENTE!")
+        g1.emergency_balance_recovery()
+        return "critical"
+
+    # AVISO: Entre 15-30°
+    elif abs(roll) > 15 or abs(pitch) > 15:
+        print("⚠️ Inclinação alta")
+        g1.reduce_speed(factor=0.5)
+        return "warning"
+
+    return "stable"
+
+# Loop de monitoramento
+import time
+while True:
+    status = monitor_balance()
+    time.sleep(0.05)  # 20 Hz
+```
+
+### Estimação de Velocidade
+
+```python
+# Integrar aceleração para estimar velocidade
+velocity = imu.estimate_velocity(
+    duration=1.0,  # Integrar por 1 segundo
+    filter="kalman"  # Filtro de Kalman para reduzir drift
+)
+
+print(f"Velocidade estimada: {velocity} m/s")
+```
+
+</TabItem>
+
+<TabItem value="calibration" label="Calibração">
+
+### Calibrar IMU
+
+```python
+# Calibração de fábrica
+imu.reset_to_factory_calibration()
+
+# Calibração manual (G1 deve estar PARADO e NIVELADO)
+print("Posicione G1 em superfície plana e pressione Enter...")
+input()
+
+imu.calibrate(
+    duration=10,  # Coletar dados por 10s
+    auto_save=True
+)
+
+# Verificar qualidade
+quality = imu.get_calibration_quality()
+print(f"Qualidade: {quality}")  # 0-100%
+
+if quality < 80:
+    print("⚠️ Calibração ruim! Repetir.")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🦿 Encoders das Juntas
+
+### 29 Encoders de Posição
+
+```python
+from unitree_sdk import G1Joints
+
+joints = G1Joints()
+
+# Ler posição de todas as juntas
+positions = joints.get_positions()  # Dict com 29 juntas
+
+print(f"Joelho esquerdo: {positions['left_knee']:.2f}°")
+print(f"Ombro direito: {positions['right_shoulder_pitch']:.2f}°")
+
+# Ler velocidades
+velocities = joints.get_velocities()
+
+# Ler torques (estimados)
+torques = joints.get_torques()
+
+# Monitorar junta específica
+left_ankle = joints.monitor_joint(
+    name="left_ankle",
+    rate=100  # Hz
+)
+
+for sample in left_ankle.stream(duration=5):
+    print(f"Ângulo: {sample.position:.2f}° | Vel: {sample.velocity:.2f}°/s")
+```
+
+### Detecção de Anomalias
+
+```python
+# Detectar juntas com comportamento anormal
+anomalies = joints.detect_anomalies(
+    position_threshold=5,   # ±5° do esperado
+    velocity_threshold=50,  # ±50°/s do esperado
+    torque_threshold=10     # ±10Nm do esperado
+)
+
+if anomalies:
+    print("⚠️ Juntas anormais detectadas:")
+    for joint, issue in anomalies.items():
+        print(f"  {joint}: {issue}")
+```
+
+---
+
+## 👣 Sensores de Força nos Pés
+
+### Force/Torque Sensors (4x)
+
+```python
+from unitree_sdk import G1ForceSensors
+
+force = G1ForceSensors()
+
+# Ler força em cada pé
+left_forces = force.get_foot_forces("left")
+right_forces = force.get_foot_forces("right")
+
+print(f"Força pé esquerdo: {left_forces.total:.2f}N")
+print(f"Força pé direito: {right_forces.total:.2f}N")
+
+# Verificar distribuição de peso
+total_weight = left_forces.total + right_forces.total
+left_percentage = (left_forces.total / total_weight) * 100
+right_percentage = (right_forces.total / total_weight) * 100
+
+print(f"Distribuição: {left_percentage:.1f}% L | {right_percentage:.1f}% R")
+
+# Detectar quando pé toca o chão
+if force.is_foot_in_contact("left"):
+    print("✅ Pé esquerdo no chão")
+```
+
+### Centro de Pressão (CoP)
+
+```python
+# Calcular centro de pressão (importante para equilíbrio)
+cop_left = force.get_center_of_pressure("left")
+cop_right = force.get_center_of_pressure("right")
+
+print(f"CoP esquerdo: {cop_left}")  # (x, y) em mm
+print(f"CoP direito: {cop_right}")
+
+# Detectar instabilidade
+if cop_left[0] > 50:  # > 5cm fora do centro
+    print("⚠️ CoP esquerdo muito deslocado!")
+```
+
+---
+
+## 🔊 Microfones (Array)
+
+### 4x Microfones para Áudio Espacial
+
+```python
+from unitree_sdk import G1Audio
+
+audio = G1Audio()
+
+# Gravar áudio
+audio.start_recording(duration=5, filename="/tmp/audio.wav")
+time.sleep(5)
+
+# Detectar direção de som
+sound_events = audio.detect_sound_sources()
+
+for event in sound_events:
+    print(f"Som detectado: {event.type}")
+    print(f"Direção: {event.azimuth:.1f}° | Elevação: {event.elevation:.1f}°")
+    print(f"Intensidade: {event.intensity} dB")
+
+# Localizar pessoa falando
+speaker_direction = audio.localize_speech()
+if speaker_direction:
+    print(f"Pessoa falando em: {speaker_direction}°")
+    g1.turn_head_to_angle(speaker_direction)
+```
+
+---
+
+## 🔥 Sensores de Temperatura
+
+```python
+from unitree_sdk import G1Temperature
+
+temp = G1Temperature()
+
+# Ler temperaturas dos motores
+motor_temps = temp.get_motor_temperatures()
+
+for motor, temperature in motor_temps.items():
+    if temperature > 70:
+        print(f"🔥 {motor}: {temperature}°C - QUENTE!")
+    elif temperature > 60:
+        print(f"⚠️ {motor}: {temperature}°C - Aviso")
+
+# Temperatura média
+avg_temp = temp.get_average_motor_temp()
+print(f"Temperatura média: {avg_temp:.1f}°C")
+
+# Ação se muito quente
+if avg_temp > 65:
+    print("🛑 Sistema muito quente! Reduzindo carga.")
+    g1.reduce_max_speed(factor=0.6)
+    g1.enable_cooling_mode()
+```
+
+---
+
+## 🧪 Fusão de Sensores (Sensor Fusion)
+
+### Combinar Múltiplos Sensores
+
+```python
+from unitree_sdk import G1SensorFusion
+
+fusion = G1SensorFusion()
+
+# SLAM (Simultaneous Localization and Mapping)
+# Combina: LIDAR + IMU + Encoders + Câmeras
+slam = fusion.run_slam(
+    mode="online",
+    map_resolution=0.05,  # 5cm
+    publish_tf=True
+)
+
+# Obter pose estimada (localização)
+pose = slam.get_current_pose()
+print(f"Posição: x={pose.x:.2f}m, y={pose.y:.2f}m, θ={pose.theta:.2f}°")
+print(f"Confiança: {pose.confidence:.2%}")
+
+# Detecção de objetos 3D (LIDAR + Câmera)
+objects_3d = fusion.detect_objects_3d(
+    use_lidar=True,
+    use_camera=True,
+    fusion_method="early"  # ou "late"
+)
+
+for obj in objects_3d:
+    print(f"{obj.name}: {obj.position_3d} (confiança: {obj.confidence:.2%})")
+```
+
+---
+
+## ✅ Checklist de Prática
+
+- [ ] Capturou imagens RGB e depth da câmera
+- [ ] Detectou objetos usando visão computacional (YOLO)
+- [ ] Visualizou nuvem de pontos do LIDAR
+- [ ] Detectou obstáculos com LIDAR durante caminhada
+- [ ] Leu dados do IMU e interpretou orientação
+- [ ] Monitorou posição de juntas específicas
+- [ ] Verificou sensores de força nos pés
+- [ ] Testou detecção de direção de som
+- [ ] Verificou temperaturas dos motores sob carga
+
+---
+
+## 🐛 Troubleshooting Comum
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Câmera retorna frames pretos | Não inicializada | `vision.initialize()` antes de usar |
+| LIDAR sem dados | Conexão USB | Verificar `lsusb`, reconectar |
+| IMU com drift | Não calibrado | `imu.calibrate()` em superfície plana |
+| Detecção de objetos lenta | Modelo pesado | Usar `yolov8n` (nano) ao invés de `yolov8x` |
+| Point cloud muito denso | Alta resolução | Usar `lidar.downsample(voxel_size=0.05)` |
+| Encoders imprecisos | Calibração perdida | `joints.recalibrate_all()` |
 
 ---
 
 ## 🔗 Próximos Passos
 
 :::tip Próximo Módulo
-Continuar para próximo módulo →
+**[🛡️ Segurança e Boas Práticas →](./seguranca-praticas)**
+
+Aprenda a operar G1 de forma segura para você e para o robô.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-45 min | **🎮 Hands-on:** Recomendado
+**⏱️ Tempo:** 60-90 min | **🎮 Hands-on:** Essencial | **💻 Software:** ROS2, OpenCV, Open3D
