@@ -1,7 +1,7 @@
 ---
 sidebar_position: 5
 title: 5. Aprendizado Contínuo
-description: Como MindOn aprende
+description: Como MindOn aprende e evolui
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,48 +10,646 @@ import TabItem from '@theme/TabItem';
 # 🧠 Aprendizado Contínuo
 
 :::tip Objetivo
-Como MindOn aprende com MindOn OS.
+Entender como o MindOn aprende com experiência, se adapta a preferências do usuário e melhora continuamente através de reinforcement learning e memória episódica.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 Fundamentos do Aprendizado MindOn
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+O MindOn não é apenas programado - ele **aprende continuamente** com cada interação, tornando-se mais útil e personalizado ao longo do tempo.
 
-### Principais Recursos
+### Tipos de Aprendizado
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```
+ARQUITETURA DE APRENDIZADO MINDON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. REINFORCEMENT LEARNING (RL)
+   └─> Aprende estratégias ótimas por tentativa-erro
+   └─> Ex: "Qual melhor caminho para cozinha?"
+
+2. PREFERENCE LEARNING
+   └─> Aprende preferências do usuário
+   └─> Ex: "Usuário prefere café forte"
+
+3. EPISODIC MEMORY
+   └─> Lembra eventos específicos
+   └─> Ex: "Chaves estavam na mesa ontem"
+
+4. SEMANTIC MEMORY
+   └─> Conhecimento geral do mundo
+   └─> Ex: "Xícaras geralmente ficam na cozinha"
+
+5. SKILL REFINEMENT
+   └─> Melhora execução de skills
+   └─> Ex: "Pegar copos com 95% sucesso"
+```
+
+### Diferença: Aprendizado Tradicional vs MindOn
+
+```
+ROBÔ TRADICIONAL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Dia 1:  "Pegue o copo" → Executa algoritmo fixo
+Dia 100: "Pegue o copo" → Executa MESMO algoritmo
+Resultado: Nunca melhora
+
+
+MINDON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Dia 1:  "Pegue o copo" → Taxa sucesso 70%
+Dia 30: "Pegue o copo" → Taxa sucesso 85% (aprendeu)
+Dia 100: "Pegue o copo" → Taxa sucesso 95% (expertise)
+Resultado: Melhoria contínua
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 🎓 Reinforcement Learning (RL)
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### Como Funciona
 
-### Conceitos Importantes
+O G1 aprende através de **recompensas e punições** ao executar tarefas.
 
-Informações práticas sobre uso do MindOn com G1.
+<Tabs>
+<TabItem value="basics" label="Básico">
+
+**Conceito fundamental:**
+
+```python
+# Ciclo de RL
+from mindon_sdk import LearningEngine
+
+learning = LearningEngine()
+
+# 1. G1 executa ação
+action = "pick_object"
+result = robot.execute(action)
+
+# 2. Recebe recompensa
+if result.success:
+    reward = +10  # Sucesso!
+else:
+    reward = -5   # Falhou
+
+# 3. MindOn atualiza política
+learning.update_policy(
+    state=result.initial_state,
+    action=action,
+    reward=reward,
+    next_state=result.final_state
+)
+
+# 4. Próxima vez, usa política melhorada
+```
+
+**Componentes:**
+- **State**: Situação atual (posição objeto, pose braço)
+- **Action**: O que fazer (aproximar, fechar garra)
+- **Reward**: Quão bom foi resultado
+- **Policy**: Estratégia aprendida
+
+</TabItem>
+
+<TabItem value="examples" label="Exemplos">
+
+**Casos de uso de RL:**
+
+```python
+# Exemplo 1: Aprender melhor trajetória
+learning.train_task(
+    task="navigate_to_kitchen",
+    objective="minimize_time",  # Minimizar tempo
+    constraints=["avoid_furniture", "smooth_motion"],
+    episodes=100  # 100 tentativas
+)
+
+# Após treino:
+# - Aprende atalhos seguros
+# - Evita rotas com obstáculos
+# - Otimiza curvas
+
+# Exemplo 2: Otimizar força de preensão
+learning.train_task(
+    task="pick_cup",
+    objective="maximize_success",
+    parameters={
+        "grip_force": (10, 50),  # Range de força
+        "approach_angle": (0, 90)
+    },
+    episodes=50
+)
+
+# Resultado:
+# - Encontra força ideal (~22N para xícaras)
+# - Descobre melhor ângulo de aproximação
+```
+
+</TabItem>
+
+<TabItem value="custom" label="Customizar">
+
+**Treinar comportamento customizado:**
+
+```python
+# Definir tarefa de treino
+from mindon_sdk import RLTask
+
+class LearnOpenDoor(RLTask):
+    def reset(self):
+        """Estado inicial"""
+        self.door_closed = True
+        self.robot_position = (0, 0, 0)
+        return self.get_state()
+
+    def step(self, action):
+        """Executar ação e retornar recompensa"""
+        # Ação: (dx, dy, gripper_force)
+        result = self.robot.execute_action(action)
+
+        # Calcular recompensa
+        reward = 0
+        if self.door_opened():
+            reward = +100  # Sucesso!
+        elif self.handle_grasped():
+            reward = +10   # Progresso
+        elif self.collided():
+            reward = -50   # Colisão ruim
+
+        done = self.door_opened() or self.max_steps_reached()
+        return self.get_state(), reward, done
+
+# Treinar
+task = LearnOpenDoor()
+learning.train_custom_task(
+    task=task,
+    algorithm="PPO",  # Proximal Policy Optimization
+    episodes=200,
+    save_model_path="/models/door_opening.pt"
+)
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
-## ✅ Checklist
+## ❤️ Preference Learning
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+### Aprend aprender Preferências do Usuário
+
+O MindOn observa suas escolhas e adapta comportamento automaticamente.
+
+### Sistema de Preferências
+
+```python
+from mindon_sdk import PreferenceManager
+
+prefs = PreferenceManager()
+
+# Ver preferências aprendidas
+learned_prefs = prefs.get_user_preferences("user_1")
+print(learned_prefs)
+# {
+#   "coffee": {"strength": "strong", "temperature": "hot"},
+#   "music": {"genre": "jazz", "volume": 0.6},
+#   "navigation": {"speed": "fast", "path_preference": "shortest"},
+#   "interaction": {"formality": "casual", "verbosity": "medium"}
+# }
+```
+
+### Como Preferências São Aprendidas
+
+<Tabs>
+<TabItem value="implicit" label="Implícito">
+
+**Aprendizado implícito (observando comportamento):**
+
+```python
+# MindOn observa padrões
+# Interação 1:
+"Traga café"
+→ Traz café normal
+→ Usuário adiciona açúcar (observado)
+
+# Interação 5:
+"Traga café"
+→ Traz café normal
+→ Usuário adiciona açúcar novamente
+
+# Interação 20:
+"Traga café"
+→ MindOn: "Com açúcar?" (aprendeu padrão)
+
+# Implementação
+@prefs.on_user_action("add_sugar_to_coffee")
+def learn_sugar_preference(context):
+    prefs.increment_preference(
+        user=context.user,
+        category="coffee",
+        attribute="sweetness",
+        value="with_sugar",
+        confidence=0.1  # +10% confiança
+    )
+
+    # Após 10x, confiança > 80% → sugerir
+```
+
+</TabItem>
+
+<TabItem value="explicit" label="Explícito">
+
+**Aprendizado explícito (usuário ensina):**
+
+```python
+# Via comandos de voz
+"Hey G1, eu prefiro música clássica"
+→ prefs.set_preference("music", "genre", "classical")
+
+"Sempre traga meu celular antes de sair"
+→ prefs.create_routine("before_leaving", ["fetch_phone"])
+
+"Não entre no quarto de manhã"
+→ prefs.add_restriction("bedroom", time_range=("06:00", "09:00"))
+
+# Via interface
+prefs.update_preferences({
+    "notifications": {
+        "delivery_alerts": True,
+        "security_alerts": True,
+        "low_battery": True
+    },
+    "autonomy_level": 0.8  # 0-1, quanto pode decidir sozinho
+})
+```
+
+</TabItem>
+
+<TabItem value="feedback" label="Feedback">
+
+**Aprendizado por feedback:**
+
+```python
+# Feedback positivo
+"Isso! Exatamente assim"
+→ prefs.reinforce_last_action(reward=+10)
+
+# Feedback negativo
+"Não, não desse jeito"
+→ prefs.penalize_last_action(penalty=-10)
+
+# Correção
+"Na próxima vez, traga água gelada"
+→ prefs.update_with_correction(
+    task="bring_water",
+    correction={"temperature": "cold"}
+)
+
+# Sistema aprende e ajusta
+learning.apply_feedback(
+    action_id=last_action_id,
+    feedback_type="positive",  # ou "negative", "neutral"
+    intensity=0.8  # 0-1
+)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🗃️ Sistemas de Memória
+
+### Memória Episódica
+
+**Lembrar eventos específicos:**
+
+```python
+from mindon_sdk import EpisodicMemory
+
+memory = EpisodicMemory()
+
+# MindOn automaticamente armazena episódios
+# Cada vez que executa tarefa, salva:
+# - O que aconteceu
+# - Quando
+# - Onde
+# - Resultado
+
+# Consultar memória
+episodes = memory.recall(
+    query="Onde estão minhas chaves?",
+    time_range="last_week"
+)
+
+for ep in episodes:
+    print(f"{ep.timestamp}: Vi chaves em {ep.location}")
+    # "2025-11-23 14:30: Vi chaves na mesa da sala"
+    # "2025-11-22 09:15: Vi chaves no porta-chaves"
+
+# Padrões detectados
+patterns = memory.find_patterns(
+    object="keys",
+    min_occurrences=5
+)
+# "Chaves encontradas 80% das vezes na mesa da sala"
+```
+
+### Memória Semântica
+
+**Conhecimento geral:**
+
+```python
+from mindon_sdk import SemanticMemory
+
+semantic = SemanticMemory()
+
+# Adicionar conhecimento
+semantic.learn_fact(
+    subject="coffee_mug",
+    predicate="usually_located_at",
+    object="kitchen_cabinet"
+)
+
+semantic.learn_fact(
+    subject="user",
+    predicate="works_from",
+    object="home_office",
+    time_context="weekdays 9-17"
+)
+
+# Inferir conhecimento
+location = semantic.infer(
+    query="Where is coffee mug?",
+    confidence_threshold=0.7
+)
+# "Kitchen cabinet (85% confidence)"
+
+# Construir grafo de conhecimento
+graph = semantic.get_knowledge_graph()
+# coffee_mug → located_at → kitchen
+# coffee_mug → used_for → drinking
+# coffee_mug → belongs_to → user
+```
+
+---
+
+## 🔄 Feedback Mechanisms
+
+### Sistema de Feedback
+
+<Tabs>
+<TabItem value="implicit-feedback" label="Implícito">
+
+**Feedback automático:**
+
+```python
+# MindOn detecta feedback implícito
+feedback_signals = [
+    "task_completion_time",     # Rápido = bom
+    "retry_count",              # Poucos = bom
+    "user_interruptions",       # Sem interrupção = bom
+    "battery_efficiency",       # Baixo consumo = bom
+    "collision_count"           # Zero colisão = bom
+]
+
+# Exemplo
+task_result = skills.execute("fetch_object", {"object": "bottle"})
+
+# MindOn automaticamente calcula feedback
+implicit_feedback = {
+    "completion_time": 45,      # 45s (benchmark: 60s) → +reward
+    "retries": 0,               # 0 tentativas → +reward
+    "collisions": 0,            # 0 colisões → +reward
+    "battery_used": 2.5         # 2.5% (bom) → +reward
+}
+
+reward = learning.calculate_implicit_reward(implicit_feedback)
+# reward = +12 (positivo!)
+```
+
+</TabItem>
+
+<TabItem value="explicit-feedback" label="Explícito">
+
+**Feedback do usuário:**
+
+```python
+# Via voz
+"Muito bem!" → +10 reward
+"Bom trabalho" → +8 reward
+"Ok" → +3 reward
+"Não ficou bom" → -5 reward
+"Péssimo" → -10 reward
+
+# Via app
+def on_task_complete(task_id):
+    # Usuário vê popup: "Como foi?"
+    # [👍 Ótimo] [👌 Ok] [👎 Ruim]
+
+    rating = app.get_user_rating(task_id)
+
+    learning.record_explicit_feedback(
+        task_id=task_id,
+        rating=rating,  # 1-5 stars
+        comments=app.get_user_comments(task_id)
+    )
+
+# Via thumbs up/down
+@voice.on_command("isso foi perfeito")
+def positive_feedback(context):
+    learning.reinforce_recent_actions(
+        time_window=60,  # Últimos 60s
+        reward=+15
+    )
+```
+
+</TabItem>
+
+<TabItem value="comparative" label="Comparativo">
+
+**Feedback comparativo:**
+
+```python
+# "Prefiro quando você faz assim"
+# Usuário mostra duas execuções
+
+comparison = learning.compare_executions(
+    execution_a=task_log["2025-11-23_morning"],
+    execution_b=task_log["2025-11-23_afternoon"],
+    preference="execution_b"  # Usuário prefere B
+)
+
+# MindOn analisa diferenças
+differences = comparison.get_key_differences()
+# {
+#   "speed": {"a": 0.5, "b": 0.3},        # B mais devagar
+#   "path": {"a": "direct", "b": "wide"}, # B rota mais ampla
+#   "grip_force": {"a": 30, "b": 20}      # B mais delicado
+# }
+
+# Atualiza política baseado na preferência
+learning.update_from_comparison(comparison)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📈 Monitorar Aprendizado
+
+### Métricas de Aprendizado
+
+```python
+from mindon_sdk import LearningAnalytics
+
+analytics = LearningAnalytics()
+
+# Ver progresso de aprendizado
+progress = analytics.get_learning_progress(
+    skill="pick_object",
+    time_range="last_month"
+)
+
+print(f"Taxa de sucesso inicial: {progress.initial_success_rate}%")
+print(f"Taxa de sucesso atual: {progress.current_success_rate}%")
+print(f"Melhoria: +{progress.improvement}%")
+print(f"Episódios de treino: {progress.training_episodes}")
+
+# Visualizar curva de aprendizado
+progress.plot_learning_curve()
+# [Gráfico mostrando melhoria ao longo do tempo]
+```
+
+### Análise de Performance
+
+```python
+# Comparar performance antes/depois
+comparison = analytics.compare_periods(
+    skill="navigate_to_kitchen",
+    period_a="2025-11-01 to 2025-11-15",  # Primeira quinzena
+    period_b="2025-11-16 to 2025-11-30"   # Segunda quinzena
+)
+
+print(comparison)
+# {
+#   "time_improvement": "-15%",      # 15% mais rápido
+#   "collision_reduction": "-80%",   # 80% menos colisões
+#   "success_rate_increase": "+12%", # 12% mais sucesso
+#   "energy_efficiency": "+8%"       # 8% mais eficiente
+# }
+```
+
+---
+
+## 🎛️ Configurações de Aprendizado
+
+### Controlar Taxa de Aprendizado
+
+```python
+# Configurar agressividade do aprendizado
+learning.configure(
+    learning_rate=0.001,        # Taxa de aprendizado (0-1)
+    exploration_rate=0.2,       # Quanto explorar vs explotar
+    memory_retention=0.95,      # Quanto reter memórias antigas
+    adaptation_speed="medium"   # slow, medium, fast
+)
+
+# Modos de aprendizado
+learning.set_mode("conservative")  # Aprende devagar, seguro
+learning.set_mode("balanced")      # Padrão
+learning.set_mode("aggressive")    # Aprende rápido, mais arriscado
+```
+
+### Resetar Aprendizado
+
+```python
+# Reset completo (volta ao padrão)
+learning.reset_all()
+
+# Reset específico
+learning.reset_skill("pick_object")
+
+# Reset preferências de usuário
+prefs.reset_user_preferences("user_1")
+
+# Fazer backup antes de reset
+learning.backup_to_file("/backups/learning_state_2025-11-24.json")
+
+# Restaurar de backup
+learning.restore_from_file("/backups/learning_state_2025-11-23.json")
+```
+
+---
+
+## 💾 Exportar e Compartilhar Aprendizado
+
+### Transfer Learning
+
+```python
+# Exportar aprendizado para outro G1
+learning.export_learned_policy(
+    skill="navigate_home",
+    output_file="my_home_navigation.policy"
+)
+
+# Em outro G1
+learning.import_policy(
+    policy_file="my_home_navigation.policy",
+    adapt_to_new_environment=True  # Ajustar para novo ambiente
+)
+
+# Compartilhar na comunidade
+learning.upload_to_mindon_cloud(
+    policy="advanced_cup_grasping",
+    public=True,  # Tornar público
+    description="Grasp delicado de xícaras finas"
+)
+
+# Baixar política da comunidade
+learning.download_from_cloud(
+    policy_id="community/advanced_door_opening_v2",
+    install=True
+)
+```
+
+---
+
+## ✅ Checklist de Prática
+
+- [ ] Observou MindOn aprendendo após 10+ execuções da mesma tarefa
+- [ ] Configurou preferências explícitas (café, música, etc)
+- [ ] Deu feedback positivo/negativo em 5 tarefas
+- [ ] Consultou memória episódica ("Onde está X?")
+- [ ] Verificou curva de aprendizado de uma skill
+- [ ] Treinou comportamento customizado com RL
+- [ ] Exportou e importou política aprendida
+- [ ] Comparou performance antes/depois do aprendizado
+
+---
+
+## 🐛 Troubleshooting Comum
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Não está aprendendo | Taxa aprendizado muito baixa | Aumentar `learning_rate` para 0.01 |
+| Comportamento errático | Exploration rate alto | Reduzir `exploration_rate` para 0.1 |
+| Esquecendo aprendizado | Memory retention baixo | Aumentar `memory_retention` para 0.98 |
+| Aprendizado lento | Poucos episódios de treino | Executar tarefa 50+ vezes |
+| Preferências incorretas | Dados conflitantes | Resetar preferências: `prefs.reset()` |
+| Alto uso de memória | Muitos episódios salvos | Limpar histórico antigo: `memory.cleanup(days=30)` |
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🏠 Smart Home Integration →](./smart-home)**
+
+Integre G1 com dispositivos domésticos inteligentes.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 60-80 min | **🎮 Hands-on:** Essencial | **🧪 Requisito:** MindOn Pro (para treino customizado)

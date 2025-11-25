@@ -7,51 +7,494 @@ description: Instalar MindOn no G1
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Instalação e Setup
+# ⚙️ Instalação e Setup
 
 :::tip Objetivo
-Instalar MindOn no G1 com MindOn OS.
+Instalar e configurar o MindOn OS no seu Unitree G1, transformando-o em um assistente autônomo inteligente.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 📋 Pré-Requisitos
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+### Hardware Necessário
 
-### Principais Recursos
+```
+REQUISITOS MÍNIMOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Unitree G1 (firmware >= v2.0)
+✅ Conta MindOn (criar em mindon.ai)
+✅ WiFi 5GHz (velocidade >= 50 Mbps)
+✅ Computador para setup inicial
+✅ Espaço em disco: 10GB livre no G1
+```
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+### Software Necessário
+
+- **G1 Firmware:** v2.0 ou superior
+- **App MindOn:** iOS 15+ ou Android 12+
+- **Browser:** Chrome, Safari, Edge (para configuração web)
 
 ---
 
-## 📚 Conteúdo Principal
+## 🚀 Instalação do MindOn OS
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### Método 1: Via App Móvel (Recomendado)
 
-### Conceitos Importantes
+<Tabs>
+<TabItem value="ios" label="iOS">
 
-Informações práticas sobre uso do MindOn com G1.
+**Passo 1: Baixar App**
+```bash
+App Store → Buscar "MindOn" → Instalar
+```
+
+**Passo 2: Criar Conta**
+1. Abrir app MindOn
+2. "Criar Conta" → Email + Senha
+3. Verificar email (código 6 dígitos)
+
+**Passo 3: Conectar G1**
+```python
+# No app:
+1. "Adicionar Robô" → "Unitree G1"
+2. Ligar G1 → Aguardar boot (LED azul piscando)
+3. App detecta G1 automaticamente
+4. Selecionar G1 → "Conectar"
+5. Inserir WiFi credentials
+```
+
+**Passo 4: Instalar MindOn OS**
+```
+1. App exibe: "Firmware detectado: v2.0"
+2. "Instalar MindOn OS" → Confirmar
+3. Download: ~2.5GB (10-20 min)
+4. Instalação: ~15 min
+5. G1 reinicia automaticamente
+6. LED verde sólido = Pronto! ✅
+```
+
+</TabItem>
+
+<TabItem value="android" label="Android">
+
+**Mesmo processo do iOS**, com pequenas diferenças na UI.
+
+**Play Store → "MindOn" → Instalar**
+
+Siga os mesmos passos 2-4 do iOS.
+
+</TabItem>
+</Tabs>
+
+### Método 2: Via SSH (Avançado)
+
+```bash
+# 1. Conectar ao G1 via SSH
+ssh unitree@<G1_IP_ADDRESS>
+# Senha padrão: unitree123
+
+# 2. Baixar instalador MindOn
+cd /tmp
+wget https://downloads.mindon.ai/latest/mindon-installer.sh
+
+# 3. Executar instalador
+chmod +x mindon-installer.sh
+sudo ./mindon-installer.sh
+
+# 4. Seguir prompts interativos
+# - Inserir API Key da conta MindOn
+# - Selecionar modelo LLM (8B on-device ou 70B cloud)
+# - Configurar WiFi
+
+# 5. Aguardar instalação (15-20 min)
+# 6. Reiniciar
+sudo reboot
+```
 
 ---
 
-## ✅ Checklist
+## 🔧 Configuração Inicial
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+### Setup Wizard
+
+Após instalação, G1 entra em **Setup Mode**:
+
+```
+SETUP WIZARD (5 etapas):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ IDIOMA
+   Português BR, English, 中文, Español...
+
+2️⃣ VOZ
+   Selecionar voz para MindOn:
+   - Masculina / Feminina
+   - Tom: Formal / Casual / Amigável
+
+3️⃣ MAPEAMENTO
+   Criar mapa inicial da casa:
+   - Controlar G1 para percorrer ambiente
+   - Nomear cômodos (sala, cozinha, quarto...)
+
+4️⃣ SMART HOME
+   Conectar dispositivos:
+   - Matter / HomeKit / Google Home
+   - Luzes, termostato, câmeras...
+
+5️⃣ PREFERÊNCIAS
+   - Wake word: "Hey MindOn" (ou customizar)
+   - Modo de privacidade
+   - Horário de quiet mode
+```
+
+### Configuração via App
+
+```python
+# No app MindOn, acessar configurações:
+
+from mindon_sdk import MindOnConfig
+
+config = MindOnConfig()
+
+# Configurar idioma
+config.set_language("pt-BR")
+
+# Configurar voz
+config.set_voice(
+    gender="female",
+    tone="friendly",
+    speed=1.0  # 0.5-1.5x
+)
+
+# Configurar wake word
+config.set_wake_word("Oi MindOn")
+
+# Configurar modo de operação
+config.set_llm_mode(
+    primary="on_device_8b",    # Rápido, offline
+    fallback="cloud_70b"        # Tarefas complexas
+)
+
+# Salvar configurações
+config.save()
+```
+
+---
+
+## 🗺️ Mapeamento Inicial
+
+### Criar Mapa da Casa
+
+**Via App Móvel:**
+
+```
+1. App → "Mapeamento" → "Criar Novo Mapa"
+2. Nomear: "Casa Andar 1"
+3. Colocar G1 no ponto inicial
+4. "Iniciar Mapeamento Automático"
+   ↓
+   G1 explora ambiente automaticamente
+   (usa LIDAR + câmeras)
+   ↓
+5. Após 10-15 min, mapa completo
+6. Editar mapa:
+   - Nomear cômodos
+   - Marcar zonas proibidas
+   - Definir estação de recarga
+```
+
+**Via Código:**
+
+```python
+from mindon_sdk import MindOnMapper
+
+mapper = MindOnMapper()
+
+# Iniciar mapeamento
+map_session = mapper.start_mapping(
+    name="casa_andar1",
+    auto_explore=True,
+    resolution=0.05  # 5cm
+)
+
+# Aguardar conclusão
+while not map_session.is_complete():
+    progress = map_session.get_progress()
+    print(f"Mapeamento: {progress}%")
+    time.sleep(5)
+
+# Nomear cômodos manualmente
+map_session.name_room(
+    center=(5.0, 2.0),
+    name="Cozinha"
+)
+
+map_session.name_room(
+    center=(1.0, -1.0),
+    name="Sala"
+)
+
+# Salvar mapa
+mapper.save_map(map_session)
+```
+
+---
+
+## 🔐 Configurar Conta MindOn
+
+### Planos Disponíveis
+
+<Tabs>
+<TabItem value="free" label="Free (Incluído)">
+
+**MindOn Basic - Grátis com G1**
+
+```
+Incluído:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ LLM on-device (Llama 3.1 8B)
+✅ 50 skills básicas
+✅ 1 mapa salvo
+✅ Comandos de voz básicos
+✅ Offline operation
+
+Limitações:
+❌ Sem aprendizado contínuo
+❌ Sem integração cloud avançada
+❌ Sem multi-robot
+```
+
+</TabItem>
+
+<TabItem value="pro" label="Pro ($29/mês)">
+
+**MindOn Pro - Para usuários avançados**
+
+```
+Tudo do Free +
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ LLM cloud (Llama 3.1 70B) hybrid
+✅ Aprendizado contínuo ativo
+✅ 500+ skills avançadas
+✅ Mapas ilimitados
+✅ Multi-robot (até 3)
+✅ Voice cloning personalizado
+✅ Integração smart home avançada
+✅ Priority support
+✅ API access
+
+Ideal para: Casas inteligentes, experimentação
+```
+
+</TabItem>
+
+<TabItem value="enterprise" label="Enterprise (Custom)">
+
+**MindOn Enterprise - Para empresas**
+
+```
+Tudo do Pro +
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ On-premise deployment
+✅ Custom LLM fine-tuning
+✅ Fleet management (10+)
+✅ SLA 99.9%
+✅ Dedicated account manager
+✅ Custom skills development
+✅ White-label option
+✅ Advanced analytics
+
+Ideal para: Hotéis, hospitais, warehouses
+Preço: A partir de $500/mês
+```
+
+</TabItem>
+</Tabs>
+
+### Ativar Plano Pro
+
+```python
+from mindon_sdk import MindOnAccount
+
+account = MindOnAccount(email="seu@email.com")
+
+# Upgrade para Pro
+account.upgrade_to_pro(
+    payment_method="credit_card",
+    billing_cycle="monthly"  # ou "annual" (-20%)
+)
+
+# Verificar status
+if account.is_pro():
+    print(f"✅ MindOn Pro ativo até: {account.subscription_end_date}")
+```
+
+---
+
+## 🧪 Verificar Instalação
+
+### Testes de Sistema
+
+```python
+from mindon_sdk import MindOnDiagnostics
+
+diag = MindOnDiagnostics()
+
+# Executar diagnóstico completo
+report = diag.run_health_check()
+
+print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+print("MINDON SYSTEM HEALTH CHECK")
+print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+for component, status in report.items():
+    icon = "✅" if status.ok else "❌"
+    print(f"{icon} {component}: {status.message}")
+
+# Exemplo de saída:
+# ✅ MindOn OS: v1.2.3 (latest)
+# ✅ LLM Engine: Loaded (8B on-device)
+# ✅ Voice Recognition: Active (pt-BR)
+# ✅ Skills Library: 52 skills available
+# ✅ Smart Home: 3 devices connected
+# ✅ Network: Connected (WiFi 5GHz, 120 Mbps)
+# ✅ Sensors: All operational
+```
+
+### Teste de Voz
+
+```bash
+# Via app ou comando direto ao G1:
+
+"Hey MindOn, qual é o seu status?"
+
+# Resposta esperada:
+# "Olá! Sou o MindOn, estou operacional e pronto para ajudar.
+#  Meu sistema está com 95% de saúde, bateria em 78%, e estou
+#  conectado ao WiFi."
+```
+
+---
+
+## 🔄 Atualização de Firmware
+
+### Verificar Atualizações
+
+```python
+from mindon_sdk import MindOnUpdater
+
+updater = MindOnUpdater()
+
+# Verificar atualizações disponíveis
+updates = updater.check_updates()
+
+if updates.available:
+    print(f"Nova versão disponível: {updates.version}")
+    print(f"Mudanças principais:")
+    for change in updates.changelog:
+        print(f"  - {change}")
+
+    # Instalar atualização
+    updater.install_update(
+        version=updates.version,
+        auto_reboot=True,
+        schedule="tonight_2am"  # ou "now"
+    )
+```
+
+### Atualizações Automáticas
+
+```python
+# Habilitar atualizações automáticas
+updater.enable_auto_update(
+    check_frequency="daily",
+    install_time="03:00",  # 3 AM
+    notify_before_install=True
+)
+```
+
+---
+
+## 🐛 Troubleshooting de Instalação
+
+### Problemas Comuns
+
+| Problema | Solução |
+|----------|---------|
+| "G1 não detectado" | Verificar se G1 está no mesmo WiFi que o smartphone |
+| "Download falhou" | Verificar espaço em disco (precisa 10GB) |
+| "Instalação travou em 50%" | Aguardar 5 min, se persistir: reiniciar G1 e tentar novamente |
+| "Erro de autenticação" | Verificar credenciais MindOn, fazer logout/login |
+| "LLM não carrega" | Verificar se download completo (~2.5GB para modelo 8B) |
+
+### Logs de Instalação
+
+```bash
+# Via SSH, verificar logs
+ssh unitree@<G1_IP>
+
+# Logs de instalação
+cat /var/log/mindon/install.log
+
+# Logs do sistema MindOn
+tail -f /var/log/mindon/system.log
+
+# Verificar status dos serviços
+systemctl status mindon-core
+systemctl status mindon-llm
+systemctl status mindon-skills
+```
+
+---
+
+## 🎓 Primeiros Comandos
+
+### Teste Rápido
+
+Após instalação, tente estes comandos para validar:
+
+```
+1. "Hey MindOn, me apresente"
+   → Resposta sobre capacidades
+
+2. "Hey MindOn, vá até a cozinha"
+   → Navega para cômodo mapeado
+
+3. "Hey MindOn, qual a temperatura aqui?"
+   → Lê sensor interno ou smart home
+
+4. "Hey MindOn, tire uma foto"
+   → Captura imagem e salva
+
+5. "Hey MindOn, me siga"
+   → Person tracking mode
+```
+
+---
+
+## ✅ Checklist de Setup Completo
+
+- [ ] MindOn OS instalado e ativo
+- [ ] Conta MindOn configurada (Free ou Pro)
+- [ ] Idioma e voz personalizados
+- [ ] Mapa inicial da casa criado
+- [ ] Cômodos nomeados (3+)
+- [ ] Wake word testado e funcionando
+- [ ] Dispositivos smart home conectados (opcional)
+- [ ] Sistema health check passou (100%)
+- [ ] Testou 5 comandos básicos com sucesso
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🗣️ Comandos de Voz →](./comandos-voz)**
+
+Domine o controle por linguagem natural do MindOn!
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 45-60 min | **🧠 Nível:** Iniciante | **📦 Download:** 2.5-3GB

@@ -1,57 +1,628 @@
 ---
 sidebar_position: 6
 title: 6. Smart Home Integration
-description: Integração casa inteligente
+description: Integração com dispositivos domésticos
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Smart Home Integration
+# 🏠 Smart Home Integration
 
 :::tip Objetivo
-Integração casa inteligente com MindOn OS.
+Integrar o G1 com ecossistemas de casa inteligente (Matter, HomeKit, Google Home, Alexa) para criar automações avançadas e controlar dispositivos através do robô.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 Visão Geral da Integração
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+O MindOn transforma o G1 em um **hub físico inteligente** que pode interagir com todos os dispositivos da sua casa.
 
-### Principais Recursos
+### Protocolos Suportados
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```
+ECOSSISTEMAS SUPORTADOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Matter (Universal)
+   └─> Padrão aberto, interoperável
+   └─> 500+ dispositivos compatíveis
+
+2. Apple HomeKit
+   └─> Integração nativa com iOS
+   └─> Siri Shortcuts
+
+3. Google Home
+   └─> Google Assistant integration
+   └─> Routines e automações
+
+4. Amazon Alexa
+   └─> Skills de terceiros
+   └─> Alexa Routines
+
+5. Zigbee / Z-Wave
+   └─> Sensores e atuadores legacy
+   └─> Adaptador USB necessário
+```
+
+### Vantagem do G1 vs Hubs Estáticos
+
+```
+HUB ESTÁTICO (Echo, HomePod):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Controla dispositivos remotamente
+• Sem interação física
+• Limitado a comandos de voz
+
+
+G1 COM MINDON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Controla dispositivos remotamente
+✅ Interação física (apertar botões, girar knobs)
+✅ Mobilidade (leva controle remoto para você)
+✅ Visual feedback (câmera verifica estado)
+✅ Resolução de problemas (reinicia roteador)
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 🔌 Matter Protocol
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### Configuração Inicial
 
-### Conceitos Importantes
+<Tabs>
+<TabItem value="setup" label="Setup">
 
-Informações práticas sobre uso do MindOn com G1.
+**Configurar Matter no G1:**
+
+```python
+from mindon_sdk import SmartHomeManager
+
+smarthome = SmartHomeManager()
+
+# Inicializar Matter stack
+smarthome.initialize_matter(
+    fabric_id="G1_Home_Network",
+    vendor_id=0xFFF1,  # Unitree vendor ID
+    product_id=0x8001   # G1 product ID
+)
+
+# Escanear dispositivos Matter
+devices = smarthome.discover_devices(
+    protocol="matter",
+    timeout=30  # segundos
+)
+
+print(f"Encontrados {len(devices)} dispositivos")
+for device in devices:
+    print(f"- {device.name} ({device.type})")
+```
+
+**Output exemplo:**
+```
+Encontrados 8 dispositivos
+- Living Room Light (light_bulb)
+- Bedroom Thermostat (thermostat)
+- Front Door Lock (smart_lock)
+- Kitchen Camera (security_camera)
+- Garage Door (door_opener)
+```
+
+</TabItem>
+
+<TabItem value="pair" label="Parear">
+
+**Parear dispositivo Matter:**
+
+```python
+# Método 1: QR Code
+device = smarthome.pair_device(
+    pairing_code="MT:Y3.K9L16KA0648G00",  # Do QR code
+    device_name="Sala - Lâmpada"
+)
+
+# Método 2: Código manual
+device = smarthome.pair_device(
+    manual_code="34970112332",
+    device_name="Quarto - Termostato"
+)
+
+# Método 3: NFC (G1 aproxima do dispositivo)
+device = smarthome.pair_via_nfc(
+    device_name="Fechadura Porta"
+)
+
+# Verificar pareamento
+if device.is_paired():
+    print(f"✅ {device.name} pareado com sucesso!")
+    print(f"   Tipo: {device.type}")
+    print(f"   Fabricante: {device.manufacturer}")
+```
+
+</TabItem>
+
+<TabItem value="control" label="Controlar">
+
+**Controlar dispositivos:**
+
+```python
+# Listar dispositivos
+devices = smarthome.get_all_devices()
+
+# Pegar dispositivo específico
+light = smarthome.get_device("Living Room Light")
+
+# Ligar/Desligar
+light.turn_on()
+light.turn_off()
+
+# Ajustar brilho
+light.set_brightness(75)  # 0-100%
+
+# Mudar cor
+light.set_color(
+    hue=120,        # Verde
+    saturation=100,
+    brightness=80
+)
+
+# Ou usar RGB
+light.set_rgb(255, 100, 0)  # Laranja
+
+# Estado atual
+state = light.get_state()
+print(f"Ligada: {state.on}")
+print(f"Brilho: {state.brightness}%")
+print(f"Cor: RGB{state.rgb}")
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
-## ✅ Checklist
+## 🍎 Apple HomeKit Integration
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+### Configurar HomeKit
+
+```python
+from mindon_sdk import HomeKitBridge
+
+homekit = HomeKitBridge()
+
+# Adicionar G1 como HomeKit Hub
+homekit.register_g1_as_hub(
+    name="G1 Smart Hub",
+    pin_code="123-45-678",  # Mostrado no display do G1
+    category="bridge"
+)
+
+# Expor dispositivos Matter para HomeKit
+homekit.bridge_matter_devices(
+    devices=smarthome.get_all_devices(),
+    auto_sync=True  # Sincronizar mudanças automaticamente
+)
+
+# G1 agora aparece no app Casa do iOS!
+```
+
+### Criar Automações HomeKit
+
+```python
+# Via Siri Shortcuts
+homekit.create_shortcut(
+    name="Boa Noite",
+    actions=[
+        ("turn_off", "all_lights"),
+        ("set_temperature", {"device": "thermostat", "temp": 20}),
+        ("lock", "front_door"),
+        ("say", "Boa noite! Casa segura.")
+    ]
+)
+
+# Agora: "Hey Siri, Boa Noite" → G1 executa!
+
+# Automação baseada em localização
+homekit.create_automation(
+    name="Cheguei em Casa",
+    trigger={
+        "type": "location",
+        "event": "arrive_home"
+    },
+    actions=[
+        ("turn_on", "entrance_light"),
+        ("unlock", "front_door"),
+        ("say", "Bem-vindo!")
+    ]
+)
+```
+
+---
+
+## 🟢 Google Home Integration
+
+### Setup Google Assistant
+
+<Tabs>
+<TabItem value="link" label="Vincular Conta">
+
+**Vincular Google Account:**
+
+```python
+from mindon_sdk import GoogleHomeIntegration
+
+google = GoogleHomeIntegration()
+
+# Iniciar vinculação OAuth
+auth_url = google.start_oauth_flow()
+print(f"Abra: {auth_url}")
+
+# Usuário autoriza no navegador
+# G1 recebe callback automaticamente
+
+# Verificar conexão
+if google.is_connected():
+    print("✅ Conectado ao Google Home")
+    devices = google.sync_devices()
+    print(f"Sincronizados {len(devices)} dispositivos")
+```
+
+</TabItem>
+
+<TabItem value="control-google" label="Controlar via Google">
+
+**Usar Google Assistant:**
+
+```python
+# Comandos via Assistant
+google.send_command("Ligue as luzes da sala")
+google.send_command("Definir termostato para 22 graus")
+google.send_command("Tocar música na cozinha")
+
+# Criar rotinas Google
+google.create_routine(
+    name="Manhã de Trabalho",
+    trigger="07:00",
+    days=["mon", "tue", "wed", "thu", "fri"],
+    actions=[
+        "turn_on bedroom_light",
+        "set_thermostat 21",
+        "start_coffee_maker",
+        "play_news_briefing"
+    ]
+)
+
+# G1 pode ser ativado por rotina Google
+google.register_g1_action(
+    name="G1 trazer café",
+    command="fetch_and_bring coffee_mug to bedroom"
+)
+
+# Agora no Google Home:
+# "Ok Google, bom dia" → Rotina executa + G1 traz café!
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🟣 Amazon Alexa Integration
+
+### Configurar Alexa Skill
+
+```python
+from mindon_sdk import AlexaIntegration
+
+alexa = AlexaIntegration()
+
+# Ativar skill Unitree G1
+alexa.enable_skill("unitree-g1-control")
+
+# Descobrir dispositivos
+alexa.discover_devices()
+# "Alexa encontrou 15 dispositivos"
+
+# Controlar via Alexa
+# Usuário: "Alexa, peça pro G1 trazer água"
+# Alexa: "Pedindo ao G1..."
+# G1: Executa fetch_and_bring("water bottle")
+
+# Criar rotinas Alexa
+alexa.create_routine(
+    name="Modo Cinema",
+    trigger_phrase="Alexa, modo cinema",
+    actions=[
+        {"device": "living_room_lights", "action": "dim", "value": 20},
+        {"device": "tv", "action": "turn_on"},
+        {"device": "g1", "action": "say", "text": "Aproveite o filme!"}
+    ]
+)
+```
+
+---
+
+## 🎬 Automações Avançadas
+
+### Cenários Inteligentes
+
+<Tabs>
+<TabItem value="security" label="Segurança">
+
+**Sistema de segurança com G1:**
+
+```python
+# Automação: Monitoramento noturno
+smarthome.create_automation(
+    name="Patrol Noturno",
+    trigger={
+        "time": "23:00",
+        "condition": "all_residents_home"
+    },
+    actions=[
+        # 1. Trancar todas as portas
+        {"device": "all_locks", "action": "lock"},
+
+        # 2. Ligar câmeras
+        {"device": "all_cameras", "action": "enable_recording"},
+
+        # 3. G1 faz ronda
+        {"device": "g1", "action": "execute_skill", "skill": "patrol_area",
+         "params": {"waypoints": ["living_room", "kitchen", "backyard"],
+                    "cycles": 3, "alert_on_anomaly": True}},
+
+        # 4. Notificar usuário
+        {"action": "send_notification", "message": "Casa segura. Patrulha concluída."}
+    ]
+)
+
+# Se G1 detecta anomalia durante patrulha:
+@smarthome.on_event("anomaly_detected")
+def handle_security_alert(event):
+    # Ligar todas as luzes
+    smarthome.turn_on_all("lights")
+
+    # Gravar vídeo
+    smarthome.start_recording("all_cameras")
+
+    # Alertar usuário
+    smarthome.send_alert(
+        title="⚠️ Alerta de Segurança",
+        message=f"Anomalia detectada: {event.description}",
+        severity="high"
+    )
+```
+
+</TabItem>
+
+<TabItem value="energy" label="Economia Energia">
+
+**Otimização energética:**
+
+```python
+# Automação inteligente de energia
+smarthome.create_automation(
+    name="Economizar Energia",
+    trigger={
+        "condition": "no_one_home",
+        "duration": 30  # minutos
+    },
+    actions=[
+        # Desligar luzes desnecessárias
+        {"device": "all_lights", "action": "turn_off",
+         "except": ["security_lights"]},
+
+        # Ajustar termostato
+        {"device": "thermostat", "action": "set_eco_mode"},
+
+        # G1 verifica dispositivos esquecidos
+        {"device": "g1", "action": "check_forgotten_devices"},
+
+        # G1 desliga aparelhos em standby
+        {"device": "g1", "action": "turn_off_standby_devices"}
+    ]
+)
+
+# G1 aprende padrões de uso
+learning = smarthome.get_energy_learning()
+recommendations = learning.get_recommendations()
+
+for rec in recommendations:
+    print(f"💡 {rec.suggestion}")
+    print(f"   Economia estimada: {rec.savings_kwh} kWh/mês")
+```
+
+</TabItem>
+
+<TabItem value="presence" label="Presença Inteligente">
+
+**Simulação de presença (viagens):**
+
+```python
+# Ativar modo "Away"
+smarthome.enable_away_mode(
+    start_date="2025-12-01",
+    end_date="2025-12-07"
+)
+
+# G1 simula presença
+simulation_schedule = [
+    # Manhã
+    {"time": "07:30", "action": "turn_on bedroom_light"},
+    {"time": "07:45", "action": "turn_on kitchen_light"},
+    {"time": "08:00", "action": "turn_on bathroom_light"},
+
+    # Tarde
+    {"time": "18:00", "action": "turn_on living_room_light"},
+    {"time": "18:30", "action": "turn_on tv"},
+
+    # Noite
+    {"time": "22:00", "action": "turn_off all_lights",
+                      "except": ["porch_light"]},
+
+    # G1 varia horários ±30min para parecer natural
+]
+
+smarthome.set_presence_simulation(simulation_schedule)
+
+# G1 também se move pela casa
+smarthome.enable_g1_movement_simulation(
+    waypoints=["living_room", "kitchen", "bedroom"],
+    frequency="hourly"
+)
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 🎛️ Device Discovery
+
+### Descobrir Novos Dispositivos
+
+```python
+# Scan automático periódico
+smarthome.enable_auto_discovery(
+    interval=3600,  # A cada 1 hora
+    protocols=["matter", "zigbee", "wifi"]
+)
+
+# Scan manual
+new_devices = smarthome.scan_new_devices(
+    timeout=60,
+    auto_pair=True,  # Parear automaticamente se possível
+    notify=True      # Notificar usuário
+)
+
+# Se encontrar dispositivo novo:
+# G1: "Encontrei novo dispositivo: Lâmpada Phillips Hue.
+#      Deseja parear?"
+# Usuário: "Sim"
+# G1: *executa pareamento* "Pareado! Nome: Lâmpada Quarto Hóspedes"
+```
+
+---
+
+## 🔧 Device Groups & Scenes
+
+### Criar Grupos
+
+```python
+# Agrupar dispositivos
+smarthome.create_group(
+    name="Sala de Estar",
+    devices=[
+        "living_room_light_1",
+        "living_room_light_2",
+        "living_room_lamp",
+        "tv"
+    ]
+)
+
+# Controlar grupo inteiro
+smarthome.get_group("Sala de Estar").turn_off()
+
+# Criar cenas
+smarthome.create_scene(
+    name="Leitura",
+    states={
+        "living_room_light_1": {"on": True, "brightness": 100},
+        "living_room_light_2": {"on": False},
+        "living_room_lamp": {"on": True, "brightness": 80, "color_temp": 3000}
+    }
+)
+
+# Ativar cena
+smarthome.activate_scene("Leitura")
+# Ou via voz: "Hey G1, ativar cena leitura"
+```
+
+---
+
+## 📊 Monitoramento
+
+### Dashboard de Status
+
+```python
+# Ver status de todos os dispositivos
+dashboard = smarthome.get_dashboard()
+
+print("Status da Casa:")
+print(f"Luzes ligadas: {dashboard.lights_on}/{dashboard.total_lights}")
+print(f"Portas trancadas: {dashboard.doors_locked}/{dashboard.total_doors}")
+print(f"Temperatura média: {dashboard.avg_temperature}°C")
+print(f"Consumo energético: {dashboard.power_consumption} W")
+
+# Histórico de eventos
+events = smarthome.get_event_history(
+    time_range="last_24_hours",
+    event_types=["light_switched", "door_opened", "motion_detected"]
+)
+
+for event in events:
+    print(f"{event.timestamp}: {event.device} - {event.action}")
+```
+
+### Alertas e Notificações
+
+```python
+# Configurar alertas
+smarthome.configure_alerts(
+    battery_low_threshold=20,  # %
+    connection_lost_timeout=300,  # segundos
+    abnormal_power_usage=True
+)
+
+# Receber notificações
+@smarthome.on_alert("battery_low")
+def handle_battery_low(device):
+    print(f"⚠️ Bateria baixa: {device.name} ({device.battery_level}%)")
+    # G1 pode ir trocar bateria se dispositivo for acessível
+
+@smarthome.on_alert("device_offline")
+def handle_offline(device):
+    print(f"❌ Dispositivo offline: {device.name}")
+    # G1 pode ir verificar fisicamente o dispositivo
+    skills.execute("check_device_status", {"device": device.name})
+```
+
+---
+
+## ✅ Checklist de Prática
+
+- [ ] Pareou 5+ dispositivos Matter/Zigbee
+- [ ] Configurou integração HomeKit ou Google Home
+- [ ] Criou automação "Bom Dia" (3+ dispositivos)
+- [ ] Criou grupo de dispositivos e cena
+- [ ] Testou controle via comandos de voz
+- [ ] Configurou patrulha de segurança noturna
+- [ ] Habilitou monitoramento energético
+- [ ] Criou automação baseada em presença
+
+---
+
+## 🐛 Troubleshooting Comum
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Dispositivo não pareava | Protocolo incompatível | Verificar se é Matter/Zigbee compatível |
+| Comando não executa | Dispositivo offline | Verificar conexão WiFi, reiniciar dispositivo |
+| Latência alta (>2s) | Sobrecarga de rede | Usar WiFi 5GHz, reduzir dispositivos 2.4GHz |
+| Automação não dispara | Condição incorreta | Revisar logs: `smarthome.get_automation_logs()` |
+| G1 não encontra dispositivos | Firewall bloqueando | Permitir mDNS/Bonjour no roteador |
+| Integração HomeKit falhou | PIN incorreto | Resetar: `homekit.reset_pairing()` |
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🤖 Multi-Robot Coordination →](./multi-robot)**
+
+Coordene múltiplos robôs G1 para tarefas colaborativas.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 55-75 min | **🎮 Hands-on:** Essencial | **🏠 Requisito:** 3+ dispositivos smart home

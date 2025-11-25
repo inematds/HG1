@@ -1,57 +1,748 @@
 ---
 sidebar_position: 4
 title: 4. Skills Library
-description: Biblioteca de habilidades
+description: Biblioteca de 500+ comportamentos
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Skills Library
+# 📚 Skills Library
 
 :::tip Objetivo
-Biblioteca de habilidades com MindOn OS.
+Explorar e utilizar a biblioteca de 500+ skills pré-construídas do MindOn, aprender a instalar, remover e combinar skills para criar comportamentos complexos.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 O Que São Skills?
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+**Skills** são **comportamentos modulares** que o G1 pode executar. Pense nelas como "apps" para robôs.
 
-### Principais Recursos
+### Arquitetura de Skills
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```
+ANATOMIA DE UMA SKILL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────┐
+│  Skill Manifest (metadata)              │
+│  • Nome, versão, autor                  │
+│  • Dependências                         │
+│  • Requisitos (sensores, hardware)      │
+└────────────────┬────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────┐
+│  Skill Logic (Python code)              │
+│  • Entry point (execute)                │
+│  • Parameters                           │
+│  • Error handling                       │
+└────────────────┬────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────┐
+│  Skills Engine (MindOn)                 │
+│  • Scheduler                            │
+│  • Resource manager                     │
+│  • Safety validator                     │
+└─────────────────────────────────────────┘
+```
+
+### Exemplo Simples: "Fetch" Skill
+
+```python
+# Uso
+from mindon_sdk import SkillsManager
+
+skills = SkillsManager()
+
+# Executar skill
+result = skills.execute(
+    skill_name="fetch_object",
+    parameters={
+        "object_name": "water bottle",
+        "bring_to": "user"
+    }
+)
+
+# MindOn automaticamente:
+# 1. Navega procurando objeto
+# 2. Detecta visualmente
+# 3. Pega com garra
+# 4. Retorna ao usuário
+# 5. Entrega objeto
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 📦 Categorias de Skills
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### 1. Navigation Skills
 
-### Conceitos Importantes
+<Tabs>
+<TabItem value="basic-nav" label="Básica">
 
-Informações práticas sobre uso do MindOn com G1.
+**Skills de navegação fundamental:**
+
+```python
+# Go To Location
+skills.execute("go_to_location", {
+    "location": "kitchen",
+    "speed": "normal"  # slow, normal, fast
+})
+
+# Follow Person
+skills.execute("follow_person", {
+    "target": "user",
+    "distance": 1.5,        # metros
+    "max_speed": 1.0
+})
+
+# Patrol Area
+skills.execute("patrol_area", {
+    "waypoints": ["living_room", "kitchen", "bedroom"],
+    "cycles": 3,            # número de voltas
+    "pause_duration": 10    # segundos em cada ponto
+})
+
+# Return Home
+skills.execute("return_home", {
+    "home_location": "charging_station"
+})
+```
+
+</TabItem>
+
+<TabItem value="advanced-nav" label="Avançada">
+
+**Skills de navegação complexa:**
+
+```python
+# Dynamic Obstacle Avoidance
+skills.execute("navigate_crowded_space", {
+    "destination": "conference_room",
+    "crowd_density": "high",
+    "politeness_level": 0.8  # 0-1, quanto maior mais educado
+})
+
+# Elevator Navigation
+skills.execute("use_elevator", {
+    "target_floor": 5,
+    "call_button_height": 1.2,  # metros
+    "wait_timeout": 120         # segundos
+})
+
+# Stair Climbing
+skills.execute("climb_stairs", {
+    "direction": "up",  # ou "down"
+    "num_steps": 12,
+    "step_height": 0.18,
+    "handrail_side": "right"  # opcional
+})
+```
+
+</TabItem>
+
+<TabItem value="exploration" label="Exploração">
+
+**Skills de mapeamento e busca:**
+
+```python
+# SLAM Mapping
+skills.execute("create_map", {
+    "area_name": "office_floor_2",
+    "resolution": 0.05,     # 5cm por pixel
+    "coverage": "complete"  # ou "quick"
+})
+
+# Object Search
+skills.execute("search_object", {
+    "object": "smartphone",
+    "search_area": ["bedroom", "living_room"],
+    "max_time": 300,        # 5 minutos
+    "report_location": True
+})
+
+# Room Discovery
+skills.execute("discover_rooms", {
+    "starting_point": "entrance",
+    "label_rooms": True,    # Nomear automaticamente
+    "detect_furniture": True
+})
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
-## ✅ Checklist
+### 2. Manipulation Skills
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+<Tabs>
+<TabItem value="basic-manip" label="Básica">
+
+**Pick & Place fundamental:**
+
+```python
+# Pick Object
+skills.execute("pick_object", {
+    "object": "cup",
+    "grip_force": 20,      # Newtons
+    "approach": "top"      # top, side, front
+})
+
+# Place Object
+skills.execute("place_object", {
+    "target_surface": "table",
+    "placement_style": "upright",  # upright, laying, stacked
+    "precision": "high"
+})
+
+# Handover Object
+skills.execute("handover_to_person", {
+    "object": "held_object",
+    "person": "user",
+    "hand_preference": "right"  # mão do usuário
+})
+
+# Open/Close Gripper
+skills.execute("control_gripper", {
+    "arm": "left",
+    "action": "open",
+    "width": 80  # mm
+})
+```
+
+</TabItem>
+
+<TabItem value="advanced-manip" label="Avançada">
+
+**Manipulação complexa:**
+
+```python
+# Bimanual Pick
+skills.execute("bimanual_pick", {
+    "object": "large_box",
+    "weight_estimate": 5.0,    # kg
+    "coordination": "synchronized"
+})
+
+# Pour Liquid
+skills.execute("pour_liquid", {
+    "source_container": "pitcher",
+    "target_container": "glass",
+    "volume": 200,             # ml
+    "pour_rate": "medium"      # slow, medium, fast
+})
+
+# Screw/Unscrew
+skills.execute("rotate_object", {
+    "object": "bottle_cap",
+    "direction": "counterclockwise",
+    "rotations": 3,
+    "torque_limit": 5          # Nm
+})
+
+# Stack Objects
+skills.execute("stack_objects", {
+    "objects": ["box1", "box2", "box3"],
+    "stack_order": "size_descending",
+    "stability_check": True
+})
+```
+
+</TabItem>
+
+<TabItem value="tools" label="Ferramentas">
+
+**Uso de ferramentas:**
+
+```python
+# Use Vacuum Cleaner
+skills.execute("operate_vacuum", {
+    "area": "living_room",
+    "power": "medium",
+    "duration": 600  # 10 minutos
+})
+
+# Use Door Handle
+skills.execute("operate_door", {
+    "door": "bedroom_door",
+    "action": "open",
+    "handle_type": "lever"  # lever, knob, push
+})
+
+# Use Light Switch
+skills.execute("flip_switch", {
+    "switch_location": (1.2, 0.0, 1.5),  # x,y,z
+    "desired_state": "on"
+})
+
+# Use Touchscreen
+skills.execute("interact_touchscreen", {
+    "device": "tablet",
+    "action": "tap",
+    "coordinates": (150, 300),  # pixels
+    "force": 0.5  # N
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### 3. Information Skills
+
+```python
+# Object Recognition
+result = skills.execute("identify_objects", {
+    "confidence_threshold": 0.8,
+    "return_attributes": True  # cor, tamanho, material
+})
+print(result)
+# {
+#   "objects": [
+#     {"name": "mug", "color": "red", "confidence": 0.95},
+#     {"name": "book", "color": "blue", "confidence": 0.88}
+#   ]
+# }
+
+# Face Recognition
+result = skills.execute("recognize_faces", {
+    "database": "family_members",
+    "min_confidence": 0.9
+})
+# {"faces": [{"name": "João", "confidence": 0.96}]}
+
+# Scene Understanding
+result = skills.execute("describe_scene", {
+    "detail_level": "comprehensive",
+    "include_spatial": True
+})
+# "Living room with 3 people sitting on couch,
+#  coffee table in center with 2 cups..."
+
+# Read Text (OCR)
+result = skills.execute("read_text", {
+    "language": "pt-BR",
+    "target": "document_on_table"
+})
+# {"text": "Contrato de Locação..."}
+
+# Count Objects
+result = skills.execute("count_objects", {
+    "object_class": "apples",
+    "area": "kitchen_counter"
+})
+# {"count": 5}
+```
+
+---
+
+### 4. Entertainment Skills
+
+<Tabs>
+<TabItem value="games" label="Jogos">
+
+**Skills recreativas:**
+
+```python
+# Play Fetch
+skills.execute("play_fetch", {
+    "object": "ball",
+    "player": "user",
+    "rounds": 5
+})
+
+# Dance Routine
+skills.execute("perform_dance", {
+    "style": "hip_hop",  # ballet, hip_hop, robot
+    "duration": 30,      # segundos
+    "music_sync": True
+})
+
+# Hide and Seek
+skills.execute("play_hide_seek", {
+    "role": "seeker",    # ou "hider"
+    "play_area": ["living_room", "bedroom"],
+    "countdown": 20
+})
+
+# Simon Says
+skills.execute("play_simon_says", {
+    "difficulty": "medium",
+    "actions": ["wave", "spin", "jump", "clap"]
+})
+```
+
+</TabItem>
+
+<TabItem value="performance" label="Performance">
+
+**Skills de apresentação:**
+
+```python
+# Storytelling
+skills.execute("tell_story", {
+    "story": "three_little_pigs",
+    "use_gestures": True,
+    "voice_acting": True,
+    "duration": 300  # 5 minutos
+})
+
+# Magic Trick
+skills.execute("perform_magic_trick", {
+    "trick": "disappearing_coin",
+    "audience_size": 3,
+    "reveal_secret": False
+})
+
+# Guided Tour
+skills.execute("give_tour", {
+    "location": "museum_exhibit",
+    "stops": 5,
+    "info_source": "exhibit_database",
+    "interactive": True
+})
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### 5. Assistance Skills
+
+```python
+# Carry Items
+skills.execute("carry_alongside", {
+    "items": ["grocery_bag"],
+    "follow_target": "user",
+    "distance": 1.0
+})
+
+# Remind User
+skills.execute("set_reminder", {
+    "message": "Tomar remédio",
+    "time": "14:00",
+    "repeat": "daily",
+    "notification_type": "voice"  # voice, display, both
+})
+
+# Monitor Environment
+skills.execute("monitor_safety", {
+    "watch_for": ["falls", "smoke", "intrusion"],
+    "alert_contacts": ["+55119999999"],
+    "duration": 3600  # 1 hora
+})
+
+# Assist Elderly
+skills.execute("elder_care_mode", {
+    "user": "grandma",
+    "assistance_level": "medium",  # low, medium, high
+    "tasks": ["medication_reminder", "fall_detection", "companionship"]
+})
+
+# Guide Visually Impaired
+skills.execute("guide_person", {
+    "mode": "visual_assistance",
+    "describe_obstacles": True,
+    "reading_assistance": True,
+    "navigation_help": True
+})
+```
+
+---
+
+## 🔧 Gerenciamento de Skills
+
+### Instalar Skills
+
+<Tabs>
+<TabItem value="store" label="Da Loja">
+
+**Instalar da MindOn Store:**
+
+```python
+# Listar skills disponíveis
+available = skills.list_store_skills(
+    category="manipulation",
+    sort_by="popularity"
+)
+
+for skill in available[:5]:
+    print(f"{skill.name} - ⭐ {skill.rating}/5.0")
+    print(f"   {skill.description}")
+
+# Instalar skill
+skills.install_from_store(
+    skill_id="fetch_and_carry_v2",
+    version="2.1.0",  # ou "latest"
+    auto_update=True
+)
+
+# Instalar múltiplas
+skills.batch_install([
+    "advanced_navigation",
+    "object_sorting",
+    "home_security_patrol"
+])
+```
+
+</TabItem>
+
+<TabItem value="local" label="Local">
+
+**Instalar de arquivo local:**
+
+```python
+# Instalar .skill file
+skills.install_from_file(
+    path="/home/user/my_custom_skill.skill",
+    verify_signature=True,
+    sandbox_mode=True  # Testar isolado primeiro
+)
+
+# Instalar de Git
+skills.install_from_git(
+    repo="https://github.com/user/g1-skill",
+    branch="main",
+    dependencies_auto_install=True
+)
+```
+
+</TabItem>
+
+<TabItem value="deps" label="Dependências">
+
+**Gerenciar dependências:**
+
+```python
+# Verificar dependências
+deps = skills.check_dependencies("advanced_pick_place")
+print(deps)
+# {
+#   "required_skills": ["basic_navigation", "object_detection"],
+#   "required_hardware": ["depth_camera", "gripper"],
+#   "optional_skills": ["force_sensing"]
+# }
+
+# Instalar com dependências
+skills.install(
+    "advanced_pick_place",
+    install_dependencies=True,
+    resolve_conflicts=True
+)
+```
+
+</TabItem>
+</Tabs>
+
+### Remover e Atualizar Skills
+
+```python
+# Remover skill
+skills.uninstall("old_navigation_skill")
+
+# Atualizar skill
+skills.update("fetch_object", version="3.0.0")
+
+# Atualizar todas
+skills.update_all(
+    exclude=["custom_skill_1"],  # Não atualizar estas
+    backup=True  # Fazer backup antes
+)
+
+# Reverter para versão anterior
+skills.rollback("pick_object", to_version="2.5.1")
+
+# Limpar skills não usadas
+skills.cleanup_unused(
+    unused_days=30,  # Não usadas há 30 dias
+    keep_dependencies=True
+)
+```
+
+---
+
+## 🔗 Compondo Skills (Skill Chains)
+
+### Sequências Simples
+
+```python
+# Executar skills em sequência
+skills.execute_chain([
+    ("go_to_location", {"location": "kitchen"}),
+    ("pick_object", {"object": "water_bottle"}),
+    ("go_to_location", {"location": "living_room"}),
+    ("handover_to_person", {"person": "user"})
+])
+
+# Com condicionais
+skills.execute_conditional_chain([
+    ("search_object", {"object": "keys"}),
+    # Se encontrou:
+    ("if_found", [
+        ("pick_object", {"object": "keys"}),
+        ("bring_to_user", {})
+    ]),
+    # Se não encontrou:
+    ("else", [
+        ("speak", {"message": "Não encontrei as chaves"})
+    ])
+])
+```
+
+### Skill Graphs (Avançado)
+
+```python
+# Criar grafo de skills complexo
+from mindon_sdk import SkillGraph
+
+graph = SkillGraph()
+
+# Adicionar nós
+graph.add_node("start", "check_location")
+graph.add_node("nav1", "go_to_kitchen")
+graph.add_node("search", "find_object", params={"object": "cup"})
+graph.add_node("pick", "pick_object")
+graph.add_node("deliver", "bring_to_user")
+graph.add_node("fail", "report_failure")
+
+# Adicionar arestas (transições)
+graph.add_edge("start", "nav1")
+graph.add_edge("nav1", "search")
+graph.add_edge("search", "pick", condition="object_found")
+graph.add_edge("search", "fail", condition="object_not_found")
+graph.add_edge("pick", "deliver", condition="grasp_success")
+graph.add_edge("pick", "search", condition="grasp_failed")  # retry
+
+# Executar grafo
+result = skills.execute_graph(
+    graph,
+    max_retries=3,
+    timeout=300  # 5 minutos
+)
+```
+
+---
+
+## 📊 Monitoramento e Analytics
+
+### Status de Execução
+
+```python
+# Executar skill em background
+task_id = skills.execute_async("patrol_area", {
+    "waypoints": ["point1", "point2", "point3"],
+    "cycles": 10
+})
+
+# Monitorar progresso
+while not skills.is_complete(task_id):
+    status = skills.get_status(task_id)
+    print(f"Progresso: {status.progress}%")
+    print(f"Estado atual: {status.current_action}")
+    print(f"ETA: {status.estimated_time_remaining}s")
+    time.sleep(1)
+
+# Cancelar skill
+skills.cancel(task_id)
+```
+
+### Histórico e Métricas
+
+```python
+# Ver histórico de execuções
+history = skills.get_execution_history(
+    skill_name="pick_object",
+    limit=50,
+    time_range="last_week"
+)
+
+for execution in history:
+    print(f"Data: {execution.timestamp}")
+    print(f"Duração: {execution.duration}s")
+    print(f"Sucesso: {execution.success}")
+    print(f"Erro: {execution.error_msg}")
+
+# Estatísticas
+stats = skills.get_statistics("fetch_object")
+print(f"Taxa de sucesso: {stats.success_rate}%")
+print(f"Tempo médio: {stats.avg_duration}s")
+print(f"Uso total: {stats.total_executions} vezes")
+```
+
+---
+
+## 🎛️ Configuração de Skills
+
+### Parâmetros Globais
+
+```python
+# Configurar comportamento de todas as skills
+skills.configure_global({
+    "safety_level": "high",     # low, medium, high
+    "speed_multiplier": 0.8,    # 0-1, velocidade geral
+    "verbosity": "medium",      # silent, low, medium, high
+    "retry_attempts": 3,
+    "timeout_default": 300
+})
+```
+
+### Parâmetros Por Skill
+
+```python
+# Configurar skill específica
+skills.configure("pick_object", {
+    "default_grip_force": 25,
+    "approach_speed": 0.1,
+    "retract_distance": 0.2,
+    "collision_sensitivity": 0.9
+})
+
+# Salvar configuração
+skills.save_config("pick_object", name="delicate_objects")
+
+# Carregar configuração salva
+skills.load_config("pick_object", name="delicate_objects")
+```
+
+---
+
+## ✅ Checklist de Prática
+
+- [ ] Instalou 3 skills da MindOn Store
+- [ ] Executou skill de navegação (go_to_location)
+- [ ] Executou skill de manipulação (pick_and_place)
+- [ ] Criou skill chain com 4+ skills
+- [ ] Monitorou execução de skill async
+- [ ] Configurou parâmetros de skill
+- [ ] Verificou estatísticas de uso
+- [ ] Atualizou skill para nova versão
+
+---
+
+## 🐛 Troubleshooting Comum
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Skill não instala | Dependências faltando | Verificar `check_dependencies()`, instalar deps |
+| "Skill timeout" | Tarefa muito longa | Aumentar `timeout` ou dividir em sub-tasks |
+| Taxa de sucesso baixa | Parâmetros inadequados | Revisar config da skill, ajustar sensibilidade |
+| Conflito entre skills | Recursos compartilhados | Usar `execute_chain()` ao invés de paralelo |
+| Skill crashou | Bug na skill | Reportar no app, reverter para versão anterior |
+| Alto uso de CPU | Múltiplas skills paralelas | Limitar execuções simultâneas: `max_concurrent=2` |
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🧠 Aprendizado Contínuo →](./aprendizado-continuo)**
+
+Entenda como MindOn aprende e melhora com experiência.
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 50-70 min | **🎮 Hands-on:** Essencial | **📦 Requisito:** Conta MindOn ativa
