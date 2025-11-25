@@ -7,51 +7,374 @@ description: Coordenar múltiplos robôs
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Multi-Robot Coordination
+# 🤖 Multi-Robot Coordination
 
 :::tip Objetivo
-Coordenar múltiplos robôs com MindOn OS.
+Coordenar múltiplos robôs G1 para executar tarefas colaborativas, gerenciar frotas e implementar comportamentos de enxame.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 Fundamentos da Coordenação Multi-Robot
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+Múltiplos G1s podem trabalhar juntos de forma **coordenada e autônoma**, dividindo tarefas complexas e otimizando eficiência.
 
-### Principais Recursos
+### Arquitetura Multi-Robot
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```
+SISTEMA DE COORDENAÇÃO MINDON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────┐
+│  Fleet Manager (Cloud/Edge)             │
+│  • Task allocation                      │
+│  • Resource optimization                │
+│  • Conflict resolution                  │
+└────────────────┬────────────────────────┘
+                 ↓
+    ┌────────────┼────────────┐
+    ↓            ↓            ↓
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│  G1-A   │←→│  G1-B   │←→│  G1-C   │
+│ (Leader)│  │(Worker1)│  │(Worker2)│
+└─────────┘  └─────────┘  └─────────┘
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 🚀 Fleet Management
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### Inicializar Frota
 
-### Conceitos Importantes
+```python
+from mindon_sdk import FleetManager
 
-Informações práticas sobre uso do MindOn com G1.
+fleet = FleetManager()
+
+# Adicionar robôs à frota
+fleet.add_robot("G1-Alpha", ip="192.168.1.100")
+fleet.add_robot("G1-Beta", ip="192.168.1.101")
+fleet.add_robot("G1-Gamma", ip="192.168.1.102")
+
+# Verificar status da frota
+status = fleet.get_status()
+for robot in status.robots:
+    print(f"{robot.name}: {robot.state} (battery: {robot.battery}%)")
+```
+
+### Delegação de Tarefas
+
+<Tabs>
+<TabItem value="manual" label="Manual">
+
+```python
+# Delegação manual de tarefas
+fleet.assign_task("G1-Alpha", task="patrol", zone="living_room")
+fleet.assign_task("G1-Beta", task="clean", zone="kitchen")
+fleet.assign_task("G1-Gamma", task="monitor", zone="entrance")
+```
+
+</TabItem>
+
+<TabItem value="auto" label="Automática">
+
+```python
+# Delegação automática (otimizada por IA)
+tasks = [
+    {"type": "patrol", "zone": "living_room", "priority": 1},
+    {"type": "clean", "zone": "kitchen", "priority": 2},
+    {"type": "monitor", "zone": "entrance", "priority": 3},
+    {"type": "fetch", "item": "newspaper", "priority": 2}
+]
+
+# MindOn aloca automaticamente baseado em:
+# - Distância do robô à tarefa
+# - Carga da bateria
+# - Habilidades específicas
+# - Prioridade da tarefa
+assignments = fleet.allocate_tasks(tasks, strategy="optimal")
+
+for assignment in assignments:
+    print(f"{assignment.robot} → {assignment.task}")
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
-## ✅ Checklist
+## 🗺️ Mapas Compartilhados
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+### Sincronizar Mapas
+
+```python
+from mindon_sdk import SharedMapping
+
+shared_map = SharedMapping(fleet_id="my_fleet")
+
+# G1-Alpha explora sala
+map_alpha = shared_map.explore("G1-Alpha", room="bedroom")
+
+# Compartilhar com outros robôs
+shared_map.sync_to_fleet(map_alpha)
+
+# Agora G1-Beta e G1-Gamma têm o mapa do quarto
+# sem precisar explorar novamente!
+```
+
+### Mapeamento Colaborativo
+
+```python
+# Múltiplos robôs mapeiam simultaneamente
+mapping_session = shared_map.start_collaborative_mapping(
+    robots=["G1-Alpha", "G1-Beta", "G1-Gamma"],
+    area="entire_house",
+    merge_strategy="consensus"  # ou "primary_robot"
+)
+
+# Aguardar conclusão
+while not mapping_session.is_complete():
+    progress = mapping_session.get_progress()
+    print(f"Mapeamento: {progress}% completo")
+    time.sleep(5)
+
+# Mapa final mesclado de todos os robôs
+final_map = mapping_session.get_merged_map()
+```
+
+---
+
+## 🚧 Prevenção de Colisões
+
+### Zona de Exclusão Dinâmica
+
+```python
+from mindon_sdk import CollisionAvoidance
+
+collision = CollisionAvoidance(fleet)
+
+# Cada robô tem zona de segurança ao redor
+collision.set_safety_zone(
+    radius=1.5,  # metros
+    dynamic=True  # Ajusta baseado em velocidade
+)
+
+# Robôs se evitam automaticamente
+# Se G1-Alpha e G1-Beta estão em rota de colisão:
+# 1. Detectam a 3 metros
+# 2. Negociam quem desvia (baseado em prioridade da tarefa)
+# 3. Um desvia, outro continua
+```
+
+### Semáforos Virtuais
+
+```python
+# Corredores estreitos = semáforo
+collision.add_virtual_semaphore(
+    location="hallway_entrance",
+    width=0.8,  # metros
+    rule="one_at_a_time"
+)
+
+# Quando G1-Alpha entra no corredor:
+# → Semáforo fecha
+# → G1-Beta aguarda na entrada
+# → Quando G1-Alpha sai, semáforo abre
+# → G1-Beta pode entrar
+```
+
+---
+
+## 🤝 Tarefas Colaborativas
+
+### Transporte de Carga Pesada
+
+```python
+# Objeto muito pesado para 1 robô (ex: 8kg)
+heavy_box = vision.detect_object("large_box")
+
+if heavy_box.weight > 3.0:  # kg
+    # Requer 2 robôs
+    collab = fleet.create_collaborative_task(
+        task="bimanual_transport",
+        robots=["G1-Alpha", "G1-Beta"],
+        object=heavy_box,
+        destination="storage_room"
+    )
+
+    # Ambos robôs coordenam:
+    # 1. Aproximam do objeto simultaneamente
+    # 2. Pegam lados opostos
+    # 3. Levantam sincronizadamente
+    # 4. Caminham em formação
+    # 5. Colocam suavemente no destino
+
+    collab.execute()
+```
+
+### Busca Distribuída
+
+```python
+# Encontrar objeto perdido em casa grande
+search_task = fleet.distributed_search(
+    target="remote_control",
+    search_area=["living_room", "bedroom", "office"],
+    robots=["G1-Alpha", "G1-Beta", "G1-Gamma"]
+)
+
+# Cada robô busca em 1 cômodo paralelamente
+# Primeiro que encontrar notifica os outros
+result = search_task.wait_for_completion(timeout=300)
+
+if result.found:
+    print(f"{result.finder} encontrou em {result.location}")
+```
+
+---
+
+## 🐝 Swarm Behaviors
+
+### Formação de Patrulha
+
+```python
+from mindon_sdk import SwarmBehavior
+
+swarm = SwarmBehavior(fleet)
+
+# Patrulha em formação triangular
+swarm.create_formation(
+    type="triangle",
+    leader="G1-Alpha",
+    followers=["G1-Beta", "G1-Gamma"],
+    spacing=2.0  # metros entre robôs
+)
+
+# Iniciar patrulha
+swarm.start_patrol(
+    waypoints=["entrance", "living_room", "kitchen", "bedroom"],
+    maintain_formation=True,
+    speed=0.5  # m/s
+)
+
+# Robôs mantêm formação mesmo ao virar esquinas!
+```
+
+### Reação de Enxame
+
+```python
+# Se um robô detecta intruso, todos respondem
+swarm.enable_group_response(
+    trigger="intruder_detected",
+    action="converge_and_surround",
+    max_distance=10.0  # Apenas robôs a <10m respondem
+)
+
+# Exemplo: G1-Beta detecta intruso
+# → G1-Alpha e G1-Gamma navegam para ajudar
+# → Formam círculo ao redor do intruso
+# → Enviam alerta ao dono
+```
+
+---
+
+## 📊 Monitoramento de Frota
+
+### Dashboard de Status
+
+```python
+# Obter métricas da frota
+metrics = fleet.get_metrics()
+
+print(f"Robôs ativos: {metrics.active_robots}/{metrics.total_robots}")
+print(f"Tarefas em andamento: {metrics.tasks_in_progress}")
+print(f"Bateria média: {metrics.avg_battery}%")
+print(f"Eficiência: {metrics.efficiency_score}/100")
+
+# Alertas
+for alert in metrics.alerts:
+    print(f"⚠️ {alert.robot}: {alert.message}")
+```
+
+### Analytics
+
+```python
+# Análise de desempenho da frota
+analytics = fleet.get_analytics(period="last_7_days")
+
+print(f"Total de tarefas: {analytics.total_tasks}")
+print(f"Taxa de sucesso: {analytics.success_rate}%")
+print(f"Tempo médio por tarefa: {analytics.avg_task_time} min")
+
+# Robô mais eficiente
+best = analytics.top_performer
+print(f"Melhor robô: {best.name} ({best.score} pontos)")
+```
+
+---
+
+## 🔧 Configurações Avançadas
+
+### Load Balancing
+
+```python
+# Distribuir carga uniformemente
+fleet.enable_load_balancing(
+    strategy="equal_workload",  # ou "battery_aware"
+    rebalance_interval=300  # segundos
+)
+
+# Se G1-Alpha tem 5 tarefas e G1-Beta tem 1:
+# → Sistema transfere 2 tarefas de Alpha para Beta
+```
+
+### Hierarquia de Comando
+
+```python
+# Definir líder da frota
+fleet.set_leader("G1-Alpha")
+
+# Líder tem privilégios:
+# - Resolver conflitos entre robôs
+# - Reprovar decisões
+# - Assumir tarefas críticas prioritariamente
+
+# Sucessão automática se líder ficar offline
+fleet.set_succession_order(["G1-Beta", "G1-Gamma"])
+```
+
+---
+
+## ✅ Checklist Multi-Robot
+
+- [ ] Adicionou 2+ robôs à frota
+- [ ] Testou delegação automática de tarefas
+- [ ] Sincronizou mapas entre robôs
+- [ ] Validou prevenção de colisões
+- [ ] Executou tarefa colaborativa (transporte)
+- [ ] Testou busca distribuída
+- [ ] Criou formação de patrulha
+- [ ] Monitorou métricas da frota
+
+---
+
+## 🐛 Troubleshooting
+
+| Problema | Solução |
+|----------|---------|
+| Robôs colidem | Aumentar `safety_zone` radius para 2.0m |
+| Tarefas mal distribuídas | Usar `strategy="battery_aware"` |
+| Mapas não sincronizam | Verificar conectividade WiFi entre robôs |
+| Formação se quebra | Reduzir velocidade de patrulha |
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[⚙️ Custom Skills →](./custom-skills)**
+
+Aprenda a criar suas próprias habilidades personalizadas para MindOn!
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 60-90 min | **🤖 Requisito:** 2+ G1s | **🧠 Nível:** Avançado

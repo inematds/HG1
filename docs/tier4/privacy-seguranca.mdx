@@ -1,57 +1,582 @@
 ---
 sidebar_position: 9
 title: 9. Privacy e Segurança
-description: Proteção de dados
+description: Proteção de dados e segurança
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Privacy e Segurança
+# 🔒 Privacy e Segurança
 
 :::tip Objetivo
-Proteção de dados com MindOn OS.
+Entender e implementar práticas de proteção de dados, criptografia e segurança para garantir privacidade total no uso do MindOn.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🛡️ Fundamentos de Segurança
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+O **MindOn** foi projetado com **privacy-by-design**, garantindo que seus dados permaneçam sob seu controle.
 
-### Principais Recursos
+### Princípios Core
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```
+CAMADAS DE SEGURANÇA MINDON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────┐
+│  1. Data Encryption (E2E + At-Rest)     │
+│     AES-256 + TLS 1.3                   │
+└────────────────┬────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────┐
+│  2. Local Processing First              │
+│     80% tarefas rodadas on-device       │
+└────────────────┬────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────┐
+│  3. Access Control & Authentication     │
+│     Biometrics + 2FA                    │
+└────────────────┬────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────┐
+│  4. Audit Logs & Transparency           │
+│     Todas ações registradas             │
+└─────────────────────────────────────────┘
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 🔐 Criptografia de Dados
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### End-to-End Encryption
 
-### Conceitos Importantes
+<Tabs>
+<TabItem value="commands" label="Comandos">
 
-Informações práticas sobre uso do MindOn com G1.
+```python
+from mindon_sdk import Security
+
+security = Security()
+
+# Habilitar E2E encryption para comandos de voz
+security.enable_voice_encryption(
+    algorithm="AES-256-GCM",
+    key_rotation_days=90
+)
+
+# Verificar status
+status = security.get_encryption_status()
+print(f"Voice E2E: {status.voice_encrypted}")
+print(f"Video E2E: {status.video_encrypted}")
+print(f"Key Age: {status.key_age_days} days")
+```
+
+</TabItem>
+
+<TabItem value="video" label="Vídeo">
+
+```python
+# Criptografar streams de vídeo
+security.enable_video_encryption(
+    streams=["living_room_cam", "kitchen_cam"],
+    algorithm="ChaCha20-Poly1305",
+    quality="high"  # Balance entre qualidade e latência
+)
+
+# Vídeo nunca é armazenado descriptografado
+# Apenas você com sua chave pode assistir
+```
+
+</TabItem>
+
+<TabItem value="storage" label="Armazenamento">
+
+```python
+# Encryption at rest para dados no G1
+security.enable_storage_encryption(
+    filesystem="/data/mindon",
+    algorithm="AES-256-XTS",
+    key_source="tpm"  # Trusted Platform Module
+)
+
+# Mapas, fotos, logs - tudo criptografado
+# Se alguém roubar o robô, dados inacessíveis
+```
+
+</TabItem>
+</Tabs>
+
+### Gerenciamento de Chaves
+
+```python
+# Rotação automática de chaves
+security.set_key_rotation_policy(
+    voice_keys_days=90,
+    video_keys_days=30,
+    storage_keys_days=365,
+    auto_rotate=True
+)
+
+# Backup seguro de chaves
+# IMPORTANTE: Guarde em local seguro!
+backup = security.backup_keys(
+    output="/secure/usb/mindon_keys.enc",
+    password="sua_senha_forte_aqui"
+)
+
+# Restaurar chaves
+security.restore_keys(
+    backup_file="/secure/usb/mindon_keys.enc",
+    password="sua_senha_forte_aqui"
+)
+```
 
 ---
 
-## ✅ Checklist
+## 🏠 Processamento Local vs Cloud
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+### Configurar Privacy Mode
+
+```python
+from mindon_sdk import PrivacyManager
+
+privacy = PrivacyManager()
+
+# Modo 1: LOCAL ONLY (máxima privacidade)
+privacy.set_processing_mode("local_only")
+# → Tudo roda on-device (LLM 8B, visão local)
+# → Nada enviado para cloud
+# → Funciona sem internet
+
+# Modo 2: HYBRID (recomendado)
+privacy.set_processing_mode("hybrid")
+privacy.set_cloud_triggers(
+    complex_reasoning=True,  # Usa LLM 70B na cloud
+    face_recognition=False,  # Sempre local
+    voice_synthesis=False,   # Sempre local
+    object_detection=False   # Sempre local
+)
+
+# Modo 3: CLOUD FIRST (máxima performance)
+privacy.set_processing_mode("cloud_first")
+# → Prioriza cloud para tarefas complexas
+# → Ainda criptografa tudo E2E
+```
+
+### Audit de Dados Enviados
+
+```python
+# Ver exatamente o que foi para cloud
+audit = privacy.get_cloud_usage_report(period="last_30_days")
+
+print(f"Total requests: {audit.total_requests}")
+print(f"Data sent: {audit.data_sent_mb} MB")
+print(f"Data received: {audit.data_received_mb} MB")
+
+# Breakdown por tipo
+for category in audit.categories:
+    print(f"{category.name}: {category.requests} requests")
+    # Ex: "Complex reasoning: 45 requests"
+
+# Ver payloads específicos (descriptografados)
+for request in audit.requests[:5]:
+    print(f"[{request.timestamp}] {request.type}")
+    print(f"Payload size: {request.size_kb} KB")
+```
+
+---
+
+## 🔍 Compliance e Regulamentações
+
+### GDPR/LGPD Compliance
+
+```python
+from mindon_sdk import ComplianceManager
+
+compliance = ComplianceManager()
+
+# Configurar retenção de dados (GDPR Art. 17)
+compliance.set_data_retention(
+    voice_commands_days=90,
+    photos_days=365,
+    maps_days=730,  # 2 anos
+    logs_days=30,
+    auto_delete=True
+)
+
+# Direito de acesso (GDPR Art. 15)
+data_export = compliance.export_user_data(
+    format="json",  # ou "csv" ou "pdf"
+    include_metadata=True,
+    include_raw_data=True
+)
+# → Gera arquivo com TODOS seus dados
+
+# Direito ao esquecimento (GDPR Art. 17)
+compliance.delete_all_user_data(
+    confirm=True,
+    secure_wipe=True  # Overwrite com zeros
+)
+```
+
+### Consentimentos
+
+```python
+# Gerenciar consentimentos granulares
+consent = compliance.get_consent_manager()
+
+# Listar permissões atuais
+permissions = consent.get_all_permissions()
+for perm in permissions:
+    print(f"{perm.name}: {perm.granted}")
+
+# Revogar permissão específica
+consent.revoke_permission("voice_data_analytics")
+consent.revoke_permission("usage_telemetry")
+
+# Grant nova permissão
+consent.grant_permission(
+    permission="camera_access",
+    purpose="Object recognition for task automation",
+    expires_days=365
+)
+```
+
+---
+
+## 👤 Autenticação e Controle de Acesso
+
+### Multi-Factor Authentication
+
+<Tabs>
+<TabItem value="biometric" label="Biometria">
+
+```python
+from mindon_sdk import Authentication
+
+auth = Authentication()
+
+# Face recognition
+auth.enable_face_unlock(
+    min_confidence=0.95,
+    liveness_detection=True,  # Previne fotos
+    max_attempts=3
+)
+
+# Adicionar faces autorizadas
+auth.enroll_face(
+    user="João Silva",
+    role="owner",  # ou "family" ou "guest"
+    photos=["face1.jpg", "face2.jpg", "face3.jpg"]
+)
+
+# Voice biometrics
+auth.enable_voice_unlock(
+    passphrase="Hey MindOn, sou eu",
+    min_confidence=0.90
+)
+```
+
+</TabItem>
+
+<TabItem value="2fa" label="2FA">
+
+```python
+# Habilitar 2FA para comandos sensíveis
+auth.enable_2fa(
+    method="totp",  # Time-based One-Time Password
+    app="Google Authenticator"
+)
+
+# Comandos que requerem 2FA
+auth.require_2fa_for([
+    "delete_all_data",
+    "factory_reset",
+    "share_access",
+    "disable_encryption"
+])
+
+# Usar 2FA em comando
+result = auth.execute_protected_command(
+    command="factory_reset",
+    totp_code="123456"
+)
+```
+
+</TabItem>
+
+<TabItem value="roles" label="Papéis">
+
+```python
+# Sistema de papéis (RBAC)
+auth.create_role("guest", permissions=[
+    "voice_commands_basic",
+    "view_cameras",
+    "control_lights"
+])
+
+auth.create_role("family", permissions=[
+    "voice_commands_all",
+    "view_cameras",
+    "control_all_devices",
+    "create_routines"
+])
+
+auth.create_role("owner", permissions=[
+    "*"  # Todas permissões
+])
+
+# Atribuir papel a usuário
+auth.assign_role(user="Maria Silva", role="family")
+auth.assign_role(user="Visitante", role="guest")
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## 📹 Privacy para Câmeras
+
+### Zonas de Privacidade
+
+```python
+from mindon_sdk import CameraPrivacy
+
+cam_privacy = CameraPrivacy()
+
+# Definir áreas que nunca devem ser gravadas
+cam_privacy.add_privacy_zone(
+    camera="living_room",
+    zone_name="bathroom_area",
+    coordinates=[(x1, y1), (x2, y2), (x3, y3), (x4, y4)],
+    blur_type="pixelate"  # ou "blackout"
+)
+
+# Detectar faces e borrar automaticamente
+cam_privacy.enable_face_blur(
+    cameras=["all"],
+    except_authorized=True,  # Não borrar faces cadastradas
+    blur_strength=10
+)
+
+# Desabilitar câmeras em horários
+cam_privacy.set_schedule(
+    camera="bedroom",
+    enabled_hours="08:00-22:00",  # Desligada 22h-8h
+    days=["mon", "tue", "wed", "thu", "fri"]
+)
+```
+
+### Indicador Visual de Gravação
+
+```python
+# LED vermelho quando câmera ativa
+cam_privacy.enable_recording_indicator(
+    indicator="led_red",
+    always_on_when_recording=True,
+    disable_stealth_mode=True  # Não permite gravação oculta
+)
+
+# Notificar quando alguém acessa câmera
+cam_privacy.set_access_notifications(
+    notify_on_live_view=True,
+    notify_on_recording=True,
+    notification_method=["app", "email"]
+)
+```
+
+---
+
+## 🌐 Segurança de Rede
+
+### Configuração Segura
+
+```python
+from mindon_sdk import NetworkSecurity
+
+net_sec = NetworkSecurity()
+
+# Habilitar firewall do G1
+net_sec.enable_firewall(
+    allow_inbound=[],  # Nenhuma conexão externa
+    allow_outbound=["mindon_cloud", "firmware_updates"],
+    block_p2p=True  # Bloqueia P2P direto
+)
+
+# VPN para acesso remoto
+net_sec.setup_vpn(
+    provider="WireGuard",
+    server="your_vpn_server.com",
+    auto_connect=True
+)
+
+# Monitorar conexões ativas
+connections = net_sec.get_active_connections()
+for conn in connections:
+    print(f"{conn.remote_ip}:{conn.port} → {conn.service}")
+```
+
+### Atualizações Seguras
+
+```python
+# Verificar integridade de updates
+net_sec.enable_update_verification(
+    check_signature=True,
+    trusted_sources_only=True,
+    auto_rollback_on_failure=True
+)
+
+# Agendar updates para horário específico
+net_sec.set_update_schedule(
+    day="sunday",
+    time="03:00",
+    max_downtime_minutes=30
+)
+```
+
+---
+
+## 📊 Audit Logs e Transparência
+
+### Logs de Atividade
+
+```python
+from mindon_sdk import AuditLogger
+
+audit = AuditLogger()
+
+# Visualizar últimas ações
+logs = audit.get_logs(
+    start_date="2025-01-01",
+    end_date="2025-01-31",
+    categories=["data_access", "user_commands", "system_changes"]
+)
+
+for log in logs[-10:]:  # Últimas 10 ações
+    print(f"[{log.timestamp}] {log.user}: {log.action}")
+    # Ex: "[2025-01-15 14:32] João: Executed skill 'clean_kitchen'"
+
+# Exportar logs para análise externa
+audit.export_logs(
+    output="/secure/audit_jan2025.json",
+    format="json",
+    include_system_logs=True
+)
+```
+
+### Transparency Dashboard
+
+```python
+# Dashboard de transparência
+transparency = audit.get_transparency_report()
+
+print("=== MINDON TRANSPARENCY REPORT ===")
+print(f"Voice commands processed: {transparency.voice_commands_total}")
+print(f"  - Local: {transparency.voice_local} ({transparency.voice_local_pct}%)")
+print(f"  - Cloud: {transparency.voice_cloud} ({transparency.voice_cloud_pct}%)")
+print(f"\nData collected:")
+print(f"  - Photos taken: {transparency.photos_taken}")
+print(f"  - Videos recorded: {transparency.videos_recorded}")
+print(f"  - Audio recordings: {transparency.audio_recordings}")
+print(f"\nData shared:")
+print(f"  - With cloud: {transparency.data_to_cloud_mb} MB")
+print(f"  - With third-parties: {transparency.data_to_third_parties_mb} MB")
+```
+
+---
+
+## 🚨 Detecção de Anomalias
+
+### Monitoramento de Segurança
+
+```python
+from mindon_sdk import SecurityMonitor
+
+monitor = SecurityMonitor()
+
+# Habilitar detecção de comportamento anômalo
+monitor.enable_anomaly_detection(
+    sensitivity="high",  # "low", "medium", "high"
+    alert_on=[
+        "unauthorized_access_attempt",
+        "unusual_data_transfer",
+        "configuration_change",
+        "new_device_connected"
+    ]
+)
+
+# Receber alertas
+alerts = monitor.get_recent_alerts(hours=24)
+for alert in alerts:
+    print(f"⚠️ [{alert.severity}] {alert.message}")
+    print(f"   Action: {alert.recommended_action}")
+    # Ex: "⚠️ [HIGH] Unauthorized face detected
+    #      Action: Review camera footage"
+```
+
+---
+
+## ✅ Checklist de Segurança
+
+### Setup Inicial
+
+- [ ] Habilitar criptografia E2E (voz, vídeo, armazenamento)
+- [ ] Configurar Privacy Mode (local_only ou hybrid)
+- [ ] Habilitar face/voice unlock
+- [ ] Configurar 2FA para comandos sensíveis
+- [ ] Definir papéis e permissões (owner, family, guest)
+- [ ] Adicionar zonas de privacidade para câmeras
+- [ ] Habilitar firewall e VPN
+- [ ] Configurar retenção de dados (GDPR/LGPD)
+
+### Manutenção Regular
+
+- [ ] Revisar audit logs mensalmente
+- [ ] Verificar permissões de usuários
+- [ ] Atualizar firmware de segurança
+- [ ] Rotacionar chaves de criptografia
+- [ ] Backup seguro de chaves
+- [ ] Revisar transparency report
+- [ ] Testar procedimento de recovery
+
+---
+
+## 🐛 Troubleshooting
+
+| Problema | Solução |
+|----------|---------|
+| "Encryption failed" | Verificar espaço em disco (min 2GB livre) |
+| Face unlock não funciona | Re-enroll com 5+ fotos em diferentes iluminações |
+| 2FA perdido | Usar códigos de backup salvos no setup |
+| Logs muito grandes | Reduzir retenção: `compliance.set_data_retention(logs_days=7)` |
+| Cloud usage alto | Mudar para `privacy.set_processing_mode("local_only")` |
+
+---
+
+## 📋 Best Practices
+
+### Recomendações de Ouro
+
+1. **Criptografia Always On**: Nunca desabilite E2E encryption
+2. **Local First**: Configure hybrid mode com preferência local
+3. **Minimize Retention**: Mantenha apenas dados necessários (30-90 dias)
+4. **Regular Audits**: Revise logs e transparency reports mensalmente
+5. **Strong Auth**: Use face + 2FA para comandos críticos
+6. **Network Isolation**: Coloque G1 em VLAN separada se possível
+7. **Backup Keys**: Guarde backup de chaves criptográficas em local seguro físico
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🏆 Casos de Uso Avançados →](./casos-uso-avancados)**
+
+Descubra aplicações reais e avançadas do MindOn em diversos cenários!
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 60 min | **🔒 Requisito:** Conta MindOn Pro | **🧠 Nível:** Intermediário

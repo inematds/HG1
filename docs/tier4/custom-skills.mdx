@@ -7,51 +7,426 @@ description: Criar habilidades customizadas
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# 🧠 Custom Skills
+# ⚙️ Custom Skills
 
 :::tip Objetivo
-Criar habilidades customizadas com MindOn OS.
+Criar, testar e publicar suas próprias habilidades (skills) personalizadas para estender as capacidades do MindOn.
 :::
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 MindOn SDK Overview
 
-MindOn transforma robôs em assistentes autônomos inteligentes usando IA de última geração.
+O **MindOn SDK** permite criar skills customizadas usando Python para adicionar novas funcionalidades ao seu G1.
 
-### Principais Recursos
+### Anatomia de uma Skill
 
-- Compreensão de linguagem natural (10+ idiomas)
-- Aprendizado contínuo com experiência
-- Integração com smart home (Matter/HomeKit)
-- Skills customizáveis
+```python
+# my_custom_skill.py
+from mindon_sdk import Skill, SkillParameter
+
+class MyCustomSkill(Skill):
+    # Metadados da skill
+    name = "my_custom_skill"
+    description = "Descrição da minha skill customizada"
+    version = "1.0.0"
+    author = "Seu Nome"
+    category = "utility"  # ou navigation, manipulation, etc
+
+    # Parâmetros que a skill aceita
+    parameters = [
+        SkillParameter("target", type="string", required=True),
+        SkillParameter("speed", type="float", default=0.5)
+    ]
+
+    def execute(self, target, speed=0.5):
+        """Lógica principal da skill"""
+        self.log(f"Executando skill para: {target}")
+
+        # Sua implementação aqui
+        result = self.do_something(target, speed)
+
+        return {"success": True, "result": result}
+
+    def do_something(self, target, speed):
+        # Implementação específica
+        pass
+```
 
 ---
 
-## 📚 Conteúdo Principal
+## 🚀 Criar Sua Primeira Skill
 
-[Módulo em desenvolvimento - conteúdo detalhado será adicionado em futuras versões]
+### Exemplo: Skill de Inspeção
 
-### Conceitos Importantes
+```python
+from mindon_sdk import Skill, SkillParameter
+from mindon_sdk import Vision, Navigation, Voice
 
-Informações práticas sobre uso do MindOn com G1.
+class InspectionSkill(Skill):
+    """Navega até um local e tira fotos de múltiplos ângulos"""
+
+    name = "inspect_location"
+    description = "Navega e captura fotos 360° de um local"
+    version = "1.0.0"
+    category = "utility"
+
+    parameters = [
+        SkillParameter("location", type="string", required=True),
+        SkillParameter("num_angles", type="int", default=4),
+        SkillParameter("save_to", type="string", default="/photos")
+    ]
+
+    def __init__(self):
+        self.vision = Vision()
+        self.nav = Navigation()
+        self.voice = Voice()
+
+    def execute(self, location, num_angles=4, save_to="/photos"):
+        # 1. Navegar para local
+        self.voice.speak(f"Navegando para {location}")
+        if not self.nav.go_to(location):
+            return {"success": False, "error": "Navegação falhou"}
+
+        # 2. Tirar fotos em diferentes ângulos
+        photos = []
+        angle_step = 360 / num_angles
+
+        for i in range(num_angles):
+            # Rotacionar
+            self.nav.rotate(angle_step)
+
+            # Capturar foto
+            photo = self.vision.take_photo()
+            photo_path = f"{save_to}/inspection_{location}_{i}.jpg"
+            self.vision.save_photo(photo, photo_path)
+            photos.append(photo_path)
+
+            self.log(f"Foto {i+1}/{num_angles} capturada")
+
+        # 3. Retornar à base
+        self.nav.go_to("home")
+        self.voice.speak(f"Inspeção de {location} completa. {num_angles} fotos capturadas.")
+
+        return {
+            "success": True,
+            "photos": photos,
+            "location": location
+        }
+```
 
 ---
 
-## ✅ Checklist
+## 📝 Manifest da Skill
 
-- [ ] Compreendeu conceitos principais
-- [ ] Testou funcionalidades básicas
-- [ ] Pronto para próximo módulo
+Toda skill precisa de um arquivo `manifest.json`:
+
+```json
+{
+  "name": "inspect_location",
+  "version": "1.0.0",
+  "author": "Seu Nome",
+  "author_email": "seu@email.com",
+  "description": "Navega e captura fotos 360° de um local",
+  "category": "utility",
+  "tags": ["navigation", "vision", "inspection"],
+  "license": "MIT",
+  "min_mindon_version": "1.2.0",
+  "dependencies": [],
+  "parameters": [
+    {
+      "name": "location",
+      "type": "string",
+      "required": true,
+      "description": "Nome do local para inspecionar"
+    },
+    {
+      "name": "num_angles",
+      "type": "int",
+      "default": 4,
+      "description": "Número de ângulos para fotografar"
+    }
+  ],
+  "permissions": [
+    "navigation",
+    "vision",
+    "voice"
+  ]
+}
+```
+
+---
+
+## 🧪 Testar Custom Skill
+
+### Teste Local
+
+```python
+# test_inspection_skill.py
+from inspection_skill import InspectionSkill
+
+# Criar instância da skill
+skill = InspectionSkill()
+
+# Testar com parâmetros
+result = skill.execute(
+    location="kitchen",
+    num_angles=8,
+    save_to="/tmp/test_photos"
+)
+
+# Verificar resultado
+assert result["success"] == True
+assert len(result["photos"]) == 8
+print("✅ Teste passou!")
+```
+
+### Teste no G1
+
+```bash
+# Instalar skill localmente no G1
+mindon-cli skill install ./my_inspection_skill --dev
+
+# Testar via comando de voz
+"Hey MindOn, execute inspect location kitchen"
+
+# Ver logs em tempo real
+mindon-cli skill logs inspect_location --follow
+```
+
+---
+
+## 📦 Publicar na Marketplace
+
+### Preparar para Publicação
+
+<Tabs>
+<TabItem value="structure" label="Estrutura">
+
+```
+my_inspection_skill/
+├── skill.py              # Código principal
+├── manifest.json         # Metadados
+├── README.md            # Documentação
+├── requirements.txt     # Dependências Python
+├── tests/
+│   └── test_skill.py    # Testes unitários
+├── examples/
+│   └── example_usage.py # Exemplos de uso
+└── LICENSE              # Licença (MIT, Apache, etc)
+```
+
+</TabItem>
+
+<TabItem value="readme" label="README">
+
+```markdown
+# Inspection Location Skill
+
+Navega até um local específico e captura fotos de múltiplos ângulos.
+
+## Instalação
+
+\`\`\`bash
+mindon-cli skill install inspect_location
+\`\`\`
+
+## Uso
+
+### Via Voz
+\`\`\`
+"Hey MindOn, inspect kitchen"
+"Hey MindOn, inspect living room with 8 angles"
+\`\`\`
+
+### Via Código
+\`\`\`python
+from mindon_sdk import SkillExecutor
+
+executor = SkillExecutor()
+result = executor.run("inspect_location", {
+    "location": "bedroom",
+    "num_angles": 6
+})
+\`\`\`
+
+## Parâmetros
+
+- `location` (string, obrigatório): Nome do local
+- `num_angles` (int, opcional): Número de ângulos (default: 4)
+- `save_to` (string, opcional): Diretório para salvar fotos
+
+## Licença
+
+MIT
+```
+
+</TabItem>
+</Tabs>
+
+### Upload para Marketplace
+
+```bash
+# 1. Login na conta MindOn
+mindon-cli login
+
+# 2. Validar skill
+mindon-cli skill validate ./my_inspection_skill
+
+# 3. Publicar
+mindon-cli skill publish ./my_inspection_skill \
+  --category utility \
+  --price free  # ou valor em USD
+
+# 4. Aguardar aprovação (1-3 dias)
+```
+
+---
+
+## 🔧 Skills Avançadas
+
+### Skill com Machine Learning
+
+```python
+from mindon_sdk import Skill, MLModel
+
+class ObjectClassifierSkill(Skill):
+    name = "classify_object"
+    description = "Classifica objetos usando ML customizado"
+
+    def __init__(self):
+        # Carregar modelo treinado
+        self.model = MLModel.load("my_model.pth")
+        self.vision = Vision()
+
+    def execute(self, confidence_threshold=0.8):
+        # Capturar imagem
+        image = self.vision.get_rgb_frame()
+
+        # Inferência
+        predictions = self.model.predict(image)
+
+        # Filtrar por confiança
+        results = [
+            p for p in predictions
+            if p.confidence >= confidence_threshold
+        ]
+
+        return {"objects": results}
+```
+
+### Skill com External API
+
+```python
+import requests
+from mindon_sdk import Skill
+
+class WeatherSkill(Skill):
+    name = "get_weather"
+    description = "Busca previsão do tempo via API"
+
+    def execute(self, city="São Paulo"):
+        # Chamar API externa
+        api_key = self.get_config("openweather_api_key")
+        url = f"https://api.openweathermap.org/data/2.5/weather"
+
+        response = requests.get(url, params={
+            "q": city,
+            "appid": api_key,
+            "units": "metric",
+            "lang": "pt_br"
+        })
+
+        if response.status_code == 200:
+            data = response.json()
+            temp = data["main"]["temp"]
+            desc = data["weather"][0]["description"]
+
+            self.voice.speak(
+                f"Em {city}, está fazendo {temp}°C, {desc}"
+            )
+
+            return {"success": True, "temperature": temp}
+        else:
+            return {"success": False, "error": "API falhou"}
+```
+
+---
+
+## 📊 Monetização
+
+### Pricing Models
+
+```python
+# No manifest.json
+{
+  "pricing": {
+    "model": "one_time",  # ou "subscription" ou "usage_based"
+    "price": 4.99,        # USD
+    "currency": "USD",
+    "trial_days": 7       # Período de teste grátis
+  }
+}
+```
+
+### Analytics de Uso
+
+```bash
+# Ver estatísticas da sua skill publicada
+mindon-cli skill stats inspect_location
+
+# Saída:
+# Total installs: 1,247
+# Active users: 892
+# Avg rating: 4.7/5.0
+# Revenue (last 30d): $312.45
+```
+
+---
+
+## ✅ Checklist de Desenvolvimento
+
+- [ ] Skill implementada e testada localmente
+- [ ] Manifest.json completo
+- [ ] README com documentação clara
+- [ ] Testes unitários criados
+- [ ] Exemplos de uso incluídos
+- [ ] Validação passou (mindon-cli skill validate)
+- [ ] Publicada na marketplace
+- [ ] Testada por usuários beta
+
+---
+
+## 🐛 Debugging
+
+```python
+# Habilitar logs detalhados na skill
+class MySkill(Skill):
+    debug = True  # Logs verbosos
+
+    def execute(self, param):
+        self.log("Iniciando execução", level="INFO")
+        self.log(f"Parâmetro recebido: {param}", level="DEBUG")
+
+        try:
+            result = self.do_work(param)
+        except Exception as e:
+            self.log(f"Erro: {e}", level="ERROR")
+            return {"success": False, "error": str(e)}
+
+        return {"success": True, "result": result}
+```
 
 ---
 
 ## 🔗 Próximos Passos
 
-:::tip
-Continue para próximo módulo →
+:::tip Próximo Módulo
+**[🔒 Privacy e Segurança →](./privacy-seguranca)**
+
+Aprenda sobre proteção de dados e segurança no MindOn!
 :::
 
 ---
 
-**⏱️ Tempo:** 30-40 min | **🧠 Nível:** Intermediário-Avançado
+**⏱️ Tempo:** 90-120 min | **💻 Requisito:** Python 3.8+ | **🧠 Nível:** Avançado
